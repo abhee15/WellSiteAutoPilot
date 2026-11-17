@@ -148,6 +148,12 @@ internal static class GuidedContractDraftChecks
         Assert(Reason(Input("PumpFillage", "History")) == GuidedInputSupport.AccessUnsupported, "A non-current access mode was not named.");
         Assert(Reason(Input("PumpFillage", capability: "structured.current")) == GuidedInputSupport.CapabilityUnsupported, "A wrong capability was not named.");
         Assert(Reason(Input("PumpFillage", type: "string")) == GuidedInputSupport.ValueTypeUnsupported, "A wrong value type was not named.");
+        var cards = new LogicDataRequirement("cards", "well", ForeSiteSurfaceCard.Quantity, "Current", null, 60, false,
+            new(ForeSiteSurfaceCard.SchemaId, Json(ForeSiteSurfaceCard.JsonSchema)), AdapterReadRules.StructuredCurrentCapability);
+        Assert(Reason(cards) is null, "A structured card input the provider registers was reported unsupported.");
+        Assert(Reason(cards with { ValueSchema = new("authoring.cards/v1", cards.ValueSchema!.Schema) }) == GuidedInputSupport.QuantityUnregistered,
+            "A structured input with a schema id the provider does not register was accepted.");
+        Assert(Reason(cards, "cygnet") == GuidedInputSupport.QuantityUnregistered, "Cards were accepted on a connection that does not serve them.");
         Assert(GuidedInputSupport.UnsupportedReason("cygnet", "foresite", AdapterReadRules.Find("foresite")!.ResourceKind, Input("PumpFillage")) == GuidedInputSupport.AdapterMismatch,
             "A module pinned to another adapter was not named.");
 

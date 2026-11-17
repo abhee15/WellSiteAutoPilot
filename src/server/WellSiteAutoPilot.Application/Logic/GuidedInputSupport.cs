@@ -28,6 +28,9 @@ public static class GuidedInputSupport
         if (input.ValueSchema is null)
             return rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, null) ? null : QuantityUnregistered;
         if (rule.AllowsScalarCurrentDeclaration(input.Quantity, input.RequiredCapability, RootType(input.ValueSchema))) return null;
+        // A structured declaration is supported when the provider registers that quantity with this exact capability and schema id.
+        if (input.RequiredCapability == AdapterReadRules.StructuredCurrentCapability)
+            return rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.ValueSchema.SchemaId) ? null : QuantityUnregistered;
         if (input.RequiredCapability != AdapterReadRules.EngineeringCurrentCapability) return CapabilityUnsupported;
         if (RootType(input.ValueSchema) != "number") return ValueTypeUnsupported;
         return QuantityUnregistered;

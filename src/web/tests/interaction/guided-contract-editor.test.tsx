@@ -13,8 +13,16 @@ afterEach(cleanup);
 
 vi.mock('../../src/views/adapterOperations', () => ({ loadAdapterOperations: vi.fn() }));
 
-function operation(capabilityId: string, quantity: string, unit: string | null, structuredSchemaId: string | null = null) {
-  return { capability: 'CurrentData', capabilityId, quantity, unit, structuredSchemaId };
+const cardsSchema = '{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}}},"minItems":1}';
+
+function operation(
+  capabilityId: string,
+  quantity: string,
+  unit: string | null,
+  structuredSchemaId: string | null = null,
+  structuredJsonSchema: string | null = null,
+) {
+  return { capability: 'CurrentData', capabilityId, quantity, unit, structuredSchemaId, structuredJsonSchema };
 }
 
 // Two providers that register overlapping scalar readings, plus one structured read that must not become a scalar choice.
@@ -25,13 +33,16 @@ function registerCatalog() {
       displayName: 'ForeSite',
       operations: [
         operation('engineering.current', 'PumpFillage', '%'),
-        operation('structured.current', 'SurfaceCards', null, 'foresite.surface-cards/v1'),
+        operation('structured.current', 'SurfaceCards', null, 'foresite.surface-cards/v1', cardsSchema),
       ],
     },
     {
       adapterKey: 'cygnet',
       displayName: 'CygNet',
-      operations: [operation('engineering.current', 'PumpFillage', '%'), operation('engineering.current', 'CasingPressure', 'psi')],
+      operations: [
+        operation('engineering.current', 'PumpFillage', '%'),
+        operation('engineering.current', 'CasingPressure', 'psi'),
+      ],
     },
   ] as never);
 }
@@ -64,7 +75,9 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
     data: { id: 'contract-1', revision: 1, manifestJson: body.manifestJson },
   })) as never);
-  render(<GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  render(
+    <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
+  );
   startContract();
 
   // No logic exists, so no preview, sample-case or submit affordance is offered.
@@ -152,8 +165,35 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
 
   // After saving, the IDE shows the saved contract read-only and the draft is no longer dirty.
   fireEvent.click(screen.getByRole('tab', { name: 'IDE' }));
-  expect(within(screen.getByRole('region', { name: 'Saved contract (read-only)' })).getByText(/contract\.unset/)).toBeTruthy();
+  expect(
+    within(screen.getByRole('region', { name: 'Saved contract (read-only)' })).getByText(/contract\.unset/),
+  ).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
+});
+
+it("adds a structured input whose schema is the provider's own, not one built by hand", async () => {
+  registerCatalog();
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
+    data: { id: 'contract-cards', revision: 1, manifestJson: body.manifestJson },
+  })) as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  startContract();
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Card check' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Add structured input: SurfaceCards' }));
+
+  // The quantity belongs to the schema, so it cannot be retyped into something the provider does not serve.
+  expect(screen.getByLabelText<HTMLInputElement>('Quantity').disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  const body = vi.mocked(createGuidedModuleDraft).mock.calls.at(-1)![0].body as unknown as { manifestJson: string };
+  expect(JSON.parse(body.manifestJson).dataRequirements).toMatchObject([
+    {
+      quantity: 'SurfaceCards',
+      requiredCapability: 'structured.current',
+      valueSchema: { schemaId: 'foresite.surface-cards/v1', schema: JSON.parse(cardsSchema) },
+    },
+  ]);
 });
 
 it('says when the source catalog is unavailable instead of inventing capabilities', async () => {
@@ -211,7 +251,9 @@ it('saves edits to a reopened contract against its revision and keeps structured
   };
   expect(call.path.id).toBe('contract-2');
   expect(call.body.expectedRevision).toBe(4);
-  const saved = JSON.parse(call.body.manifestJson) as typeof structured & { dataRequirements: { canonicalUnit?: string }[] };
+  const saved = JSON.parse(call.body.manifestJson) as typeof structured & {
+    dataRequirements: { canonicalUnit?: string }[];
+  };
   expect(saved.dataRequirements[0]).toMatchObject({
     canonicalUnit: 'count',
     valueSchema: structured.dataRequirements[0]!.valueSchema,

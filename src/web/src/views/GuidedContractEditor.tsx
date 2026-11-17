@@ -58,7 +58,51 @@ export function sourceOptionsFrom(adapters: readonly AdapterOperationsResponse[]
     .sort((a, b) => a.quantity.localeCompare(b.quantity));
 }
 
-type Catalog = { status: 'loading' } | { status: 'unavailable' } | { status: 'ready'; options: SourceOption[] };
+/** A structured current read a provider registers: the capability, schema id and the exact JSON Schema it serves. */
+export type StructuredOption = { quantity: string; schemaId: string; schema: unknown; adapters: string[] };
+
+const structuredCurrentCapability = 'structured.current';
+
+/** Structured sources come only from the registry, which supplies the provider's own schema verbatim. */
+export function structuredOptionsFrom(adapters: readonly AdapterOperationsResponse[]): StructuredOption[] {
+  const byQuantity = new Map<string, StructuredOption>();
+  for (const adapter of adapters) {
+    const adapterName = adapter.displayName ?? adapter.adapterKey ?? '';
+    for (const operation of adapter.operations ?? []) {
+      if (
+        operation.capability !== 'CurrentData' ||
+        operation.capabilityId !== structuredCurrentCapability ||
+        !operation.quantity ||
+        !operation.structuredSchemaId ||
+        !operation.structuredJsonSchema
+      )
+        continue;
+      let schema: unknown;
+      try {
+        schema = JSON.parse(operation.structuredJsonSchema);
+      } catch {
+        continue;
+      }
+      const existing = byQuantity.get(operation.quantity);
+      if (!existing) {
+        byQuantity.set(operation.quantity, {
+          quantity: operation.quantity,
+          schemaId: operation.structuredSchemaId,
+          schema,
+          adapters: [adapterName],
+        });
+      } else if (existing.schemaId === operation.structuredSchemaId && !existing.adapters.includes(adapterName)) {
+        existing.adapters.push(adapterName);
+      }
+    }
+  }
+  return [...byQuantity.values()].sort((a, b) => a.quantity.localeCompare(b.quantity));
+}
+
+type Catalog =
+  | { status: 'loading' }
+  | { status: 'unavailable' }
+  | { status: 'ready'; options: SourceOption[]; structured: StructuredOption[] };
 
 function isObject(value: unknown): value is Json {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -140,6 +184,23 @@ function nextId(ports: Json[], kind: PortKind): string {
   return kind + '-' + n;
 }
 
+function newStructuredPort(manifest: Json, ports: Json[], option: StructuredOption): Json {
+  const id = nextId(ports, 'input');
+  const roles = Array.isArray(manifest.assetRequirements) ? manifest.assetRequirements.filter(isObject) : [];
+  return {
+    id,
+    assetRole: typeof roles[0]?.role === 'string' ? roles[0].role : 'asset',
+    quantity: option.quantity,
+    access: 'Current',
+    canonicalUnit: null,
+    maximumAgeSeconds: null,
+    allowUncertainQuality: false,
+    // The provider's own schema, so the contract can never drift from what the adapter returns.
+    valueSchema: { schemaId: option.schemaId, schema: option.schema },
+    requiredCapability: structuredCurrentCapability,
+  };
+}
+
 function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
   const id = nextId(ports, kind);
   // Starts empty: a made-up default name could never be saved, so every new port would begin in an error state.
@@ -177,7 +238,12 @@ export function GuidedContractEditor({
     const controller = new AbortController();
     void loadAdapterOperations(controller.signal)
       .then((adapters) => {
-        if (!controller.signal.aborted) setCatalog({ status: 'ready', options: sourceOptionsFrom(adapters) });
+        if (!controller.signal.aborted)
+          setCatalog({
+            status: 'ready',
+            options: sourceOptionsFrom(adapters),
+            structured: structuredOptionsFrom(adapters),
+          });
       })
       .catch(() => {
         if (!controller.signal.aborted) setCatalog({ status: 'unavailable' });
@@ -212,6 +278,12 @@ export function GuidedContractEditor({
     setSelection({ kind: addKind, index: ports.length - 1 });
   }
 
+  function addStructured(option: StructuredOption) {
+    const ports = [...lists.input, newStructuredPort(manifest!, lists.input, option)];
+    commit(withPorts(manifest!, 'input', ports));
+    setSelection({ kind: 'input', index: ports.length - 1 });
+  }
+
   function remove() {
     commit(
       withPorts(
@@ -230,6 +302,7 @@ export function GuidedContractEditor({
   const unitKey = kind === 'input' ? 'canonicalUnit' : 'unit';
   const scalar = port ? scalarTypeOf(port) : null;
   const options = catalog.status === 'ready' ? catalog.options : [];
+  const structuredOptions = catalog.status === 'ready' ? catalog.structured : [];
   const matched = port ? options.find((option) => option.quantity === textValue(port.quantity)) : undefined;
   // Only scalar inputs take their capability from the registry; structured inputs keep what was saved.
   const registryInput = kind === 'input' && scalar !== null;
@@ -281,6 +354,15 @@ export function GuidedContractEditor({
                 disabled={disabled || lists[group].length >= maximumPorts}
                 onClick={() => add(group)}
               />
+              {group === 'input' &&
+                structuredOptions.map((option) => (
+                  <ActionButton
+                    key={option.quantity}
+                    label={t('guided.addStructuredInput', { quantity: option.quantity })}
+                    disabled={disabled || lists.input.length >= maximumPorts}
+                    onClick={() => addStructured(option)}
+                  />
+                ))}
             </section>
           ))}
         </div>
@@ -292,7 +374,7 @@ export function GuidedContractEditor({
                 label={t('guided.portQuantity')}
                 maxLength={128}
                 value={textValue(port.quantity)}
-                disabled={disabled}
+                disabled={disabled || (kind === 'input' && scalar === null)}
                 list={registryInput ? quantityListId : undefined}
                 {...quantityMessage()}
                 onChange={(event) => changeQuantity(event.target.value)}
