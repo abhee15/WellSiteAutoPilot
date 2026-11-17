@@ -54,7 +54,7 @@ export function GuidedLivePreview({
   revision: number;
   inputs?: readonly { id: string; quantity: string }[];
 }) {
-  const [wellPreview, setWellPreview] = useState<AssetPreview | null>(null);
+  const [assetPreview, setAssetPreview] = useState<AssetPreview | null>(null);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<SearchHit[] | null>(null);
   const [more, setMore] = useState(false);
@@ -112,7 +112,7 @@ export function GuidedLivePreview({
     setMatches(null);
     setAssetId('');
     clearCompatibility();
-    setWellPreview(null);
+    setAssetPreview(null);
     try {
       const page = await fetchSearch(query.trim(), pageOffset, controller.signal);
       if (controller.signal.aborted) return;
@@ -131,7 +131,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setWellPreview(null);
+    setAssetPreview(null);
     try {
       const { data } = await previewGuidedModuleWithLiveInputs({
         path: { id: draftId },
@@ -140,7 +140,7 @@ export function GuidedLivePreview({
       });
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
-      setWellPreview({ kind: 'current', data });
+      setAssetPreview({ kind: 'current', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -153,7 +153,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setWellPreview(null);
+    setAssetPreview(null);
     const siteWindow = 'siteWindow' in bounds ? bounds.siteWindow : undefined;
     try {
       const { data, error } = await previewGuidedModuleInputHistory({
@@ -170,16 +170,16 @@ export function GuidedLivePreview({
       if (controller.signal.aborted) return;
       if (error && typeof error === 'object' && 'code' in error) {
         if (error.code === 'GUIDED_HISTORY_SITE_TIME_UNRESOLVED') {
-          setWellPreview({ kind: 'historyTimeError', message: 'guided.siteTimeUnresolved' });
+          setAssetPreview({ kind: 'historyTimeError', message: 'guided.siteTimeUnresolved' });
           return;
         }
         if (error.code === 'GUIDED_HISTORY_SITE_ZONE_INVALID') {
-          setWellPreview({ kind: 'historyTimeError', message: 'guided.siteZoneInvalid' });
+          setAssetPreview({ kind: 'historyTimeError', message: 'guided.siteZoneInvalid' });
           return;
         }
       }
       if (!data) throw new Error();
-      setWellPreview({ kind: 'history', data, siteWindow });
+      setAssetPreview({ kind: 'history', data, siteWindow });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -192,7 +192,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setWellPreview(null);
+    setAssetPreview(null);
     try {
       const { data, error } = await previewGuidedModuleProductionDays({
         path: { id: draftId },
@@ -210,11 +210,11 @@ export function GuidedLivePreview({
         'code' in error &&
         error.code === 'GUIDED_PRODUCTION_DAYS_UNSUPPORTED'
       ) {
-        setWellPreview({ kind: 'unsupported', preview: 'productionDays' });
+        setAssetPreview({ kind: 'unsupported', preview: 'productionDays' });
         return;
       }
       if (!data) throw new Error();
-      setWellPreview({ kind: 'productionDays', data });
+      setAssetPreview({ kind: 'productionDays', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -227,7 +227,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setWellPreview(null);
+    setAssetPreview(null);
     try {
       const { data, error } = await previewGuidedModuleSurfaceCards({
         path: { id: draftId },
@@ -236,11 +236,11 @@ export function GuidedLivePreview({
       });
       if (controller.signal.aborted) return;
       if (error && typeof error === 'object' && 'code' in error && error.code === 'GUIDED_SURFACE_CARDS_UNSUPPORTED') {
-        setWellPreview({ kind: 'unsupported', preview: 'surfaceCards' });
+        setAssetPreview({ kind: 'unsupported', preview: 'surfaceCards' });
         return;
       }
       if (!data) throw new Error();
-      setWellPreview({ kind: 'surfaceCards', data });
+      setAssetPreview({ kind: 'surfaceCards', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -248,11 +248,11 @@ export function GuidedLivePreview({
     }
   }
 
-  const historyResult = wellPreview?.kind === 'history' ? wellPreview : null;
+  const historyResult = assetPreview?.kind === 'history' ? assetPreview : null;
   const history = historyResult?.data;
 
-  const result = wellPreview?.kind === 'current' ? wellPreview.data : null;
-  const productionDays = wellPreview?.kind === 'productionDays' ? wellPreview.data : null;
+  const result = assetPreview?.kind === 'current' ? assetPreview.data : null;
+  const productionDays = assetPreview?.kind === 'productionDays' ? assetPreview.data : null;
 
   return (
     <details>
@@ -277,7 +277,7 @@ export function GuidedLivePreview({
               setMatches(null);
               setAssetId('');
               clearCompatibility();
-              setWellPreview(null);
+              setAssetPreview(null);
               setFailed(false);
             }}
           />
@@ -293,7 +293,7 @@ export function GuidedLivePreview({
                 onChange={(event) => {
                   setAssetId(event.target.value);
                   void checkAsset(event.target.value);
-                  setWellPreview(null);
+                  setAssetPreview(null);
                   setFailed(false);
                 }}
               >
@@ -370,12 +370,12 @@ export function GuidedLivePreview({
             onHistory={(inputId, bounds) => void previewHistory(inputId, bounds)}
             onDaily={(window) => void previewProductionDays(window)}
             onChange={() => {
-              setWellPreview(null);
+              setAssetPreview(null);
               setFailed(false);
             }}
           />
         )}
-        {wellPreview?.kind === 'historyTimeError' && <Notice tone="error">{t(wellPreview.message)}</Notice>}
+        {assetPreview?.kind === 'historyTimeError' && <Notice tone="error">{t(assetPreview.message)}</Notice>}
         {historyResult && history && (
           <div aria-live="polite">
             <p>
@@ -446,14 +446,14 @@ export function GuidedLivePreview({
             </p>
           </div>
         )}
-        {wellPreview?.kind === 'unsupported' && (
+        {assetPreview?.kind === 'unsupported' && (
           <Notice tone="info">
-            {wellPreview.preview === 'productionDays'
+            {assetPreview.preview === 'productionDays'
               ? t('guided.productionDaysUnsupported')
               : t('guided.surfaceCardsUnsupported')}
           </Notice>
         )}
-        {wellPreview?.kind === 'surfaceCards' && <GuidedSurfaceCardsPreview preview={wellPreview.data} />}
+        {assetPreview?.kind === 'surfaceCards' && <GuidedSurfaceCardsPreview preview={assetPreview.data} />}
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
         {result && (
           <Notice tone={result.failureCode ? 'warning' : 'info'}>
