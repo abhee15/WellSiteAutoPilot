@@ -97,7 +97,9 @@ it('keeps draft edits and the selected trace when switching between Workflow and
   const workflow = screen.getByRole('tab', { name: 'Workflow', selected: true });
   const ide = screen.getByRole('tab', { name: 'IDE', selected: false });
   expect(workflow.getAttribute('aria-controls')).toBe(screen.getByRole('tabpanel', { name: 'Workflow' }).id);
-  fireEvent.click(await screen.findByRole('button', { name: 'Shared draft' }));
+  await screen.findByRole('option', { name: 'Shared draft' });
+  expect(screen.queryByRole('button', { name: 'Shared draft' })).toBeNull();
+  fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'editor-draft' } });
   fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
   await screen.findByText('No recommendation');
 
@@ -186,13 +188,14 @@ it('preserves unsaved edits until the author confirms a draft switch', async () 
       <UnsavedChangesPrompt />
     </>,
   );
-  const existing = await screen.findByRole('button', { name: 'Existing draft' });
+  await screen.findByRole('option', { name: 'Existing draft' });
+  const existing = screen.getByLabelText<HTMLSelectElement>('Open draft');
   const name = screen.getByLabelText<HTMLInputElement>('Module name');
   fireEvent.change(name, { target: { value: 'Unsaved module' } });
-  fireEvent.click(existing);
+  fireEvent.change(existing, { target: { value: 'draft-3' } });
   fireEvent.click(screen.getByRole('button', { name: /stay/i }));
   expect(name.value).toBe('Unsaved module');
-  fireEvent.click(existing);
+  fireEvent.change(existing, { target: { value: 'draft-3' } });
   fireEvent.click(screen.getByRole('button', { name: /leave/i }));
   expect(name.value).toBe('Existing draft');
 });
@@ -222,6 +225,7 @@ it('authors paired pressure samples and shows the reviewed differential', async 
     },
   } as never);
   render(<GuidedAuthoringPage canAuthor canReview canApprove={false} onRefresh={async () => {}} />);
+  fireEvent.click(screen.getByText('New module', { selector: 'summary' }));
   fireEvent.click(screen.getByRole('button', { name: 'New pressure differential module' }));
   expect(screen.getByLabelText<HTMLInputElement>('Maximum differential (psi)').value).toBe('150');
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pressure check' } });
@@ -339,7 +343,8 @@ it('previews a saved revision with an imported well without enabling submission'
     render(
       <GuidedAuthoringPage canAuthor canReview={false} canApprove={false} canPreviewLive onRefresh={async () => {}} />,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Live draft' }));
+    await screen.findByRole('option', { name: 'Live draft' });
+    fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'live-draft' } });
     fireEvent.click(screen.getByText('Preview with a live well'));
     fireEvent.change(screen.getByLabelText('Well name or asset ID'), { target: { value: 'well' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find wells' }));
