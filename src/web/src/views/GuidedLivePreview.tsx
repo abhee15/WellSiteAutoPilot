@@ -353,7 +353,7 @@ export function GuidedLivePreview({
                 return (
                   <li key={input.inputId}>
                     {input.quantity} · {t(label)}
-                    {input.status === 'Rejected' && input.reasonCode && <> · {outcomeLabel(input.reasonCode).text}</>}
+                    {input.status !== 'Satisfied' && input.reasonCode && <> · {outcomeLabel(input.reasonCode).text}</>}
                   </li>
                 );
               })}
