@@ -27,7 +27,8 @@ export type SourceOption = { quantity: string; capabilityId: string; unit: strin
 export function sourceOptionsFrom(adapters: readonly AdapterOperationsResponse[]): SourceOption[] {
   const byQuantity = new Map<string, SourceOption & { unitConflict: boolean }>();
   for (const adapter of adapters) {
-    for (const operation of adapter.operations) {
+    const adapterName = adapter.displayName ?? adapter.adapterKey ?? '';
+    for (const operation of adapter.operations ?? []) {
       if (
         operation.capability !== 'CurrentData' ||
         operation.capabilityId !== scalarCurrentCapability ||
@@ -40,14 +41,14 @@ export function sourceOptionsFrom(adapters: readonly AdapterOperationsResponse[]
       if (!existing) {
         byQuantity.set(operation.quantity, {
           quantity: operation.quantity,
-          capabilityId: operation.capabilityId,
+          capabilityId: scalarCurrentCapability,
           unit,
-          adapters: [adapter.displayName],
+          adapters: [adapterName],
           unitConflict: false,
         });
         continue;
       }
-      if (!existing.adapters.includes(adapter.displayName)) existing.adapters.push(adapter.displayName);
+      if (!existing.adapters.includes(adapterName)) existing.adapters.push(adapterName);
       // Providers that disagree on a unit never get a silently chosen one.
       if (existing.unit !== unit) existing.unitConflict = true;
     }
