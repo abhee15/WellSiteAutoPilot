@@ -197,6 +197,9 @@ export function GuidedModuleContract({
   const selectedPorts = selection.kind === 'input' ? contract.inputs : contract.outputs;
   const selectedPort = selectedPorts[selection.index];
   const firstPort = contract.inputs[0] ?? contract.outputs[0];
+  const runtimeLabel = contract.runtime
+    ? t('guided.executionRuntime', { runtime: contract.runtime })
+    : t('guided.executionUnknown');
 
   return (
     <details className="guided-authoring-contract" open={initiallyOpen}>
@@ -214,14 +217,21 @@ export function GuidedModuleContract({
           {showExecutionBoundary && (
             <section className="guided-authoring-execution-boundary" aria-label={t('guided.executionBoundary')}>
               <h4>{t('guided.executionBoundary')}</h4>
-              <p>{contract.runtime ? t('guided.executionRuntime', { runtime: contract.runtime }) : t('guided.executionUnknown')}</p>
-              {contract.moduleId && <p>{contract.moduleId}{contract.version ? ' · ' + contract.version : ''}</p>}
+              <p>{runtimeLabel}</p>
+              {contract.moduleId && (
+                <p>
+                  {contract.moduleId}
+                  {contract.version ? ' · ' + contract.version : ''}
+                </p>
+              )}
               <p>{t('guided.executionOpaque')}</p>
             </section>
           )}
           <ContractPorts ports={contract.outputs} kind="output" selected={selection} onSelect={setSelection} />
         </div>
-        {showExecutionBoundary && <p className="guided-authoring-execution-note">{t('guided.executionUntraced')}</p>}
+        {showExecutionBoundary && (
+          <p className="guided-authoring-execution-note">{t('guided.executionUntraced')}</p>
+        )}
         {(selectedPort ?? firstPort) && <ContractPortDetails port={(selectedPort ?? firstPort)!} />}
       </div>
     </details>
