@@ -600,46 +600,46 @@ export function GuidedAuthoringPage({
                 )}
               </div>
               {!inspectOnly && (
-              <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
-                <PanelHeader title={t('guided.scenarios')} level={3} />
-                <div className="guided-authoring-actions">
-                  <ActionButton
-                    label={t('guided.preview')}
-                    disabled={busy || !draft || dirty}
-                    onClick={() => void run(preview)}
-                  />
-                </div>
-                {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
-                {!dirty &&
-                  evidence.length > 0 &&
-                  (view === 'workflow' ? (
-                    <ul>
-                      {evidence.map((item, index) => (
-                        <li key={index}>
-                          {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <>
-                      <SelectField
-                        label={t('guided.scenario')}
-                        value={scenario}
-                        onChange={(event) => setScenario(Number(event.target.value))}
-                      >
-                        {evidence.map((_, index) => (
-                          <option key={index} value={index}>
-                            {t('guided.scenarioNumber', { number: index + 1 })}
-                          </option>
+                <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
+                  <PanelHeader title={t('guided.scenarios')} level={3} />
+                  <div className="guided-authoring-actions">
+                    <ActionButton
+                      label={t('guided.preview')}
+                      disabled={busy || !draft || dirty}
+                      onClick={() => void run(preview)}
+                    />
+                  </div>
+                  {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
+                  {!dirty &&
+                    evidence.length > 0 &&
+                    (view === 'workflow' ? (
+                      <ul>
+                        {evidence.map((item, index) => (
+                          <li key={index}>
+                            {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
+                          </li>
                         ))}
-                      </SelectField>
-                      <p>
-                        {sampleReading(scenario, evidence[scenario].differentialPsi)} {' · '}{' '}
-                        {sampleResult(evidence[scenario])}
-                      </p>
-                    </>
-                  ))}
-              </section>
+                      </ul>
+                    ) : (
+                      <>
+                        <SelectField
+                          label={t('guided.scenario')}
+                          value={scenario}
+                          onChange={(event) => setScenario(Number(event.target.value))}
+                        >
+                          {evidence.map((_, index) => (
+                            <option key={index} value={index}>
+                              {t('guided.scenarioNumber', { number: index + 1 })}
+                            </option>
+                          ))}
+                        </SelectField>
+                        <p>
+                          {sampleReading(scenario, evidence[scenario].differentialPsi)} {' · '}{' '}
+                          {sampleResult(evidence[scenario])}
+                        </p>
+                      </>
+                    ))}
+                </section>
               )}
             </div>
             {submittedReference && (
