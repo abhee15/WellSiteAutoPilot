@@ -245,6 +245,25 @@
   }
 }
 
+/* Complex contracts have no executable sample cases in the guided editor.
+   Reuse the existing single-pane layout without reserving an empty test column. */
+.guided-authoring-workbench[data-inspect-only='true'],
+.guided-authoring-workbench[data-view='ide'][data-inspect-only='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.guided-authoring-workbench[data-inspect-only='true'] .guided-authoring-outline {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.guided-authoring-workbench[data-inspect-only='true'] .guided-authoring-main {
+  border-inline-start: 0;
+  padding-inline-start: 0;
+}
+
 @media (width <= 48em) {
   .guided-authoring-view-bar {
     grid-template-columns: minmax(0, 1fr);
