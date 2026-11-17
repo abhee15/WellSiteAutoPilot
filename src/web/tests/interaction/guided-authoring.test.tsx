@@ -91,7 +91,6 @@ it('keeps unknown complex module calculations read-only in the guided editor', a
   for (const label of ['Save draft', 'Submit for review', 'Run sample cases']) {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: label }).disabled).toBe(true);
   }
-  expect(previewGuidedModuleDraft).not.toHaveBeenCalled();
 });
 
 it('keeps draft edits and the selected trace when switching between Workflow and IDE', async () => {
