@@ -97,6 +97,9 @@ try {
           && action('Save draft')?.disabled === true
           && action('Submit for review')?.disabled === true
           && action('Run sample cases') === undefined
+          && text.includes('DotNet runtime')
+          && text.includes('Contract boundary only')
+          && document.querySelector('[aria-label="Module execution"]')
           && !document.querySelector('.guided-authoring-inspector')
           && document.querySelector('.guided-authoring-workbench')?.dataset.inspectOnly === 'true';
       })()`);
