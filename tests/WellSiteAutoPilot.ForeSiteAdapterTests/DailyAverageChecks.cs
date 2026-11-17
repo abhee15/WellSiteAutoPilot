@@ -19,6 +19,19 @@ internal static class DailyAverageChecks
             day.End - day.Start != TimeSpan.FromMilliseconds(89_999_990))
             throw new InvalidOperationException("ForeSite daily record shape or DST boundary changed.");
 
+        const string phaseUnits = """
+            {"TotalFluidRateInferred":{"UnitKey":"STB/d"},"OilRateInferred":{"UnitKey":"STB/d"},
+             "GasRateInferred":{"UnitKey":"Mscf/d","unitkey":"wrong"},"WaterRateInferred":{"UnitKey":"STB/d"}}
+            """;
+        const string phaseFields = """
+            420,"OilRateInferred":0,"GasRateInferred":1,"WaterRateInferred":null,"Duration":12}
+            """;
+        var phases = Row.Replace("420}", phaseFields, StringComparison.Ordinal);
+        result = await ReadAsync(Envelope(phases, phaseUnits));
+        if (result.ObservedQuantities is not { Count: 1 } observed ||
+            observed[0] is not { Quantity: "OilRateInferred", Unit: "STB/d" } || result.Days[0].Value != 420)
+            throw new InvalidOperationException("Discovery must retain zero with source units and exclude malformed, missing or metadata fields.");
+
         await Reject(Envelope(Row + "," + Row), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row + "," + Row.Replace("\"Id\":7", "\"Id\":8", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row.Replace("05:00:00Z", "05:00:00", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");

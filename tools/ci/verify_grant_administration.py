@@ -727,7 +727,8 @@ assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantitie
 daily_body = dict(live_body, capability="DailyAverages", startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
 daily_quantities = request("POST", quantity_url, OTHER, daily_body)
 assert daily_quantities == {"supported": True, "quantities": [
-    {"quantity": "TotalFluidRateInferred", "unit": "STB/d", "status": "Observed"}]}, daily_quantities
+    {"quantity": quantity, "unit": "STB/d", "status": "Observed"}
+    for quantity in ("TotalFluidRateInferred", "OilRateInferred")]}, daily_quantities
 wrong_well = request("POST", quantity_url, OTHER, dict(daily_body, assetId=alpha2["id"]))
 assert wrong_well["quantities"][0]["status"] == "Unavailable", wrong_well
 foresite_scenario("foresite-history-empty")

@@ -295,8 +295,17 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 {
                     var daily = await ReadDailyOperationAsync(initial, operation, startUtc, endUtc,
                         operation.Limits.MaximumSamples!.Value, cancellationToken);
+                    var observed = daily.ObservedQuantities ?? [];
+                    if (observed.Count > ForeSiteDailyAverageContract.InferredPhaseRates.Count ||
+                        observed.Any(item => item is null ||
+                            !ForeSiteDailyAverageContract.InferredPhaseRates.Contains(item.Quantity, StringComparer.Ordinal) ||
+                            string.IsNullOrWhiteSpace(item.Unit) || item.Unit.Length > 32 || item.Unit.Any(char.IsControl)) ||
+                        observed.Select(item => item.Quantity).Distinct(StringComparer.Ordinal).Count() != observed.Count)
+                        throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID",
+                            FailureKind.DependencyUnavailable, "The production-day quantity response was invalid.");
                     quantities.Add(new(daily.Quantity, daily.Unit, daily.Days.Any(day => day.Value is not null)
                         ? "Observed" : "NoSamples"));
+                    quantities.AddRange(observed.Select(item => new GuidedDiscoveredQuantity(item.Quantity, item.Unit, "Observed")));
                 }
                 else
                 {

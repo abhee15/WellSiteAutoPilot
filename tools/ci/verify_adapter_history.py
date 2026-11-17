@@ -133,6 +133,7 @@ daily_result = call("foresite", daily, operation=daily_path)
 assert daily_result["source"] == "foresite:daily-averages" and daily_result["unit"] == "STB/d", daily_result
 assert daily_result["quantity"] == "TotalFluidRateInferred" and daily_result["assetExternalId"] == "101", daily_result
 assert [d["id"] for d in daily_result["days"]] == ["7001", "7002"], daily_result
+assert daily_result["observedQuantities"] == [{"quantity": "OilRateInferred", "unit": "STB/d"}], daily_result
 first_day, second_day = daily_result["days"]
 assert first_day["value"] == 0 and second_day["value"] is None, daily_result
 assert second_day["start"].endswith("-06:00") and second_day["end"].endswith("-06:00"), daily_result
