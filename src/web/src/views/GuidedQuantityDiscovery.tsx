@@ -125,7 +125,9 @@ export function GuidedQuantityDiscovery({
 
   const historical = capability === 'WellTrend' || capability === 'DailyAverages';
   const catalog = result?.kind === 'result' && result.data.supported ? (result.data.quantities ?? []) : [];
-  const observed = catalog.filter((entry) => entry.status === 'Observed');
+  const observed = catalog.flatMap((entry) =>
+    entry.status === 'Observed' && entry.quantity ? [{ ...entry, quantity: entry.quantity }] : [],
+  );
   const evidence = historical ? catalog.filter((entry) => entry.status !== 'Observed') : catalog;
   const selected = observed.find((entry) => entry.quantity === quantity);
   const matchingInput = inputs.find((input) => input.quantity === selected?.quantity);
