@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { cwd } from 'node:process';
 import { fireEvent, render, screen, cleanup } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { GuidedModuleContract } from '../../src/views/GuidedModuleContract';
@@ -6,10 +8,7 @@ import { GuidedModuleContract } from '../../src/views/GuidedModuleContract';
 afterEach(cleanup);
 
 it('inspects the real structured-card calibration manifest without inventing calculation steps', () => {
-  const manifestJson = readFileSync(
-    new URL('../../../../modules/samples/structured-cards/manifest.json', import.meta.url),
-    'utf8',
-  );
+  const manifestJson = readFileSync(resolve(cwd(), '../../modules/samples/structured-cards/manifest.json'), 'utf8');
   render(<GuidedModuleContract manifestJson={manifestJson} />);
 
   fireEvent.click(screen.getByText('Declared data contract', { exact: false }));
