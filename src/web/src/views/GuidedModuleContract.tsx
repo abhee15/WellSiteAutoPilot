@@ -229,9 +229,7 @@ export function GuidedModuleContract({
           )}
           <ContractPorts ports={contract.outputs} kind="output" selected={selection} onSelect={setSelection} />
         </div>
-        {showExecutionBoundary && (
-          <p className="guided-authoring-execution-note">{t('guided.executionUntraced')}</p>
-        )}
+        {showExecutionBoundary && <p className="guided-authoring-execution-note">{t('guided.executionUntraced')}</p>}
         {(selectedPort ?? firstPort) && <ContractPortDetails port={(selectedPort ?? firstPort)!} />}
       </div>
     </details>

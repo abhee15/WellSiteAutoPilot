@@ -124,7 +124,6 @@
   max-width: var(--layout-readable);
 }
 
-
 .guided-authoring-contract-ports {
   display: grid;
   gap: var(--space-8);
