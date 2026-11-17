@@ -36,3 +36,21 @@ Script: D:\WellSiteAutoPilot\authoring-poc\poc\complex-modules\run-api-tests.ps1
 - P11 (UX): a new input starts with the default quantity "Quantity1", which can never be saved, so every new input starts in an error state; consider starting empty with a prompt. Registered quantity list shows no units until chosen.
 - P12: the registry lists only quantities a configured adapter registers; structured inputs (cards, calibration) have no picker, so card contracts still cannot be authored from the UI (see P1/P2).
 - Not verified: Unit/capability behaviour for CygNet-only quantities and saving after switching quantity on an existing saved draft.
+
+## Live verification of #638 (CL 1108675)
+
+Run on the P4 tree, Negotiate auth, visible Edge, ForeSite asset RPOC_0413.
+
+Works:
+- Contract-only draft with one registered scalar input (AveragePumpFillage) saves (HTTP 200).
+- "Preview with a sample asset" is available; asset search finds RPOC_0413.
+- asset-compatibility returns Satisfied for the scalar input (reasonCode null).
+- quantity-discovery returns supported=true (PumpFillage %, SPM).
+- The History controls (window, duration, historical quantity) appear.
+- No Run button on a contract-only draft; the IDE tab shows the contract editor and sample-asset inspection together; no overflow at 760px.
+
+Not verified: history read of a selected quantity; card/calibration inputs (P1/P2 remain open, since only a scalar input was used).
+
+New observations:
+- P13: the output port also defaults to the unsaveable name Quantity1 (same as P11).
+- P14: the IDE tab button does not respond to a role=button click in automation (found by text only); check its accessible role.
