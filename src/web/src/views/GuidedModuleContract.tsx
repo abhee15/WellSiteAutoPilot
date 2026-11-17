@@ -98,9 +98,7 @@ function ContractPorts({
               </li>
             ))}
           </ul>
-          {ports.length > visiblePortLimit && (
-            <p>{t('guided.contractLimited', { count: visiblePortLimit })}</p>
-          )}
+          {ports.length > visiblePortLimit && <p>{t('guided.contractLimited', { count: visiblePortLimit })}</p>}
         </>
       )}
     </section>
@@ -189,7 +187,8 @@ export function GuidedModuleContract({ manifestJson }: { manifestJson: string | 
   return (
     <details className="guided-authoring-contract">
       <summary>
-        {t('guided.contractHeading')} · {t('guided.contractCounts', {
+        {t('guided.contractHeading')} ·{' '}
+        {t('guided.contractCounts', {
           inputs: contract.inputs.length,
           outputs: contract.outputs.length,
         })}

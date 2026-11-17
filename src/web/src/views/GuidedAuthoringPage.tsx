@@ -289,12 +289,17 @@ export function GuidedAuthoringPage({
   const sampleCount = pressure ? pressureReadings.length : readings.length;
   const inspectOnly = Boolean(draft && !supportsGuidedRule(draft.manifestJson));
   const valid =
-    !inspectOnly && name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
+    !inspectOnly &&
+    name.trim().length > 0 &&
+    threshold.trim() !== '' &&
+    Number(threshold) >= 0 &&
+    Number(threshold) <= maximum;
   const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary);
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
   const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
-  const activeSection = editorSection === 'live' && !showLivePreview ? (inspectOnly ? 'module' : 'rule') : editorSection;
+  const activeSection =
+    editorSection === 'live' && !showLivePreview ? (inspectOnly ? 'module' : 'rule') : editorSection;
 
   function changeView(next: EditorView) {
     setView(next);
@@ -497,7 +502,9 @@ export function GuidedAuthoringPage({
                 />
                 <ActionButton
                   label={t('guided.submit')}
-                  disabled={busy || inspectOnly || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                  disabled={
+                    busy || inspectOnly || dirty || Boolean(submittedReference) || evidence.length !== sampleCount
+                  }
                   onClick={() => void run(submit)}
                 />
               </div>
@@ -551,7 +558,9 @@ export function GuidedAuthoringPage({
                 <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
                   <PanelHeader title={t(inspectOnly ? 'guided.calculationContract' : 'guided.rule')} level={3} />
                   {inspectOnly ? (
-                    <Notice tone="info" announce={false}>{t('guided.inspectOnlyContract')}</Notice>
+                    <Notice tone="info" announce={false}>
+                      {t('guided.inspectOnlyContract')}
+                    </Notice>
                   ) : (
                     <>
                       <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
