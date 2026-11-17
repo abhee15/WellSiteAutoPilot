@@ -48,3 +48,47 @@ it('does not render a malformed manifest as a trustworthy contract', () => {
   const { container } = render(<GuidedModuleContract manifestJson="{bad-json" />);
   expect(container.querySelector('.guided-authoring-contract')).toBeNull();
 });
+
+it('shows the declared code execution boundary without inventing a calculation graph', () => {
+  const manifestJson = readFileSync(resolve(cwd(), '../../modules/samples/structured-cards/manifest.json'), 'utf8');
+  render(<GuidedModuleContract manifestJson={manifestJson} initiallyOpen showExecutionBoundary />);
+
+  expect(screen.getByRole('region', { name: 'Module execution' })).toBeTruthy();
+  expect(screen.getByText('DotNet runtime')).toBeTruthy();
+  expect(screen.getByText('sample.card-calibration · 2.0.0')).toBeTruthy();
+  expect(screen.getByText(/does not record which input produces each output/i)).toBeTruthy();
+  expect(screen.queryByText('Load × scale + offset')).toBeNull();
+  expect(screen.getByRole('button', { name: 'SurfaceCards' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'CalibratedCards' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'PeakLoad' }));
+  expect(screen.getByText('sample.peak-load/v2')).toBeTruthy();
+});
+
+it('does not manufacture an implementation runtime or intermediate steps when absent', () => {
+  render(
+    <GuidedModuleContract
+      manifestJson={JSON.stringify({
+        dataRequirements: [{ id: 'reading', quantity: 'Reading' }],
+        outputRequirements: [{ id: 'output', quantity: 'Result' }],
+      })}
+      initiallyOpen
+      showExecutionBoundary
+    />,
+  );
+  expect(screen.getByText('Runtime not declared')).toBeTruthy();
+  expect(screen.getByText('Internal calculations are not visible here.')).toBeTruthy();
+  expect(screen.getByText(/does not record which input produces each output/i)).toBeTruthy();
+});
+
+it('leaves the ordinary guided contract uncluttered when execution overview is disabled', () => {
+  render(
+    <GuidedModuleContract
+      manifestJson={JSON.stringify({
+        dataRequirements: [{ id: 'reading', quantity: 'Reading' }],
+        outputRequirements: [{ id: 'output', quantity: 'Result' }],
+      })}
+      initiallyOpen
+    />,
+  );
+  expect(screen.queryByRole('region', { name: 'Module execution' })).toBeNull();
+});

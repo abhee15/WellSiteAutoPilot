@@ -565,6 +565,7 @@ export function GuidedAuthoringPage({
                     key={draft?.id ?? 'new'}
                     manifestJson={draft?.manifestJson}
                     initiallyOpen={inspectOnly}
+                    showExecutionBoundary={inspectOnly}
                   />
                 </section>
                 {!inspectOnly && (

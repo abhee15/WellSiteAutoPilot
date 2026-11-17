@@ -31,6 +31,9 @@ type ContractPort = {
 type Contract = {
   inputs: ContractPort[];
   outputs: ContractPort[];
+  runtime?: string;
+  moduleId?: string;
+  version?: string;
 };
 
 const visiblePortLimit = 32;
@@ -50,6 +53,9 @@ function parseContract(source: string): Contract | null {
     return {
       inputs: Array.isArray(manifest.dataRequirements) ? manifest.dataRequirements.filter(isPort) : [],
       outputs: Array.isArray(manifest.outputRequirements) ? manifest.outputRequirements.filter(isPort) : [],
+      runtime: typeof manifest.runtime === 'string' ? manifest.runtime : undefined,
+      moduleId: typeof manifest.moduleId === 'string' ? manifest.moduleId : undefined,
+      version: typeof manifest.version === 'string' ? manifest.version : undefined,
     };
   } catch {
     return null;
@@ -177,9 +183,11 @@ function ContractPortDetails({ port }: { port: ContractPort }) {
 export function GuidedModuleContract({
   manifestJson,
   initiallyOpen = false,
+  showExecutionBoundary = false,
 }: {
   manifestJson: string | null | undefined;
   initiallyOpen?: boolean;
+  showExecutionBoundary?: boolean;
 }) {
   const [selection, setSelection] = useState<PortSelection>({ kind: 'input', index: 0 });
   if (!manifestJson) return null;
@@ -189,6 +197,9 @@ export function GuidedModuleContract({
   const selectedPorts = selection.kind === 'input' ? contract.inputs : contract.outputs;
   const selectedPort = selectedPorts[selection.index];
   const firstPort = contract.inputs[0] ?? contract.outputs[0];
+  const runtimeLabel = contract.runtime
+    ? t('guided.executionRuntime', { runtime: contract.runtime })
+    : t('guided.executionUnknown');
 
   return (
     <details className="guided-authoring-contract" open={initiallyOpen}>
@@ -201,10 +212,24 @@ export function GuidedModuleContract({
       </summary>
       <p>{t('guided.contractBoundary')}</p>
       <div className="guided-authoring-contract-groups">
-        <div className="guided-authoring-contract-list">
+        <div className="guided-authoring-contract-list" data-execution-boundary={showExecutionBoundary}>
           <ContractPorts ports={contract.inputs} kind="input" selected={selection} onSelect={setSelection} />
+          {showExecutionBoundary && (
+            <section className="guided-authoring-execution-boundary" aria-label={t('guided.executionBoundary')}>
+              <h4>{t('guided.executionBoundary')}</h4>
+              <p>{runtimeLabel}</p>
+              {contract.moduleId && (
+                <p>
+                  {contract.moduleId}
+                  {contract.version ? ' · ' + contract.version : ''}
+                </p>
+              )}
+              <p>{t('guided.executionOpaque')}</p>
+            </section>
+          )}
           <ContractPorts ports={contract.outputs} kind="output" selected={selection} onSelect={setSelection} />
         </div>
+        {showExecutionBoundary && <p className="guided-authoring-execution-note">{t('guided.executionUntraced')}</p>}
         {(selectedPort ?? firstPort) && <ContractPortDetails port={(selectedPort ?? firstPort)!} />}
       </div>
     </details>
