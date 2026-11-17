@@ -104,6 +104,7 @@ public static class StructuredModuleOfflineHost
             result.EngineeringResults.Count > 64)
             throw Failure("MODULE_RESULT_INVALID");
         Bound(result);
+        ValidateCalculationTrace(result.CalculationTrace, definition);
         var seenResults = new HashSet<(string, Guid?)>();
         foreach (var output in result.EngineeringResults)
         {
@@ -117,6 +118,47 @@ public static class StructuredModuleOfflineHost
         }
         return result;
     }
+
+    private static void ValidateCalculationTrace(StructuredCalculationTraceV1? trace,
+        StructuredModuleDefinition definition)
+    {
+        if (trace is null) return; // Existing V2 modules remain valid without trace data.
+        if (trace.Version != 1 || trace.Steps is null || trace.Steps.Count is < 1 or > 64)
+            throw Failure("MODULE_TRACE_INVALID");
+
+        var requirements = definition.Inputs.Select(d => d.Requirement.Id).ToHashSet(StringComparer.Ordinal);
+        var priorSteps = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var step in trace.Steps)
+        {
+            if (step is null || !ValidTraceId(step.Id) ||
+                step.Kind is not ("Transform" or "Aggregate" or "Decision") ||
+                step.RequirementIds is null || step.PriorStepIds is null || step.Metrics is null ||
+                (step.RequirementIds.Count + step.PriorStepIds.Count) is < 1 or > 64 ||
+                step.Metrics.Count is < 1 or > 16)
+                throw Failure("MODULE_TRACE_INVALID");
+
+            if (step.RequirementIds.Any(id => !requirements.Contains(id)) ||
+                step.RequirementIds.Distinct(StringComparer.Ordinal).Count() != step.RequirementIds.Count ||
+                step.PriorStepIds.Any(id => !priorSteps.Contains(id)) ||
+                step.PriorStepIds.Distinct(StringComparer.Ordinal).Count() != step.PriorStepIds.Count ||
+                !priorSteps.Add(step.Id))
+                throw Failure("MODULE_TRACE_INVALID");
+
+            var metrics = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var metric in step.Metrics)
+            {
+                if (metric is null || !ValidTraceId(metric.Id) || !metrics.Add(metric.Id) ||
+                    metric.Unit is { } unit &&
+                    (unit.Length is < 1 or > 32 || unit.Any(char.IsControl)))
+                    throw Failure("MODULE_TRACE_INVALID");
+            }
+        }
+    }
+
+    private static bool ValidTraceId(string? id) =>
+        !string.IsNullOrEmpty(id) && id.Length <= 64 &&
+        (char.IsAsciiLetter(id[0]) || id[0] == '_') &&
+        id.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.');
 
     private static void Bound<T>(T value)
     {
