@@ -44,7 +44,7 @@ it('saves, previews and submits the same guided draft revision', async () => {
     data: {
       id: 'draft-1',
       revision: 1,
-      manifestJson: '{"displayName":"Fillage check"}',
+      manifestJson: '{"displayName":"Fillage check","entryPoint":"wsa.declarative.threshold.v1"}',
       definition: { default: 70 },
     },
   } as never);
@@ -70,13 +70,37 @@ it('saves, previews and submits the same guided draft revision', async () => {
   });
 });
 
+it('keeps unknown complex module calculations read-only in the guided editor', async () => {
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
+    data: [{
+      id: 'complex-draft',
+      revision: 1,
+      manifestJson: JSON.stringify({
+        displayName: 'Surface-card calibration',
+        entryPoint: 'sample.structured-card-calibration.v2',
+        dataRequirements: [{ id: 'cards', quantity: 'SurfaceCards' }],
+      }),
+      definition: { default: 70 },
+    }],
+  } as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  await screen.findByRole('option', { name: 'Surface-card calibration' });
+  fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'complex-draft' } });
+  expect(screen.getByText(/does not support changing or executing those calculations yet/i)).toBeTruthy();
+  expect(screen.queryByLabelText('Pump fillage threshold (%)')).toBeNull();
+  for (const label of ['Save draft', 'Submit for review', 'Run sample cases']) {
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: label }).disabled).toBe(true);
+  }
+  expect(previewGuidedModuleDraft).not.toHaveBeenCalled();
+});
+
 it('keeps draft edits and the selected trace when switching between Workflow and IDE', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [
       {
         id: 'editor-draft',
         revision: 3,
-        manifestJson: '{"displayName":"Shared draft"}',
+        manifestJson: '{"displayName":"Shared draft","entryPoint":"wsa.declarative.threshold.v1"}',
         definition: { default: 70 },
       },
     ],
@@ -90,7 +114,7 @@ it('keeps draft edits and the selected trace when switching between Workflow and
     data: {
       id: 'editor-draft',
       revision: 4,
-      manifestJson: '{"displayName":"Shared draft"}',
+      manifestJson: '{"displayName":"Shared draft","entryPoint":"wsa.declarative.threshold.v1"}',
       definition: { default: 72 },
     },
   } as never);
@@ -177,7 +201,7 @@ it('preserves unsaved edits until the author confirms a draft switch', async () 
       {
         id: 'draft-3',
         revision: 1,
-        manifestJson: '{"displayName":"Existing draft"}',
+        manifestJson: '{"displayName":"Existing draft","entryPoint":"wsa.declarative.threshold.v1"}',
         definition: { default: 65 },
       },
     ],
@@ -296,7 +320,7 @@ it('previews a saved revision with an imported well without enabling submission'
       {
         id: 'live-draft',
         revision: 3,
-        manifestJson: '{"displayName":"Live draft","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
+        manifestJson: '{"displayName":"Live draft","entryPoint":"wsa.declarative.threshold.v1","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
         definition: { default: 70 },
       },
     ],
