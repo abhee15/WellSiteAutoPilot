@@ -22,7 +22,8 @@ import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi'
 
 type WellPreview =
   | { kind: 'current'; data: GuidedLivePreviewResponse }
-  | { kind: 'history'; data: GuidedHistoryPreviewResponse }
+  | { kind: 'history'; data: GuidedHistoryPreviewResponse; siteWindow?: { endLocal: string; timeZoneId: string } }
+  | { kind: 'historyTimeError'; message: 'guided.siteTimeUnresolved' | 'guided.siteZoneInvalid' }
   | { kind: 'productionDays'; data: GuidedProductionDaysPreviewResponse }
   | { kind: 'surfaceCards'; data: GuidedSurfaceCardsPreviewResponse }
   | { kind: 'unsupported'; preview: 'productionDays' | 'surfaceCards' };
@@ -38,6 +39,9 @@ export function GuidedLivePreview({
 }) {
   const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
   const [hours, setHours] = useState('4');
+  const [historyAnchor, setHistoryAnchor] = useState('now');
+  const [endLocal, setEndLocal] = useState('');
+  const [timeZoneId, setTimeZoneId] = useState('');
   const [wellPreview, setWellPreview] = useState<WellPreview | null>(null);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<SearchHit[] | null>(null);
@@ -99,22 +103,38 @@ export function GuidedLivePreview({
     setFailed(false);
     setWellPreview(null);
     const end = Math.floor(Date.now() / 1000) * 1000;
+    const siteWindow =
+      historyAnchor === 'site'
+        ? { endLocal, timeZoneId: timeZoneId.trim(), durationMinutes: Number(hours) * 60 }
+        : undefined;
+    const bounds = siteWindow
+      ? { siteWindow }
+      : { startUtc: new Date(end - Number(hours) * 3600000).toISOString(), endUtc: new Date(end).toISOString() };
     try {
-      const { data } = await previewGuidedModuleInputHistory({
+      const { data, error } = await previewGuidedModuleInputHistory({
         path: { id: draftId },
         body: {
           expectedRevision: revision,
           assetId,
           inputId,
           maximumSamples: 100,
-          startUtc: new Date(end - Number(hours) * 3600000).toISOString(),
-          endUtc: new Date(end).toISOString(),
+          ...bounds,
         },
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
+      if (error && typeof error === 'object' && 'code' in error) {
+        if (error.code === 'GUIDED_HISTORY_SITE_TIME_UNRESOLVED') {
+          setWellPreview({ kind: 'historyTimeError', message: 'guided.siteTimeUnresolved' });
+          return;
+        }
+        if (error.code === 'GUIDED_HISTORY_SITE_ZONE_INVALID') {
+          setWellPreview({ kind: 'historyTimeError', message: 'guided.siteZoneInvalid' });
+          return;
+        }
+      }
       if (!data) throw new Error();
-      setWellPreview({ kind: 'history', data });
+      setWellPreview({ kind: 'history', data, siteWindow });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -185,7 +205,12 @@ export function GuidedLivePreview({
     }
   }
 
-  const history = wellPreview?.kind === 'history' ? wellPreview.data : null;
+  const historyResult = wellPreview?.kind === 'history' ? wellPreview : null;
+  const history = historyResult?.data;
+
+  function clearHistoryResult() {
+    if (wellPreview?.kind === 'history' || wellPreview?.kind === 'historyTimeError') setWellPreview(null);
+  }
   const result = wellPreview?.kind === 'current' ? wellPreview.data : null;
   const productionDays = wellPreview?.kind === 'productionDays' ? wellPreview.data : null;
 
@@ -273,7 +298,7 @@ export function GuidedLivePreview({
               disabled={busy}
               onChange={(event) => {
                 setInputId(event.target.value);
-                if (wellPreview?.kind === 'history') setWellPreview(null);
+                clearHistoryResult();
               }}
             >
               {inputs.map((input) => (
@@ -283,12 +308,49 @@ export function GuidedLivePreview({
               ))}
             </SelectField>
             <SelectField
+              label={t('guided.historyAnchor')}
+              value={historyAnchor}
+              disabled={busy}
+              onChange={(event) => {
+                setHistoryAnchor(event.target.value);
+                clearHistoryResult();
+              }}
+            >
+              <option value="now">{t('guided.historyNow')}</option>
+              <option value="site">{t('guided.historySiteTime')}</option>
+            </SelectField>
+            {historyAnchor === 'site' && (
+              <>
+                <TextField
+                  type="datetime-local"
+                  label={t('guided.historyEndLocal')}
+                  value={endLocal}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setEndLocal(event.target.value);
+                    clearHistoryResult();
+                  }}
+                />
+                <TextField
+                  label={t('guided.historySiteZone')}
+                  helper={t('guided.historySiteZoneExample')}
+                  value={timeZoneId}
+                  maxLength={128}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setTimeZoneId(event.target.value);
+                    clearHistoryResult();
+                  }}
+                />
+              </>
+            )}
+            <SelectField
               label={t('guided.historyWindow')}
               value={hours}
               disabled={busy}
               onChange={(event) => {
                 setHours(event.target.value);
-                if (wellPreview?.kind === 'history') setWellPreview(null);
+                clearHistoryResult();
               }}
             >
               <option value="1">{t('guided.historyOneHour')}</option>
@@ -297,22 +359,44 @@ export function GuidedLivePreview({
             </SelectField>
             <ActionButton
               label={t('guided.readHistory')}
-              disabled={busy || !inputId}
+              disabled={busy || !inputId || (historyAnchor === 'site' && (!endLocal || !timeZoneId.trim()))}
               onClick={() => void previewHistory()}
             />
           </div>
         )}
-        {history && (
-          <div>
+        {wellPreview?.kind === 'historyTimeError' && <Notice tone="error">{t(wellPreview.message)}</Notice>}
+        {historyResult && history && (
+          <div aria-live="polite">
             <p>
-              {history.quantity} · {formatTimestamp(history.startUtc)} – {formatTimestamp(history.endUtc)}
+              {history.quantity} ·{' '}
+              {historyResult.siteWindow ? (
+                t('guided.historySiteResult', {
+                  local: historyResult.siteWindow.endLocal.replace('T', ' '),
+                  zone: historyResult.siteWindow.timeZoneId,
+                })
+              ) : (
+                <>
+                  {formatTimestamp(history.startUtc)} – {formatTimestamp(history.endUtc)}
+                </>
+              )}
             </p>
+            {historyResult.siteWindow && history.startUtc && history.endUtc && (
+              <p>
+                {t('guided.historyUtcBounds')} <time dateTime={history.startUtc}>{history.startUtc}</time> –{' '}
+                <time dateTime={history.endUtc}>{history.endUtc}</time>
+              </p>
+            )}
             {history.truncated && <Notice tone="warning">{t('guided.historyTruncated')}</Notice>}
             {history.samples?.length ? (
               <ul>
                 {history.samples.map((sample, index) => (
                   <li key={index}>
-                    {formatTimestamp(sample.timestampUtc)} · {sample.value} {sample.unit} · {sample.quality}
+                    {historyResult.siteWindow && sample.timestampUtc ? (
+                      <time dateTime={sample.timestampUtc}>{sample.timestampUtc}</time>
+                    ) : (
+                      formatTimestamp(sample.timestampUtc)
+                    )}{' '}
+                    · {sample.value} {sample.unit} · {sample.quality}
                   </li>
                 ))}
               </ul>

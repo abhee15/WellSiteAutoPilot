@@ -672,6 +672,26 @@ assert [(point["value"], point["unit"], point["quality"]) for point in history["
 assert history["samples"][0]["timestampUtc"] < history["samples"][1]["timestampUtc"], history
 limited = request("POST", history_url, OTHER, dict(history_body, maximumSamples=1))
 assert limited["truncated"] and limited["samples"] == history["samples"][:1], limited
+# Site-local anchor resolves on the Server before the existing scoped history read.
+site_window = {"endLocal": "2025-11-02T02:00", "timeZoneId": "America/Chicago", "durationMinutes": 240}
+site_history = dict(live_body, inputId="fillage", maximumSamples=2, siteWindow=site_window)
+request("POST", history_url, ADMIN, site_history, expected=404)
+request("POST", history_url, OTHER, dict(site_history, assetId=other_alpha["id"]), expected=404)
+request("POST", history_url, OTHER, dict(site_history, expectedRevision=2), expected=409)
+site_series = request("POST", history_url, OTHER, site_history)
+assert site_series["startUtc"].startswith("2025-11-02T04:00:00"), site_series
+assert site_series["endUtc"].startswith("2025-11-02T08:00:00"), site_series
+assert [point["value"] for point in site_series["samples"]] == [82, 79], site_series
+for local_time in ("2025-11-02T01:30", "2025-03-09T02:30"):
+    response = request("POST", history_url, OTHER,
+        dict(site_history, siteWindow=dict(site_window, endLocal=local_time)), expected=400)
+    assert response["code"] == "GUIDED_HISTORY_SITE_TIME_UNRESOLVED", response
+unknown_zone = request("POST", history_url, OTHER,
+    dict(site_history, siteWindow=dict(site_window, timeZoneId="Unknown/Site")), expected=400)
+assert unknown_zone["code"] == "GUIDED_HISTORY_SITE_ZONE_INVALID", unknown_zone
+request("POST", history_url, OTHER, dict(history_body, siteWindow=site_window), expected=400)
+request("POST", history_url, OTHER, dict(site_history, siteWindow=dict(site_window, durationMinutes=0)), expected=400)
+request("POST", history_url, OTHER, dict(site_history, siteWindow=dict(site_window, endLocal="9999-01-01T00:00")), expected=400)
 foresite_scenario("foresite-history-empty")
 try:
     empty = request("POST", history_url, OTHER, history_body)

@@ -37,7 +37,9 @@ public sealed record GuidedLiveReadingResponse(string InputId, string Quantity, 
     DateTimeOffset TimestampUtc, string Quality, string? TimestampKind);
 
 public sealed record GuidedHistoryPreviewRequest(int ExpectedRevision, Guid AssetId, string InputId,
-    DateTimeOffset StartUtc, DateTimeOffset EndUtc, int MaximumSamples);
+    DateTimeOffset? StartUtc, DateTimeOffset? EndUtc, int MaximumSamples, GuidedSiteHistoryWindowRequest? SiteWindow = null);
+
+public sealed record GuidedSiteHistoryWindowRequest(string EndLocal, string TimeZoneId, int DurationMinutes);
 
 public sealed record GuidedHistoryPreviewResponse(string Quantity, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
     bool Truncated, IReadOnlyList<GuidedHistorySampleResponse> Samples);
