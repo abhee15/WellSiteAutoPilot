@@ -446,18 +446,20 @@ export function GuidedAuthoringPage({
                   ))}
                 </SelectField>
               </div>
-              <div className="guided-authoring-actions">
-                {offset > 0 && (
-                  <ActionButton
-                    label={t('guided.previous')}
-                    disabled={busy}
-                    onClick={() => setOffset(offset - pageSize)}
-                  />
-                )}
-                {drafts.length === pageSize && (
-                  <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
-                )}
-              </div>
+              {(offset > 0 || drafts.length === pageSize) && (
+                <div className="guided-authoring-actions">
+                  {offset > 0 && (
+                    <ActionButton
+                      label={t('guided.previous')}
+                      disabled={busy}
+                      onClick={() => setOffset(offset - pageSize)}
+                    />
+                  )}
+                  {drafts.length === pageSize && (
+                    <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
+                  )}
+                </div>
+              )}
             </div>
             <div className="guided-authoring-view-bar">
               <SectionTabs<EditorView>
