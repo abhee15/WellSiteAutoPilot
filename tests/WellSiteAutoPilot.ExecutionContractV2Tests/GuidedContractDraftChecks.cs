@@ -46,6 +46,13 @@ internal static class GuidedContractDraftChecks
         // A structured contract with arrays, a record, two output shapes and a parameter schema is valid with no Asset or Connection.
         await GuidedContractDraft.ValidateAsync(manifest);
 
+        // A blank draft (one neutral role, no ports yet) can be saved, but the same manifest is not an executable module.
+        var blank = manifest with { DataRequirements = [], OutputRequirements = [], ParameterSchema = null };
+        await GuidedContractDraft.ValidateAsync(blank);
+        await RejectAsync(() => LogicModuleManifestValidator.ValidateSchemasAsync(blank), "MODULE_CONTRACT_INVALID");
+        await RejectAsync(() => GuidedContractDraft.ValidateAsync(blank with { OutputRequirements = null }), "MODULE_CONTRACT_INVALID");
+        await RejectAsync(() => GuidedContractDraft.ValidateAsync(blank with { AssetRequirements = [] }), "MODULE_ASSET_REQUIREMENTS_EMPTY");
+
         // Persisted content round-trips unchanged and is still contract-only; threshold content from before this change still reads.
         var content = new GuidedModuleDraftContent(manifest);
         var restored = JsonSerializer.Deserialize<GuidedModuleDraftContent>(JsonSerializer.Serialize(content, Options), Options)!;

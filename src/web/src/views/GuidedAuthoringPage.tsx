@@ -18,6 +18,14 @@ import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
 import { SectionTabs } from '../components/SectionTabs';
+import { CodeBlock } from '../components/CodeBlock';
+import {
+  blankContractManifest,
+  contractIsComplete,
+  GuidedContractEditor,
+  isContractOnlyManifest,
+  parseManifest,
+} from './GuidedContractEditor';
 import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
@@ -203,6 +211,8 @@ export function GuidedAuthoringPage({
   const [refresh, setRefresh] = useState(0);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [pressure, setPressure] = useState(false);
+  // The editable typed contract of a contract-only draft; null for threshold and inspect-only drafts.
+  const [contractManifest, setContractManifest] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [threshold, setThreshold] = useState('70');
   const [evidence, setEvidence] = useState<GuidedModulePreviewResponse[]>([]);
@@ -254,6 +264,7 @@ export function GuidedAuthoringPage({
   ) {
     setPressure(nextPressure);
     setDraft(next);
+    setContractManifest(next && isContractOnlyManifest(next.manifestJson) ? next.manifestJson : null);
     setName(displayName(next?.manifestJson));
     setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
@@ -287,17 +298,25 @@ export function GuidedAuthoringPage({
     { casingPsi: null, tubingPsi: 120 },
   ];
   const sampleCount = pressure ? pressureReadings.length : readings.length;
-  const inspectOnly = Boolean(draft && !supportsGuidedRule(draft.manifestJson));
-  const valid =
-    !inspectOnly &&
-    name.trim().length > 0 &&
-    threshold.trim() !== '' &&
-    Number(threshold) >= 0 &&
-    Number(threshold) <= maximum;
-  const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary);
+  const contractOnly = contractManifest !== null;
+  const inspectOnly = Boolean(draft && !contractOnly && !supportsGuidedRule(draft.manifestJson));
+  const valid = contractOnly
+    ? name.trim().length > 0 && contractIsComplete(contractManifest)
+    : !inspectOnly &&
+      name.trim().length > 0 &&
+      threshold.trim() !== '' &&
+      Number(threshold) >= 0 &&
+      Number(threshold) <= maximum;
+  const contractChanged =
+    contractOnly &&
+    Boolean(draft) &&
+    JSON.stringify(parseManifest(contractManifest)) !== JSON.stringify(parseManifest(draft?.manifestJson));
+  const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary) || contractChanged;
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
-  const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
+  const showLivePreview = Boolean(
+    canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly && !contractOnly,
+  );
   const activeSection =
     editorSection === 'live' && !showLivePreview ? (inspectOnly ? 'module' : 'rule') : editorSection;
 
@@ -330,6 +349,24 @@ export function GuidedAuthoringPage({
   }
 
   async function save() {
+    if (contractOnly) {
+      // A contract-only draft sends no definition, so the server stores no logic for it.
+      const manifest = { ...(parseManifest(contractManifest) ?? {}), displayName: name.trim() };
+      const contractBody = { manifestJson: JSON.stringify(manifest) };
+      const { data } =
+        draft?.id && draft.revision
+          ? await editGuidedModuleDraft({
+              path: { id: draft.id },
+              body: { ...contractBody, expectedRevision: draft.revision },
+            })
+          : await createGuidedModuleDraft({ body: contractBody });
+      if (!data) throw new Error();
+      markSaved();
+      select(data, false, activeSection);
+      setRefresh((previous) => previous + 1);
+      setNotice('guided.saved');
+      return;
+    }
     const body = {
       manifestJson: draft?.manifestJson
         ? JSON.stringify({ ...(JSON.parse(draft.manifestJson) as object), displayName: name.trim() })
@@ -433,6 +470,17 @@ export function GuidedAuthoringPage({
                     }}
                   />
                   <ActionButton
+                    label={t('guided.newContract')}
+                    disabled={busy}
+                    onClick={() => {
+                      requestNavigation(() => {
+                        select(null);
+                        setContractManifest(blankContractManifest(''));
+                      });
+                      if (starterChooser.current) starterChooser.current.open = false;
+                    }}
+                  />
+                  <ActionButton
                     label={t('guided.newPressure')}
                     disabled={busy}
                     onClick={() => {
@@ -501,11 +549,13 @@ export function GuidedAuthoringPage({
                     disabled={busy || !valid || !dirty}
                     onClick={() => void run(save)}
                   />
-                  <ActionButton
-                    label={t('guided.submit')}
-                    disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
-                    onClick={() => void run(submit)}
-                  />
+                  {!contractOnly && (
+                    <ActionButton
+                      label={t('guided.submit')}
+                      disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                      onClick={() => void run(submit)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -517,7 +567,7 @@ export function GuidedAuthoringPage({
               role="tabpanel"
               aria-labelledby={editorId + '-tab-' + view}
             >
-              {view === 'ide' && !inspectOnly && (
+              {view === 'ide' && !inspectOnly && !contractOnly && (
                 <nav className="guided-authoring-outline" aria-label={t('guided.outline')}>
                   <PanelHeader title={t('guided.outline')} level={3} />
                   <ActionButton
@@ -565,14 +615,33 @@ export function GuidedAuthoringPage({
                       {t('guided.inspectOnlyContract')}
                     </Notice>
                   )}
-                  <GuidedModuleContract
-                    key={draft?.id ?? 'new'}
-                    manifestJson={draft?.manifestJson}
-                    initiallyOpen={inspectOnly}
-                    showExecutionBoundary={inspectOnly}
-                  />
+                  {contractOnly ? (
+                    <>
+                      <Notice tone="info" announce={false}>
+                        {t('guided.contractOnlyNotice')}
+                      </Notice>
+                      <GuidedContractEditor
+                        key={draft?.id ?? 'new'}
+                        manifestJson={contractManifest}
+                        disabled={busy}
+                        onChange={setContractManifest}
+                      />
+                      {view === 'ide' && draft?.manifestJson && (
+                        <CodeBlock label={t('guided.contractSource')}>
+                          {JSON.stringify(parseManifest(draft.manifestJson), null, 2)}
+                        </CodeBlock>
+                      )}
+                    </>
+                  ) : (
+                    <GuidedModuleContract
+                      key={draft?.id ?? 'new'}
+                      manifestJson={draft?.manifestJson}
+                      initiallyOpen={inspectOnly}
+                      showExecutionBoundary={inspectOnly}
+                    />
+                  )}
                 </section>
-                {!inspectOnly && (
+                {!inspectOnly && !contractOnly && (
                   <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
                     <PanelHeader title={t('guided.rule')} level={3} />
                     <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
@@ -608,7 +677,7 @@ export function GuidedAuthoringPage({
                   </div>
                 )}
               </div>
-              {!inspectOnly && (
+              {!inspectOnly && !contractOnly && (
                 <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
                   <PanelHeader title={t('guided.scenarios')} level={3} />
                   <div className="guided-authoring-actions">
