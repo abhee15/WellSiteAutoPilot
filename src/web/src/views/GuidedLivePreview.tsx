@@ -337,34 +337,32 @@ export function GuidedLivePreview({
             )}
           </>
         )}
-        <div role="status">
-          {compatibility?.kind === 'checking' && <p>{t('guided.assetCompatibilityChecking')}</p>}
-          {compatibility?.kind === 'error' && <p>{t('guided.assetCompatibilityFailed')}</p>}
-          {compatibility?.kind === 'result' && (
-            <>
-              <p>
-                {t(
-                  compatibility.inputs.every((input) => input.status === 'Satisfied')
-                    ? 'guided.assetCompatible'
-                    : 'guided.assetCompatibilityIncomplete',
-                )}
-              </p>
-              <ul>
-                {compatibility.inputs.map((input) => {
-                  const label =
-                    compatibilityLabels[input.status as keyof typeof compatibilityLabels] ??
-                    'guided.assetInputUnavailable';
-                  return (
-                    <li key={input.inputId}>
-                      {input.quantity} · {t(label)}
-                      {input.status === 'Rejected' && input.reasonCode && <> · {outcomeLabel(input.reasonCode).text}</>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </div>
+        {compatibility?.kind === 'checking' && <Notice>{t('guided.assetCompatibilityChecking')}</Notice>}
+        {compatibility?.kind === 'error' && <Notice tone="warning">{t('guided.assetCompatibilityFailed')}</Notice>}
+        {compatibility?.kind === 'result' && (
+          <Notice>
+            <p>
+              {t(
+                compatibility.inputs.every((input) => input.status === 'Satisfied')
+                  ? 'guided.assetCompatible'
+                  : 'guided.assetCompatibilityIncomplete',
+              )}
+            </p>
+            <ul>
+              {compatibility.inputs.map((input) => {
+                const label =
+                  compatibilityLabels[input.status as keyof typeof compatibilityLabels] ??
+                  'guided.assetInputUnavailable';
+                return (
+                  <li key={input.inputId}>
+                    {input.quantity} · {t(label)}
+                    {input.status === 'Rejected' && input.reasonCode && <> · {outcomeLabel(input.reasonCode).text}</>}
+                  </li>
+                );
+              })}
+            </ul>
+          </Notice>
+        )}
         {(compatibility?.kind === 'error' ||
           (compatibility?.kind === 'result' &&
             compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
