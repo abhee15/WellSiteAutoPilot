@@ -54,3 +54,25 @@ Not verified: history read of a selected quantity; card/calibration inputs (P1/P
 New observations:
 - P13: the output port also defaults to the unsaveable name Quantity1 (same as P11).
 - P14: the IDE tab button does not respond to a role=button click in automation (found by text only); check its accessible role.
+
+## Breadth testing of #638 (CL 1108675): input kinds, value types, asset device types
+
+Method: API matrix against the live stack (P4 tree, Negotiate, ForeSite + CygNet connections), ~126 ForeSite assets, drafts created per variant, then asset-compatibility, quantity-discovery and history-preview per asset. Device types came from the ForeSite probe (LufkinSam, WellPilotRPOC, WFordKS/ESP, AEBEAM, WFTA1K). Reference-module inputs came from lm-blueprints (Idle Time on RPOC, Target Fillage on VSD, Rod Buckling on Lufkin).
+
+Results summary:
+- AveragePumpFillage (scalar current): Satisfied 22 of 72 assets, Missing 46, 404 x4. By device: LufkinSam 2/4, WellPilotRPOC 4/8, WFordKS/AEBEAM/WFTA1K 0.
+- Structured cards and calibration: Unsupported on every asset of every device type (P1 confirmed at scale). Stored-card read still works on RPOC_0413 (2 cards, quality Unknown), so inspection and compatibility disagree.
+- Every reference-module input other than PumpFillage/AveragePumpFillage is Unsupported on all device types: SPM, AverageSPM, CyclesYesterday, RunTimeYesterday, StrokesYesterday, InferredProductionYesterday, IdleTime, MinSpeed, MaxSpeed, TargetFillage.
+
+New gaps:
+- P15 (design question): the author cannot choose or pin the provider or the operation (surveillance, daily averages, well trend, well test) for an input. The registry lists PumpFillage as ForeSite and CygNet, but the capability is filled in read-only and "Registered by" is only a label. Anchored "yesterday at clock time" inputs have no fields.
+- P16: the registry has 6 quantities. The three reference modules need 10+ more (see summary). Discovery returns SPM (observed) but the UI only says "Add this quantity to the draft to preview its trend", and SPM cannot be added because it is not in the registry.
+- P17: the server accepts what the UI blocks: unregistered quantity, wrong unit (kg for a % quantity), text value type on a numeric quantity, structured.current on a scalar, two inputs for the same quantity. All return HTTP 200 on create. Compatibility then reports Missing on assets without data and reports the mismatch (EXECUTION_INPUT_QUANTITY_MISMATCH) only where data exists, so the unit error is masked.
+- P18: history-preview rejects any input that has a valueSchema (GUIDED_HISTORY_INPUT_UNSUPPORTED), and every UI-created contract input has one, so the trend preview cannot work for contract-only inputs. A History-access scalar input is also Unsupported in compatibility.
+- P19: Unsupported does not say whether the quantity is unregistered, the asset's connection does not provide it, or the access mode is not supported. All map to GUIDED_LIVE_INPUT_UNSUPPORTED.
+- P20: 4 of 72 (then 9 of 126) assets answer 404 GUIDED_LIVE_SOURCE_UNAVAILABLE on compatibility (assets with no parent device, for example Asset Test, Demo, AR-REC, Analytics_Wells). The UI message for this was not checked.
+- P21: the repo samples (three CygNet checks, authoring dotnet and python) are V1 manifests with entry points and cannot be loaded as contract-only drafts (GUIDED_CONTRACT_INVALID). There is no way to start a contract from an existing manifest.
+- P22 (environment): all 126 assets searched belong to the ForeSite connection. No CygNet or SJVKRP assets were found, so the CygNet-registered quantities (CasingPressure, MotorAmps, RodLoad, TubingPressure) could not be checked against a live asset.
+- Age 0 is rejected (module_data_max_age_invalid) while a null age is accepted; the UI shows only the generic message (P9).
+
+Not tested: ESP/PCP quantities (no fillage by design), commands, structured inputs other than cards and calibration, large assets lists in the UI, any run of the module.
