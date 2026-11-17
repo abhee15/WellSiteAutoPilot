@@ -40,3 +40,9 @@ Retirement stops new dispatch; requests committed before retirement may finish
 with their pinned archive. A missing or corrupt archive fails explicitly rather
 than substituting another version or built-in. This does not establish current
 provider connectivity, connection-aware input routing or arbitrary-code isolation.
+
+## Optional structured calculation trace in completion evidence
+
+For a successful hosted structured module, the trusted structured host may return an optional `CalculationTrace` validated against the approved input requirements and bounded scalar step schema. The worker adds it as `calculationTrace` **inside the existing V2 completed result's `OutputJson` only when present**. No new message subject, event version, control intent, or dispatch path is added. With no trace, the serialized structured result is byte-for-byte compatible with the previous shape.
+
+This evidence is **module-reported, host shape-validated**, not proof that a provider reading or numerical algorithm is correct. Host validation precedes publication; failed evaluations still emit `ExecutionFailedV2`, not successful calculation evidence. The completed execution's existing identity, replay and permissions remain authoritative. The current authoring UI does not yet consume this field and must not invent intermediates where it is absent. The synthetic card calibration can produce a trace offline; its live hosted-provider acceptance remains pending.
