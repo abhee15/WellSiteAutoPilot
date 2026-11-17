@@ -561,7 +561,11 @@ export function GuidedAuthoringPage({
                       {t('guided.inspectOnlyContract')}
                     </Notice>
                   )}
-                  <GuidedModuleContract manifestJson={draft?.manifestJson} />
+                  <GuidedModuleContract
+                    key={draft?.id ?? 'new'}
+                    manifestJson={draft?.manifestJson}
+                    initiallyOpen={inspectOnly}
+                  />
                 </section>
                 {!inspectOnly && (
                   <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
