@@ -71,3 +71,9 @@ test data. The hosted structured path reads stored ForeSite cards through the
 authorized read plan. ForeSite currently reports their quality as `Unknown`,
 which the reviewed input policy rejects. The sample's calibration input also
 uses a synthetic source. See the [structured ForeSite card implementation](../../../docs/implementation/foresite-structured-cards.md).
+
+## Experimental offline calculation trace (V1)
+
+The synthetic card calibration now optionally emits **module-reported scalar calculation evidence**: one transform step per card records its adjusted peak load (410 and 490 lb for the checked-in fixture), followed by an aggregate step recording 490 lb. Explicit requirement and prior-step references document the reported order. The SDK's `CalculationTrace` is optional; existing V2 modules without it are still valid. The offline host bounds and validates the trace version, allowed step kinds, stable IDs, references, uniqueness, metric IDs and units. The host does **not** independently verify the numerical algorithm or infer steps from source code.
+
+**Not available in the workbench yet:** The production worker's current structured-result serialization does not transport this field, and the UI must not display fabricated intermediate values. A later, reviewed slice must carry validated evidence through the worker/result path and bind it to the exact execution, module revision and package SHA. Failed evaluations do not produce a successful trace. Provider Simulator and licensed ForeSite/CygNet testing remain separate acceptance stages.
