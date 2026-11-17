@@ -656,6 +656,18 @@ assert reading["quantity"] == "PumpFillage" and reading["value"] == 82 and readi
 assert reading["quality"] == "Good" and reading["timestampUtc"], live
 assert not {"externalId", "settings", "source"}.intersection(reading), live
 
+compatibility_url = "/guided-module-drafts/" + live_draft["id"] + "/asset-compatibility"
+request("POST", compatibility_url, None, live_body, expected=401)
+request("POST", compatibility_url, ADMIN, live_body, expected=404)
+request("POST", compatibility_url, OTHER, dict(live_body, assetId=other_alpha["id"]), expected=404)
+request("POST", compatibility_url, OTHER, dict(live_body, expectedRevision=2), expected=409)
+compatible, = request("POST", compatibility_url, OTHER, live_body)["inputs"]
+assert compatible["status"] == "Satisfied" and compatible["inputId"] == "fillage", compatible
+assert compatible["quantity"] == "PumpFillage" and not compatible.get("reasonCode"), compatible
+assert not {"value", "externalId", "settings", "source"}.intersection(compatible), compatible
+missing, = request("POST", compatibility_url, OTHER, dict(live_body, assetId=alpha2["id"]))["inputs"]
+assert missing["status"] == "Missing" and missing["reasonCode"] == "FORESITE_MEASUREMENT_MISSING", missing
+
 history_url = "/guided-module-drafts/" + live_draft["id"] + "/history-preview"
 history_body = dict(live_body, inputId="fillage", startUtc="2026-10-31T12:00:00Z",
     endUtc="2026-10-31T13:00:00Z", maximumSamples=2)
@@ -754,6 +766,7 @@ assert request("GET", "/asset-views/" + view["id"] + "/selection")["assetIds"] =
 updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "ESP subset", "assetIds": selection})
 retire(other["userId"], well_access)
 request("POST", live_url, OTHER, live_body, expected=404)
+request("POST", compatibility_url, OTHER, live_body, expected=404)
 request("POST", history_url, OTHER, history_body, expected=404)
 request("POST", production_url, OTHER, production_body, expected=404)
 request("POST", cards_url, OTHER, live_body, expected=404)
@@ -768,6 +781,7 @@ request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "nam
 # Losing Connection access removes all View routes, including mutations when edit is still granted.
 retire(other["userId"], connection_access)
 request("POST", live_url, OTHER, live_body, expected=403)
+request("POST", compatibility_url, OTHER, live_body, expected=403)
 request("POST", history_url, OTHER, history_body, expected=403)
 request("POST", production_url, OTHER, production_body, expected=403)
 request("POST", cards_url, OTHER, live_body, expected=403)

@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.ModuleSdk;
@@ -23,11 +24,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         var artifact = await DeclarativeThresholdPackageBuilder.BuildAsync(draft.Content.Manifest, draft.Content.Definition, cancellationToken);
         var module = artifact.Package.DeclarativeModule!;
         var initial = await ReadContextAsync(subject, assetId, cancellationToken);
-        var rule = AdapterReadRules.Find(initial.Connection.AdapterKey);
         var manifest = artifact.Package.Manifest;
-        if (rule is null || initial.Binding.ResourceKind != rule.ResourceKind ||
-            (manifest.RequiredAdapterKey is { } requiredAdapter && !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)) ||
-            manifest.DataRequirements.Any(input => !rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.ValueSchema?.SchemaId)))
+        if (manifest.DataRequirements.Any(input => !SupportsCurrentInput(manifest, initial, input)))
             throw new WellSiteAutoPilotException("GUIDED_LIVE_INPUT_UNSUPPORTED", FailureKind.Validation,
                 "This connection does not support the draft inputs.");
 
@@ -50,10 +48,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         async Task<LogicInputValue?> ObserveAsync(string id, string quantity)
         {
             await RequireCurrentContextAsync();
-            var value = await gateway.GetCurrentAsync(new(initial.Connection.AdapterKey, initial.Connection.Id,
-                initial.Connection.Revision, initial.Binding.ExternalId, quantity,
-                initial.Connection.Settings.ToDictionary(entry => entry.Key, entry => (string?)entry.Value, StringComparer.Ordinal)),
-                cancellationToken);
+            var value = await ReadCurrentAsync(initial, quantity, cancellationToken);
             readings.Add(new(id, value.Quantity, value.Value, value.Unit, value.TimestampUtc, value.Quality, value.TimestampKind));
             return value.Value is { } number && value.StructuredValue is null
                 ? new(id, assetId, value.Quantity, number, value.Unit, value.TimestampUtc, value.Quality, value.Source)
@@ -69,6 +64,76 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         }
 
     }
+
+    public async Task<IReadOnlyList<GuidedInputCompatibility>> CheckCompatibilityAsync(Guid draftId, int expectedRevision,
+        Guid assetId, AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        var manifest = draft.Content.Manifest;
+        var source = await ReadContextAsync(subject, assetId, cancellationToken);
+        var matchesAsset = await MatchesAssetAsync(manifest, source, subject, cancellationToken);
+        var results = new List<GuidedInputCompatibility>(manifest.DataRequirements.Count);
+
+        foreach (var input in manifest.DataRequirements)
+        {
+            if (!matchesAsset)
+                results.Add(new(input.Id, input.Quantity, "Unsupported", "GUIDED_LIVE_ASSET_UNSUPPORTED"));
+            else if (!SupportsCurrentInput(manifest, source, input))
+                results.Add(new(input.Id, input.Quantity, "Unsupported", "GUIDED_LIVE_INPUT_UNSUPPORTED"));
+            else
+            {
+                await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, source, cancellationToken);
+                results.Add(await CheckCurrentInputAsync(source, input, cancellationToken));
+            }
+        }
+
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, source, cancellationToken);
+        return results;
+    }
+
+    private async Task<GuidedInputCompatibility> CheckCurrentInputAsync(PreviewSource source, LogicDataRequirement input,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var value = await ReadCurrentAsync(source, input.Quantity, cancellationToken);
+            if (value.StructuredValue is not null)
+                return new(input.Id, input.Quantity, "Rejected", "EXECUTION_INPUT_SHAPE_UNSUPPORTED");
+            if (value.Value is null)
+                return new(input.Id, input.Quantity, "Missing", "MODULE_DECLARATIVE_INPUT_UNAVAILABLE");
+            if (value.TimestampKind == "UnverifiedScan")
+                return new(input.Id, input.Quantity, "Rejected", "EXECUTION_INPUT_TIMESTAMP_UNVERIFIED");
+            LogicModuleInputValidation.ValidateObservation(value.Quantity, value.Unit, value.TimestampUtc,
+                value.Quality, input, clock.GetUtcNow());
+            return new(input.Id, input.Quantity, "Satisfied", null);
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.Validation or FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
+        {
+            var status = exception.Code switch
+            {
+                "CYGNET_QUANTITY_UNSUPPORTED" => "Unsupported",
+                "FORESITE_MEASUREMENT_MISSING" or "CYGNET_POINT_NO_VALUE" or "CYGNET_POINT_NOT_FOUND" => "Missing",
+                "FORESITE_MEASUREMENT_INVALID" or "FORESITE_TIMESTAMP_INVALID" or "CYGNET_VALUE_NOT_NUMERIC" or
+                    "CYGNET_TIMESTAMP_INVALID" => "Rejected",
+                _ when exception.Kind == FailureKind.Validation => "Rejected",
+                _ => "Unavailable"
+            };
+            return new(input.Id, input.Quantity, status, exception.Code);
+        }
+    }
+
+    private static bool SupportsCurrentInput(LogicModuleManifest manifest, PreviewSource source, LogicDataRequirement input) =>
+        input.Access == "Current" && input.ValueSchema is null &&
+        (manifest.RequiredAdapterKey is null || string.Equals(manifest.RequiredAdapterKey, source.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)) &&
+        AdapterReadRules.Find(source.Connection.AdapterKey) is { } rule && source.Binding.ResourceKind == rule.ResourceKind &&
+        rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, null);
+
+    private Task<EngineeringValue> ReadCurrentAsync(PreviewSource source, string quantity, CancellationToken cancellationToken) =>
+        gateway.GetCurrentAsync(new(source.Connection.AdapterKey, source.Connection.Id, source.Connection.Revision,
+            source.Binding.ExternalId, quantity,
+            source.Connection.Settings.ToDictionary(entry => entry.Key, entry => (string?)entry.Value, StringComparer.Ordinal)),
+            cancellationToken);
 
     public async Task<HistoricalReadResult> ReadHistoryAsync(Guid draftId, int expectedRevision, Guid assetId, string inputId,
         DateTimeOffset? start, DateTimeOffset? end, int maximumSamples, AccessSubject subject,
@@ -226,16 +291,22 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         (await drafts.GetAsync(draftId, subject, cancellationToken)).RequireRevision(expectedRevision);
     }
 
-    private async Task RequireMatchingAssetAsync(WellSiteAutoPilot.Domain.Logic.LogicModuleManifest manifest,
-        PreviewSource source, AccessSubject subject, CancellationToken cancellationToken)
+    private async Task RequireMatchingAssetAsync(LogicModuleManifest manifest, PreviewSource source,
+        AccessSubject subject, CancellationToken cancellationToken)
+    {
+        if (!await MatchesAssetAsync(manifest, source, subject, cancellationToken))
+            throw new WellSiteAutoPilotException("GUIDED_LIVE_ASSET_UNSUPPORTED", FailureKind.Validation,
+                "The sample asset does not meet the draft asset requirements.");
+    }
+
+    private async Task<bool> MatchesAssetAsync(LogicModuleManifest manifest, PreviewSource source,
+        AccessSubject subject, CancellationToken cancellationToken)
     {
         var role = manifest.AssetRequirements.Single();
         var assetType = await assets.GetAssetTypeAuthorizedAsync(subject, source.AssetTypeId, cancellationToken);
-        if (assetType is not { IsActive: true } || (role.RequiredAssetTypeKey is { } requiredType &&
-            !string.Equals(requiredType, assetType.Key, StringComparison.OrdinalIgnoreCase)) ||
-            role.RequiredTraits.Count != 0)
-            throw new WellSiteAutoPilotException("GUIDED_LIVE_ASSET_UNSUPPORTED", FailureKind.Validation,
-                "The sample asset does not meet the draft asset requirements.");
+        return assetType is { IsActive: true } &&
+            (role.RequiredAssetTypeKey is null || string.Equals(role.RequiredAssetTypeKey, assetType.Key, StringComparison.OrdinalIgnoreCase)) &&
+            role.RequiredTraits.Count == 0;
     }
 
     private async Task<PreviewSource> ReadContextAsync(AccessSubject subject, Guid assetId, CancellationToken cancellationToken)
@@ -263,6 +334,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     private static WellSiteAutoPilotException SourceUnavailable() => new("GUIDED_LIVE_SOURCE_UNAVAILABLE",
         FailureKind.NotFound, "An active, authorized imported asset with one source is required.");
 }
+
+public sealed record GuidedInputCompatibility(string InputId, string Quantity, string Status, string? ReasonCode);
 
 public sealed record GuidedLivePreview(DeclarativeThresholdEvidence Evidence, IReadOnlyList<GuidedLiveReading> Readings);
 public sealed record GuidedLiveReading(string InputId, string Quantity, decimal? Value, string Unit,

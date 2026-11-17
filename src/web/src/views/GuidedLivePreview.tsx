@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  checkGuidedModuleAssetCompatibility,
   previewGuidedModuleInputHistory,
   previewGuidedModuleProductionDays,
   previewGuidedModuleSurfaceCards,
   previewGuidedModuleWithLiveInputs,
 } from '../api/generated/v1/sdk.gen';
 import type {
+  GuidedAssetCompatibilityResponse,
   GuidedHistoryPreviewResponse,
   GuidedLivePreviewResponse,
   GuidedProductionDaysPreviewResponse,
@@ -27,6 +29,17 @@ type WellPreview =
   | { kind: 'productionDays'; data: GuidedProductionDaysPreviewResponse }
   | { kind: 'surfaceCards'; data: GuidedSurfaceCardsPreviewResponse }
   | { kind: 'unsupported'; preview: 'productionDays' | 'surfaceCards' };
+
+type Compatibility =
+  { kind: 'checking' } | { kind: 'result'; data: GuidedAssetCompatibilityResponse } | { kind: 'error' };
+
+const compatibilityLabels = {
+  Satisfied: 'guided.assetInputSatisfied',
+  Unsupported: 'guided.assetInputUnsupported',
+  Missing: 'guided.assetInputMissing',
+  Rejected: 'guided.assetInputRejected',
+  Unavailable: 'guided.assetInputUnavailable',
+} as const;
 
 export function GuidedLivePreview({
   draftId,
@@ -51,7 +64,39 @@ export function GuidedLivePreview({
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const operation = useRef<AbortController | null>(null);
-  useEffect(() => () => operation.current?.abort(), []);
+  const compatibilityRequest = useRef<AbortController | null>(null);
+  const [compatibility, setCompatibility] = useState<Compatibility | null>(null);
+  useEffect(
+    () => () => {
+      operation.current?.abort();
+      compatibilityRequest.current?.abort();
+    },
+    [],
+  );
+
+  function clearCompatibility() {
+    compatibilityRequest.current?.abort();
+    setCompatibility(null);
+  }
+
+  async function checkWell(selectedAssetId: string) {
+    clearCompatibility();
+    if (!selectedAssetId) return;
+    const controller = new AbortController();
+    compatibilityRequest.current = controller;
+    setCompatibility({ kind: 'checking' });
+    try {
+      const { data } = await checkGuidedModuleAssetCompatibility({
+        path: { id: draftId },
+        body: { expectedRevision: revision, assetId: selectedAssetId },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setCompatibility(data?.inputs?.length ? { kind: 'result', inputs: data.inputs } : { kind: 'error' });
+    } catch {
+      if (!controller.signal.aborted) setCompatibility({ kind: 'error' });
+    }
+  }
 
   async function search(pageOffset: number) {
     const controller = new AbortController();
@@ -60,6 +105,7 @@ export function GuidedLivePreview({
     setFailed(false);
     setMatches(null);
     setAssetId('');
+    clearCompatibility();
     setWellPreview(null);
     try {
       const page = await fetchSearch(query.trim(), pageOffset, controller.signal);
@@ -235,6 +281,7 @@ export function GuidedLivePreview({
               setQuery(event.target.value);
               setMatches(null);
               setAssetId('');
+              clearCompatibility();
               setWellPreview(null);
               setFailed(false);
             }}
@@ -250,6 +297,7 @@ export function GuidedLivePreview({
                 disabled={busy}
                 onChange={(event) => {
                   setAssetId(event.target.value);
+                  void checkWell(event.target.value);
                   setWellPreview(null);
                   setFailed(false);
                 }}
@@ -286,6 +334,39 @@ export function GuidedLivePreview({
               </div>
             )}
           </>
+        )}
+        <div role="status">
+          {compatibility?.kind === 'checking' && <p>{t('guided.assetCompatibilityChecking')}</p>}
+          {compatibility?.kind === 'error' && <p>{t('guided.assetCompatibilityFailed')}</p>}
+          {compatibility?.kind === 'result' && (
+            <>
+              <p>
+                {t(
+                  compatibility.inputs.every((input) => input.status === 'Satisfied')
+                    ? 'guided.assetCompatible'
+                    : 'guided.assetCompatibilityIncomplete',
+                )}
+              </p>
+              <ul>
+                {compatibility.inputs.map((input) => {
+                  const label =
+                    compatibilityLabels[input.status as keyof typeof compatibilityLabels] ??
+                    'guided.assetInputUnavailable';
+                  return (
+                    <li key={input.inputId}>
+                      {input.quantity} · {t(label)}
+                      {input.status === 'Rejected' && input.reasonCode && <> · {outcomeLabel(input.reasonCode).text}</>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
+        {(compatibility?.kind === 'error' ||
+          (compatibility?.kind === 'result' &&
+            compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
+          <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkWell(assetId)} />
         )}
         <div>
           <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />

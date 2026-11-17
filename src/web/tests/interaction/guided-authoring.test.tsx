@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
 import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import {
   approveGuidedModuleSubmission,
+  checkGuidedModuleAssetCompatibility,
   getGuidedModuleSubmission,
   createGuidedModuleDraft,
   listGuidedModuleDrafts,
@@ -20,6 +21,7 @@ afterEach(cleanup);
 
 vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   approveGuidedModuleSubmission: vi.fn(),
+  checkGuidedModuleAssetCompatibility: vi.fn(),
   createGuidedModuleDraft: vi.fn(),
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
@@ -275,11 +277,24 @@ it('previews a saved revision with an imported well without enabling submission'
       new Response(
         JSON.stringify([
           { id: 'manual', name: 'Manual well', isActive: true },
+          { id: 'other', name: 'Other imported well', isActive: true, ownerConnectionId: 'source' },
           { id: 'imported', name: 'Imported well', isActive: true, ownerConnectionId: 'source' },
         ]),
       ),
   );
   vi.stubGlobal('fetch', fetch);
+  const compatibility = vi.mocked(checkGuidedModuleAssetCompatibility);
+  let resolvePrevious: (response: Awaited<ReturnType<typeof checkGuidedModuleAssetCompatibility>>) => void = () => {};
+  compatibility
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePrevious = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({
+      data: { inputs: [{ inputId: 'fillage', quantity: 'PumpFillage', status: 'Satisfied' }] },
+    } as never);
   vi.mocked(previewGuidedModuleWithLiveInputs).mockResolvedValue({
     data: {
       outcomeCode: 'THRESHOLD_NOT_MET',
@@ -305,7 +320,26 @@ it('previews a saved revision with an imported well without enabling submission'
     fireEvent.click(screen.getByRole('button', { name: 'Find wells' }));
     const wells = await screen.findByRole('combobox', { name: 'Sample well' });
     expect(screen.queryByRole('option', { name: 'Manual well' })).toBeNull();
+    expect(compatibility).not.toHaveBeenCalled();
+    fireEvent.change(wells, { target: { value: 'other' } });
+    const previousRequest = compatibility.mock.lastCall?.[0];
+    expect(previousRequest?.body.assetId).toBe('other');
+    expect(screen.getByText('Checking this well against the draft’s inputs…')).toBeTruthy();
     fireEvent.change(wells, { target: { value: 'imported' } });
+    expect(previousRequest?.signal?.aborted).toBe(true);
+    expect(compatibility).toHaveBeenLastCalledWith({
+      path: { id: 'live-draft' },
+      body: { expectedRevision: 3, assetId: 'imported' },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+    expect(await screen.findByText('PumpFillage · Meets requirement')).toBeTruthy();
+    await act(async () => {
+      resolvePrevious({
+        data: { inputs: [{ inputId: 'fillage', quantity: 'PumpFillage', status: 'Missing' }] },
+      } as never);
+    });
+    expect(screen.queryByText('PumpFillage · Reading missing')).toBeNull();
+    expect(screen.getByText('PumpFillage · Meets requirement')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run live preview' }));
     expect(await screen.findByText(/PumpFillage · 82 % · Good/)).toBeTruthy();
     expect(vi.mocked(previewGuidedModuleWithLiveInputs)).toHaveBeenLastCalledWith({

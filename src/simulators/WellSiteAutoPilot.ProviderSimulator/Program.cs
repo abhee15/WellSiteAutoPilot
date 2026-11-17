@@ -273,10 +273,13 @@ app.MapGet("/foresite/Surveillance/Well/AllSavedSetPointParams", (long wellId, i
     return Results.Json(wellId == 103 ? [] : new[] { group }, new System.Text.Json.JsonSerializerOptions());
 });
 
-// Current surveillance fixture for the imported sample well.
+// Current surveillance fixtures for imported wells with different available readings.
 app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContext context) =>
 {
     if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (wellId == 102)
+        return Results.Json(new { Value = new { CurrentSPM = 5.5m, LastGoodScanTime = DateTimeOffset.UtcNow } },
+            new System.Text.Json.JsonSerializerOptions());
     if (wellId != 101) return Results.NotFound();
     return Results.Json(new { Value = new { CurrentPumpFillage = 82m, LastGoodScanTime = DateTimeOffset.UtcNow } },
         new System.Text.Json.JsonSerializerOptions());

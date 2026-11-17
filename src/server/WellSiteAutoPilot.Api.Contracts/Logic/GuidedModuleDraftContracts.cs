@@ -30,6 +30,10 @@ public sealed record GuidedModuleSubmissionResponse(Guid DraftId, int Revision, 
 
 public sealed record GuidedLivePreviewRequest(int ExpectedRevision, Guid AssetId);
 
+public sealed record GuidedAssetCompatibilityResponse(IReadOnlyList<GuidedInputCompatibilityResponse> Inputs);
+
+public sealed record GuidedInputCompatibilityResponse(string InputId, string Quantity, string Status, string? ReasonCode);
+
 public sealed record GuidedLivePreviewResponse(int Revision, string PackageSha256, string? OutcomeCode, string? FailureCode,
     decimal? DifferentialPsi, IReadOnlyList<GuidedLiveReadingResponse> Readings);
 
