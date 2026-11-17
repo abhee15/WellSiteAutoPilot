@@ -389,10 +389,10 @@ export function GuidedAuthoringPage({
     await onRefresh();
   }
 
-  let pageTitle = t('guided.newModule');
+  let pageTitle = t('guided.untitledModule');
   if (showReviewQueue) pageTitle = t('guided.pendingReviews');
   else if (canReview && !canAuthor) pageTitle = t('guided.reviewsTab');
-  else if (draft) pageTitle = name.trim() || t('guided.newModule');
+  else if (draft) pageTitle = name.trim() || t('guided.untitledModule');
 
   return (
     <section className="panel guided-authoring">
