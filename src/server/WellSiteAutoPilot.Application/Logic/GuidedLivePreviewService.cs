@@ -234,12 +234,14 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
 
     public async Task<GuidedQuantityDiscovery> DiscoverQuantitiesAsync(Guid draftId, int expectedRevision,
         Guid assetId, string capability, DateTimeOffset? startUtc, DateTimeOffset? endUtc, AccessSubject subject,
-        CancellationToken cancellationToken = default)
+        GuidedSiteHistoryWindow? siteWindow = null, CancellationToken cancellationToken = default)
     {
+        if (capability == "WellTrend" && siteWindow is not null)
+            (startUtc, endUtc) = GuidedSiteHistoryWindow.Resolve(startUtc, endUtc, siteWindow);
         var usesWindow = capability is "DailyAverages" or "WellTrend";
-        if (usesWindow
+        if ((siteWindow is not null && capability != "WellTrend") || (usesWindow
             ? startUtc is null || endUtc is null || !IsValidWindow(startUtc.Value, endUtc.Value)
-            : capability is not ("Surveillance" or "WellTest") || startUtc is not null || endUtc is not null)
+            : capability is not ("Surveillance" or "WellTest") || startUtc is not null || endUtc is not null))
             throw new WellSiteAutoPilotException("GUIDED_QUANTITY_DISCOVERY_REQUEST_INVALID", FailureKind.Validation,
                 "Choose a supported quantity source and an ordered whole-second window.");
 

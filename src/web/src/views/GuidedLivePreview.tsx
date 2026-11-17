@@ -19,7 +19,7 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { outcomeLabel } from '../words';
-import { GuidedQuantityDiscovery } from './GuidedQuantityDiscovery';
+import { GuidedQuantityDiscovery, type HistoryBounds, type UtcWindow } from './GuidedQuantityDiscovery';
 import { GuidedSurfaceCardsPreview } from './GuidedSurfaceCardsPreview';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
 
@@ -53,11 +53,6 @@ export function GuidedLivePreview({
   revision: number;
   inputs?: readonly { id: string; quantity: string }[];
 }) {
-  const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
-  const [hours, setHours] = useState('4');
-  const [historyAnchor, setHistoryAnchor] = useState('now');
-  const [endLocal, setEndLocal] = useState('');
-  const [timeZoneId, setTimeZoneId] = useState('');
   const [wellPreview, setWellPreview] = useState<WellPreview | null>(null);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<SearchHit[] | null>(null);
@@ -145,20 +140,13 @@ export function GuidedLivePreview({
     }
   }
 
-  async function previewHistory() {
+  async function previewHistory(inputId: string, bounds: HistoryBounds) {
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
     setFailed(false);
     setWellPreview(null);
-    const end = Math.floor(Date.now() / 1000) * 1000;
-    const siteWindow =
-      historyAnchor === 'site'
-        ? { endLocal, timeZoneId: timeZoneId.trim(), durationMinutes: Number(hours) * 60 }
-        : undefined;
-    const bounds = siteWindow
-      ? { siteWindow }
-      : { startUtc: new Date(end - Number(hours) * 3600000).toISOString(), endUtc: new Date(end).toISOString() };
+    const siteWindow = 'siteWindow' in bounds ? bounds.siteWindow : undefined;
     try {
       const { data, error } = await previewGuidedModuleInputHistory({
         path: { id: draftId },
@@ -191,21 +179,19 @@ export function GuidedLivePreview({
     }
   }
 
-  async function previewProductionDays() {
+  async function previewProductionDays(window: UtcWindow) {
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
     setFailed(false);
     setWellPreview(null);
-    const end = Math.floor(Date.now() / 1000) * 1000;
     try {
       const { data, error } = await previewGuidedModuleProductionDays({
         path: { id: draftId },
         body: {
           expectedRevision: revision,
           assetId,
-          startUtc: new Date(end - 7 * 24 * 3600000).toISOString(),
-          endUtc: new Date(end).toISOString(),
+          ...window,
         },
         signal: controller.signal,
       });
@@ -257,9 +243,6 @@ export function GuidedLivePreview({
   const historyResult = wellPreview?.kind === 'history' ? wellPreview : null;
   const history = historyResult?.data;
 
-  function clearHistoryResult() {
-    if (wellPreview?.kind === 'history' || wellPreview?.kind === 'historyTimeError') setWellPreview(null);
-  }
   const result = wellPreview?.kind === 'current' ? wellPreview.data : null;
   const productionDays = wellPreview?.kind === 'productionDays' ? wellPreview.data : null;
 
@@ -369,85 +352,18 @@ export function GuidedLivePreview({
             compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkWell(assetId)} />
         )}
+        <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />
         {assetId && (
-          <GuidedQuantityDiscovery key={`${draftId}:${revision}:${assetId}`} {...{ draftId, revision, assetId }} />
-        )}
-        <div>
-          <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />
-        </div>
-        {assetId && inputs.length > 0 && (
-          <div className="guided-authoring-fields">
-            <SelectField
-              label={t('guided.historyInput')}
-              value={inputId}
-              disabled={busy}
-              onChange={(event) => {
-                setInputId(event.target.value);
-                clearHistoryResult();
-              }}
-            >
-              {inputs.map((input) => (
-                <option key={input.id} value={input.id}>
-                  {input.quantity}
-                </option>
-              ))}
-            </SelectField>
-            <SelectField
-              label={t('guided.historyAnchor')}
-              value={historyAnchor}
-              disabled={busy}
-              onChange={(event) => {
-                setHistoryAnchor(event.target.value);
-                clearHistoryResult();
-              }}
-            >
-              <option value="now">{t('guided.historyNow')}</option>
-              <option value="site">{t('guided.historySiteTime')}</option>
-            </SelectField>
-            {historyAnchor === 'site' && (
-              <>
-                <TextField
-                  type="datetime-local"
-                  label={t('guided.historyEndLocal')}
-                  value={endLocal}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setEndLocal(event.target.value);
-                    clearHistoryResult();
-                  }}
-                />
-                <TextField
-                  label={t('guided.historySiteZone')}
-                  helper={t('guided.historySiteZoneExample')}
-                  value={timeZoneId}
-                  maxLength={128}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setTimeZoneId(event.target.value);
-                    clearHistoryResult();
-                  }}
-                />
-              </>
-            )}
-            <SelectField
-              label={t('guided.historyWindow')}
-              value={hours}
-              disabled={busy}
-              onChange={(event) => {
-                setHours(event.target.value);
-                clearHistoryResult();
-              }}
-            >
-              <option value="1">{t('guided.historyOneHour')}</option>
-              <option value="4">{t('guided.historyFourHours')}</option>
-              <option value="24">{t('guided.historyDay')}</option>
-            </SelectField>
-            <ActionButton
-              label={t('guided.readHistory')}
-              disabled={busy || !inputId || (historyAnchor === 'site' && (!endLocal || !timeZoneId.trim()))}
-              onClick={() => void previewHistory()}
-            />
-          </div>
+          <GuidedQuantityDiscovery
+            key={`${draftId}:${revision}:${assetId}`}
+            {...{ draftId, revision, assetId, inputs, busy }}
+            onHistory={(inputId, bounds) => void previewHistory(inputId, bounds)}
+            onDaily={(window) => void previewProductionDays(window)}
+            onChange={() => {
+              setWellPreview(null);
+              setFailed(false);
+            }}
+          />
         )}
         {wellPreview?.kind === 'historyTimeError' && <Notice tone="error">{t(wellPreview.message)}</Notice>}
         {historyResult && history && (
@@ -492,11 +408,6 @@ export function GuidedLivePreview({
         )}
         {assetId && (
           <div className="guided-authoring-actions">
-            <ActionButton
-              label={t('guided.readProductionDays')}
-              disabled={busy}
-              onClick={() => void previewProductionDays()}
-            />
             <ActionButton
               label={t('guided.readSurfaceCards')}
               disabled={busy}

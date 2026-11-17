@@ -53,7 +53,7 @@ public sealed record GuidedHistoryPreviewResponse(string Quantity, DateTimeOffse
 public sealed record GuidedHistorySampleResponse(decimal Value, string Unit, DateTimeOffset TimestampUtc, string Quality);
 
 public sealed record GuidedQuantityDiscoveryRequest(int ExpectedRevision, Guid AssetId, string Capability,
-    DateTimeOffset? StartUtc = null, DateTimeOffset? EndUtc = null);
+    DateTimeOffset? StartUtc = null, DateTimeOffset? EndUtc = null, GuidedSiteHistoryWindowRequest? SiteWindow = null);
 
 public sealed record GuidedQuantityDiscoveryResponse(bool Supported, IReadOnlyList<GuidedDiscoveredQuantityResponse> Quantities,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? EvidenceStatus,
