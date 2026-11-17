@@ -1425,7 +1425,6 @@ export const englishMessages = {
   'guided.previousReviews': 'Previous reviews',
   'guided.nextReviews': 'Next reviews',
   'guided.backToReviews': 'Back to reviews',
-  'guided.heading': 'Guided modules',
   'guided.newPressure': 'New pressure differential module',
   'guided.pressureThreshold': 'Maximum differential (psi)',
   'guided.pressureRule': 'Subtract tubing pressure from casing pressure. Recommend a review when the difference exceeds the limit.',
