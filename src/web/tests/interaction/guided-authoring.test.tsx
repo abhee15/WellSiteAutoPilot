@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
+import { GuidedLivePreview } from '../../src/views/GuidedLivePreview';
 import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import {
   approveGuidedModuleSubmission,
@@ -326,6 +327,38 @@ it('lists the exact submitted revision for reviewers and opens its evidence', as
   }
 });
 
+it('treats no returned input checks as unverified compatibility rather than failure or success', async () => {
+  vi.mocked(checkGuidedModuleAssetCompatibility).mockResolvedValue({
+    data: { inputs: [] },
+  } as never);
+  const fetch = vi.fn(async () => new Response(JSON.stringify([
+    { id: 'asset-1', name: 'Sample rod pump', isActive: true, ownerConnectionId: 'source', path: [] },
+  ])));
+  vi.stubGlobal('fetch', fetch);
+  try {
+    render(<GuidedLivePreview draftId="draft-no-checks" revision={1} inputs={[]} />);
+    fireEvent.click(screen.getByText('Preview with a sample asset'));
+    expect(screen.getByText(/currently supports imported wells/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Asset name or ID'), { target: { value: 'pump' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find assets' }));
+    const assets = await screen.findByRole('combobox', { name: 'Sample asset' });
+    fireEvent.change(assets, { target: { value: 'asset-1' } });
+    expect(await screen.findByText(/No input checks were returned for this asset/i)).toBeTruthy();
+    expect(screen.queryByText(/satisfies all checked input requirements/i)).toBeNull();
+    expect(screen.queryByText('Could not check this asset.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+    await waitFor(() => expect(checkGuidedModuleAssetCompatibility).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(/No input checks were returned for this asset/i)).toBeTruthy();
+    expect(checkGuidedModuleAssetCompatibility).toHaveBeenCalledWith({
+      path: { id: 'draft-no-checks' },
+      body: { expectedRevision: 1, assetId: 'asset-1' },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it('previews a saved revision with an imported well without enabling submission', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [
@@ -381,16 +414,16 @@ it('previews a saved revision with an imported well without enabling submission'
     );
     await screen.findByRole('option', { name: 'Live draft' });
     fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'live-draft' } });
-    fireEvent.click(screen.getByText('Preview with a live well'));
-    fireEvent.change(screen.getByLabelText('Well name or asset ID'), { target: { value: 'well' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Find wells' }));
-    const wells = await screen.findByRole('combobox', { name: 'Sample well' });
+    fireEvent.click(screen.getByText('Preview with a sample asset'));
+    fireEvent.change(screen.getByLabelText('Asset name or ID'), { target: { value: 'well' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find assets' }));
+    const wells = await screen.findByRole('combobox', { name: 'Sample asset' });
     expect(screen.queryByRole('option', { name: 'Manual well' })).toBeNull();
     expect(compatibility).not.toHaveBeenCalled();
     fireEvent.change(wells, { target: { value: 'other' } });
     const previousRequest = compatibility.mock.lastCall?.[0];
     expect(previousRequest?.body.assetId).toBe('other');
-    expect(screen.getByText('Checking this well against the draft’s inputs…')).toBeTruthy();
+    expect(screen.getByText('Checking this asset against the draft’s declared inputs…')).toBeTruthy();
     fireEvent.change(wells, { target: { value: 'imported' } });
     expect(previousRequest?.signal?.aborted).toBe(true);
     expect(compatibility).toHaveBeenLastCalledWith({
@@ -484,7 +517,7 @@ it('previews a saved revision with an imported well without enabling submission'
     );
     const requestCount = discover.mock.calls.length;
     fireEvent.change(screen.getByLabelText('History duration'), { target: { value: '1' } });
-    await screen.findByText('Finding quantities for this well…');
+    await screen.findByText('Finding available quantities for this asset…');
     await waitFor(() => expect(discover).toHaveBeenCalledTimes(requestCount + 1));
     const oldWindowRequest = discover.mock.lastCall?.[0];
     expect(quantity.disabled).toBe(true);
