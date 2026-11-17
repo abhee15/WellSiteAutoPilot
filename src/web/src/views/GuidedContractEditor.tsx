@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import type { AdapterOperationsResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { t } from '../localization';
+import { loadAdapterOperations } from './adapterOperations';
 
 /**
  * Edits the portable typed contract (roles are preserved, inputs and outputs are edited) as the same saved V2
@@ -14,8 +16,48 @@ export type PortKind = 'input' | 'output';
 const listKey = { input: 'dataRequirements', output: 'outputRequirements' } as const;
 const maximumPorts = 64;
 const identifier = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const defaultCapability = 'structured.current';
+// Scalar current readings are served under this registered capability; see AdapterOperationDescriptor.
+const scalarCurrentCapability = 'engineering.current';
 type ScalarType = 'number' | 'string';
+
+/** A scalar current reading that at least one registered adapter operation declares it can serve. */
+export type SourceOption = { quantity: string; capabilityId: string; unit: string | null; adapters: string[] };
+
+/** Derived only from the Adapter Operations registry; nothing here is hardcoded per provider. */
+export function sourceOptionsFrom(adapters: readonly AdapterOperationsResponse[]): SourceOption[] {
+  const byQuantity = new Map<string, SourceOption & { unitConflict: boolean }>();
+  for (const adapter of adapters) {
+    for (const operation of adapter.operations) {
+      if (
+        operation.capability !== 'CurrentData' ||
+        operation.capabilityId !== scalarCurrentCapability ||
+        operation.structuredSchemaId != null ||
+        !operation.quantity
+      )
+        continue;
+      const unit = operation.unit ?? null;
+      const existing = byQuantity.get(operation.quantity);
+      if (!existing) {
+        byQuantity.set(operation.quantity, {
+          quantity: operation.quantity,
+          capabilityId: operation.capabilityId,
+          unit,
+          adapters: [adapter.displayName],
+          unitConflict: false,
+        });
+        continue;
+      }
+      if (!existing.adapters.includes(adapter.displayName)) existing.adapters.push(adapter.displayName);
+      // Providers that disagree on a unit never get a silently chosen one.
+      if (existing.unit !== unit) existing.unitConflict = true;
+    }
+  }
+  return [...byQuantity.values()]
+    .map(({ unitConflict, ...option }) => (unitConflict ? { ...option, unit: null } : option))
+    .sort((a, b) => a.quantity.localeCompare(b.quantity));
+}
+
+type Catalog = { status: 'loading' } | { status: 'unavailable' } | { status: 'ready'; options: SourceOption[] };
 
 function isObject(value: unknown): value is Json {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -112,7 +154,8 @@ function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
     maximumAgeSeconds: null,
     allowUncertainQuality: false,
     valueSchema,
-    requiredCapability: defaultCapability,
+    // Chosen by picking a registered quantity; a free-text capability would never match an adapter.
+    requiredCapability: '',
   };
 }
 
@@ -126,6 +169,19 @@ export function GuidedContractEditor({
   onChange: (manifestJson: string) => void;
 }) {
   const [selection, setSelection] = useState<{ kind: PortKind; index: number }>({ kind: 'input', index: 0 });
+  const [catalog, setCatalog] = useState<Catalog>({ status: 'loading' });
+  const quantityListId = useId();
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadAdapterOperations(controller.signal)
+      .then((adapters) => {
+        if (!controller.signal.aborted) setCatalog({ status: 'ready', options: sourceOptionsFrom(adapters) });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCatalog({ status: 'unavailable' });
+      });
+    return () => controller.abort();
+  }, []);
   const manifest = parseManifest(manifestJson);
   if (!manifest) return null;
 
@@ -171,6 +227,28 @@ export function GuidedContractEditor({
 
   const unitKey = kind === 'input' ? 'canonicalUnit' : 'unit';
   const scalar = port ? scalarTypeOf(port) : null;
+  const options = catalog.status === 'ready' ? catalog.options : [];
+  const matched = port ? options.find((option) => option.quantity === textValue(port.quantity)) : undefined;
+  // Only scalar inputs take their capability from the registry; structured inputs keep what was saved.
+  const registryInput = kind === 'input' && scalar !== null;
+
+  function changeQuantity(value: string) {
+    const option = options.find((candidate) => candidate.quantity === value);
+    update({
+      quantity: value,
+      ...(registryInput ? { requiredCapability: option?.capabilityId ?? '' } : {}),
+      // The registered unit is authoritative; a stale unit from a previous quantity is never kept.
+      ...(registryInput && option?.unit ? { [unitKey]: option.unit } : {}),
+    });
+  }
+
+  function quantityMessage(): { error?: string; helper?: string } {
+    if (!port) return {};
+    if (!identifier.test(textValue(port.quantity))) return { error: t('guided.portIdentifierInvalid') };
+    if (!registryInput) return {};
+    if (matched) return { helper: t('guided.portAvailableFrom', { adapters: matched.adapters.join(', ') }) };
+    return catalog.status === 'ready' ? { error: t('guided.portNoSource') } : {};
+  }
 
   return (
     <section aria-label={t('guided.contractEditor')}>
@@ -212,9 +290,27 @@ export function GuidedContractEditor({
                 maxLength={128}
                 value={textValue(port.quantity)}
                 disabled={disabled}
-                error={identifier.test(textValue(port.quantity)) ? undefined : t('guided.portIdentifierInvalid')}
-                onChange={(event) => update({ quantity: event.target.value })}
+                list={registryInput ? quantityListId : undefined}
+                {...quantityMessage()}
+                onChange={(event) => changeQuantity(event.target.value)}
               />
+              {registryInput && (
+                <datalist id={quantityListId}>
+                  {options.map((option) => (
+                    <option key={option.quantity} value={option.quantity} label={option.adapters.join(', ')} />
+                  ))}
+                </datalist>
+              )}
+              {registryInput && catalog.status === 'unavailable' && (
+                <Notice tone="warning" announce={false}>
+                  {t('guided.catalogUnavailable')}
+                </Notice>
+              )}
+              {registryInput && catalog.status === 'ready' && options.length === 0 && (
+                <Notice tone="info" announce={false}>
+                  {t('guided.catalogEmpty')}
+                </Notice>
+              )}
               <TextField
                 label={t('guided.portUnit')}
                 maxLength={64}
@@ -268,15 +364,9 @@ export function GuidedContractEditor({
                   />
                   <TextField
                     label={t('guided.portCapability')}
-                    maxLength={128}
                     value={textValue(port.requiredCapability)}
-                    disabled={disabled}
-                    error={
-                      identifier.test(textValue(port.requiredCapability))
-                        ? undefined
-                        : t('guided.portIdentifierInvalid')
-                    }
-                    onChange={(event) => update({ requiredCapability: event.target.value })}
+                    readOnly
+                    helper={t('guided.portCapabilityHelper')}
                   />
                 </>
               )}

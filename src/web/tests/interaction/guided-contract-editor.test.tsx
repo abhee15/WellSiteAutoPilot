@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
+import { loadAdapterOperations } from '../../src/views/adapterOperations';
 import {
   createGuidedModuleDraft,
   editGuidedModuleDraft,
@@ -9,6 +10,31 @@ import {
 } from '../../src/api/generated/v1/sdk.gen';
 
 afterEach(cleanup);
+
+vi.mock('../../src/views/adapterOperations', () => ({ loadAdapterOperations: vi.fn() }));
+
+function operation(capabilityId: string, quantity: string, unit: string | null, structuredSchemaId: string | null = null) {
+  return { capability: 'CurrentData', capabilityId, quantity, unit, structuredSchemaId };
+}
+
+// Two providers that register overlapping scalar readings, plus one structured read that must not become a scalar choice.
+function registerCatalog() {
+  vi.mocked(loadAdapterOperations).mockResolvedValue([
+    {
+      adapterKey: 'foresite',
+      displayName: 'ForeSite',
+      operations: [
+        operation('engineering.current', 'PumpFillage', '%'),
+        operation('structured.current', 'SurfaceCards', null, 'foresite.surface-cards/v1'),
+      ],
+    },
+    {
+      adapterKey: 'cygnet',
+      displayName: 'CygNet',
+      operations: [operation('engineering.current', 'PumpFillage', '%'), operation('engineering.current', 'CasingPressure', 'psi')],
+    },
+  ] as never);
+}
 
 vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   approveGuidedModuleSubmission: vi.fn(),
@@ -33,6 +59,7 @@ function startContract() {
 }
 
 it('authors, saves and reopens a typed contract without an asset, in Workflow and IDE', async () => {
+  registerCatalog();
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
   vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
     data: { id: 'contract-1', revision: 1, manifestJson: body.manifestJson },
@@ -48,23 +75,35 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
 
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Card calibration' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
+
+  // A quantity no adapter registers cannot be saved, because it has no capability that could ever be satisfied.
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'SurfaceLoad' } });
-  fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'lb' } });
-  fireEvent.change(screen.getByLabelText('Maximum age (seconds)'), { target: { value: '90' } });
+  expect(await screen.findByText(/No registered source provides this quantity/i)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Add output' }));
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PeakLoad' } });
   fireEvent.change(screen.getByLabelText('Value type'), { target: { value: 'string' } });
+  expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'SurfaceLoad' }));
+
+  // A registered quantity supplies its capability and unit, and names every provider that registers it.
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'CasingPressure' } });
+  expect((screen.getByLabelText('Provider capability') as HTMLInputElement).value).toBe('engineering.current');
+  expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('psi');
+  expect(screen.getByText('Registered by: CygNet')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PumpFillage' } });
+  expect(screen.getByText('Registered by: ForeSite, CygNet')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Maximum age (seconds)'), { target: { value: '90' } });
 
   // Workflow and IDE edit the same unsaved contract.
   fireEvent.click(screen.getByRole('tab', { name: 'IDE' }));
   expect(screen.getByRole('button', { name: 'PeakLoad' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'SurfaceLoad' }));
-  expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('lb');
+  fireEvent.click(screen.getByRole('button', { name: 'PumpFillage' }));
+  expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('%');
   fireEvent.click(screen.getByRole('tab', { name: 'Workflow' }));
 
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'bad quantity' } });
   expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
-  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'SurfaceLoad' } });
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PumpFillage' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await screen.findByText('Draft saved.');
 
@@ -76,13 +115,25 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   const manifest = JSON.parse(body.manifestJson) as {
     displayName: string;
     entryPoint: string;
-    dataRequirements: { quantity: string; canonicalUnit: string; maximumAgeSeconds: number; valueSchema: { schema: { type: string } } }[];
+    dataRequirements: {
+      quantity: string;
+      canonicalUnit: string;
+      maximumAgeSeconds: number;
+      requiredCapability: string;
+      valueSchema: { schema: { type: string } };
+    }[];
     outputRequirements: { quantity: string; valueSchema: { schema: { type: string } } }[];
   };
   expect(manifest.displayName).toBe('Card calibration');
   expect(manifest.entryPoint).toBe('contract.unset');
   expect(manifest.dataRequirements).toMatchObject([
-    { quantity: 'SurfaceLoad', canonicalUnit: 'lb', maximumAgeSeconds: 90, valueSchema: { schema: { type: 'number' } } },
+    {
+      quantity: 'PumpFillage',
+      canonicalUnit: '%',
+      maximumAgeSeconds: 90,
+      requiredCapability: 'engineering.current',
+      valueSchema: { schema: { type: 'number' } },
+    },
   ]);
   expect(manifest.outputRequirements).toMatchObject([
     { quantity: 'PeakLoad', valueSchema: { schema: { type: 'string' } } },
@@ -95,7 +146,21 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
 });
 
+it('says when the source catalog is unavailable instead of inventing capabilities', async () => {
+  vi.mocked(loadAdapterOperations).mockRejectedValue(new Error('denied'));
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  startContract();
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Offline catalog' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
+  expect(await screen.findByText(/source catalog could not be loaded/i)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PumpFillage' } });
+  expect((screen.getByLabelText('Provider capability') as HTMLInputElement).value).toBe('');
+  expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
+});
+
 it('saves edits to a reopened contract against its revision and keeps structured shapes as saved', async () => {
+  registerCatalog();
   const structured = {
     manifestVersion: 2,
     moduleId: 'authoring.cards',
