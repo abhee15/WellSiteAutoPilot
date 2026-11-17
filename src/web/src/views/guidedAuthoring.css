@@ -267,6 +267,15 @@
   max-width: var(--layout-form-wide);
 }
 
+/* Use the existing readable measure for inspected engineering facts, even when
+   the overall editor has a full-width track. */
+.guided-authoring-workbench[data-inspect-only='true'] .ui-notice,
+.guided-authoring-workbench[data-inspect-only='true'] .guided-authoring-contract > p,
+.guided-authoring-workbench[data-inspect-only='true'] .guided-authoring-contract-list,
+.guided-authoring-workbench[data-inspect-only='true'] .guided-authoring-contract-details {
+  max-width: var(--layout-readable);
+}
+
 @media (width <= 48em) {
   .guided-authoring-view-bar {
     grid-template-columns: minmax(0, 1fr);
