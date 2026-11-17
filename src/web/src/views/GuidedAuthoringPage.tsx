@@ -512,6 +512,7 @@ export function GuidedAuthoringPage({
             <div
               className="guided-authoring-workbench"
               data-view={view}
+              data-inspect-only={inspectOnly}
               id={editorId + '-editor'}
               role="tabpanel"
               aria-labelledby={editorId + '-tab-' + view}
@@ -525,12 +526,14 @@ export function GuidedAuthoringPage({
                     aria-pressed={activeSection === 'module'}
                     onClick={() => setEditorSection('module')}
                   />
-                  <ActionButton
-                    label={t(inspectOnly ? 'guided.calculationContract' : 'guided.rule')}
-                    aria-controls={ruleSectionId}
-                    aria-pressed={activeSection === 'rule'}
-                    onClick={() => setEditorSection('rule')}
-                  />
+                  {!inspectOnly && (
+                    <ActionButton
+                      label={t('guided.rule')}
+                      aria-controls={ruleSectionId}
+                      aria-pressed={activeSection === 'rule'}
+                      onClick={() => setEditorSection('rule')}
+                    />
+                  )}
                   {showLivePreview && (
                     <ActionButton
                       label={t('guided.liveData')}
@@ -553,31 +556,30 @@ export function GuidedAuthoringPage({
                       onChange={(event) => setName(event.target.value)}
                     />
                   </div>
-                  <GuidedModuleContract manifestJson={draft?.manifestJson} />
-                </section>
-                <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
-                  <PanelHeader title={t(inspectOnly ? 'guided.calculationContract' : 'guided.rule')} level={3} />
-                  {inspectOnly ? (
+                  {inspectOnly && (
                     <Notice tone="info" announce={false}>
                       {t('guided.inspectOnlyContract')}
                     </Notice>
-                  ) : (
-                    <>
-                      <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
-                      <div className="guided-authoring-fields">
-                        <NumberField
-                          label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
-                          min={0}
-                          max={maximum}
-                          step="any"
-                          value={threshold}
-                          disabled={busy}
-                          onChange={(event) => setThreshold(event.target.value)}
-                        />
-                      </div>
-                    </>
                   )}
+                  <GuidedModuleContract manifestJson={draft?.manifestJson} />
                 </section>
+                {!inspectOnly && (
+                  <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
+                    <PanelHeader title={t('guided.rule')} level={3} />
+                    <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
+                    <div className="guided-authoring-fields">
+                      <NumberField
+                        label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
+                        min={0}
+                        max={maximum}
+                        step="any"
+                        value={threshold}
+                        disabled={busy}
+                        onChange={(event) => setThreshold(event.target.value)}
+                      />
+                    </div>
+                  </section>
+                )}
                 {showLivePreview && draft?.id && draft.revision && (
                   <div id={liveSectionId} hidden={view === 'ide' && activeSection !== 'live'}>
                     <GuidedLivePreview
@@ -597,47 +599,48 @@ export function GuidedAuthoringPage({
                   </div>
                 )}
               </div>
-              <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
-                <PanelHeader title={t('guided.scenarios')} level={3} />
-                <div className="guided-authoring-actions">
-                  <ActionButton
-                    label={t('guided.preview')}
-                    disabled={busy || !draft || dirty || inspectOnly}
-                    onClick={() => void run(preview)}
-                  />
-                </div>
-                {inspectOnly && <p>{t('guided.inspectOnlySamples')}</p>}
-                {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
-                {!dirty &&
-                  evidence.length > 0 &&
-                  (view === 'workflow' ? (
-                    <ul>
-                      {evidence.map((item, index) => (
-                        <li key={index}>
-                          {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <>
-                      <SelectField
-                        label={t('guided.scenario')}
-                        value={scenario}
-                        onChange={(event) => setScenario(Number(event.target.value))}
-                      >
-                        {evidence.map((_, index) => (
-                          <option key={index} value={index}>
-                            {t('guided.scenarioNumber', { number: index + 1 })}
-                          </option>
+              {!inspectOnly && (
+                <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
+                  <PanelHeader title={t('guided.scenarios')} level={3} />
+                  <div className="guided-authoring-actions">
+                    <ActionButton
+                      label={t('guided.preview')}
+                      disabled={busy || !draft || dirty}
+                      onClick={() => void run(preview)}
+                    />
+                  </div>
+                  {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
+                  {!dirty &&
+                    evidence.length > 0 &&
+                    (view === 'workflow' ? (
+                      <ul>
+                        {evidence.map((item, index) => (
+                          <li key={index}>
+                            {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
+                          </li>
                         ))}
-                      </SelectField>
-                      <p>
-                        {sampleReading(scenario, evidence[scenario].differentialPsi)} {' · '}{' '}
-                        {sampleResult(evidence[scenario])}
-                      </p>
-                    </>
-                  ))}
-              </section>
+                      </ul>
+                    ) : (
+                      <>
+                        <SelectField
+                          label={t('guided.scenario')}
+                          value={scenario}
+                          onChange={(event) => setScenario(Number(event.target.value))}
+                        >
+                          {evidence.map((_, index) => (
+                            <option key={index} value={index}>
+                              {t('guided.scenarioNumber', { number: index + 1 })}
+                            </option>
+                          ))}
+                        </SelectField>
+                        <p>
+                          {sampleReading(scenario, evidence[scenario].differentialPsi)} {' · '}{' '}
+                          {sampleResult(evidence[scenario])}
+                        </p>
+                      </>
+                    ))}
+                </section>
+              )}
             </div>
             {submittedReference && (
               <TextField

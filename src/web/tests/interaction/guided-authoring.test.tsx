@@ -57,6 +57,8 @@ it('saves, previews and submits the same guided draft revision', async () => {
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Fillage check' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await screen.findByText('Draft saved.');
+  expect(screen.getByRole('region', { name: 'Sample cases' })).toBeTruthy();
+  expect(document.querySelector('.guided-authoring-workbench')?.getAttribute('data-inspect-only')).toBe('false');
   fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
   expect((await screen.findByTitle('LOW_FILLAGE')).textContent).toBe('Low pump fillage');
   expect(screen.getByText('No recommendation')).toBeTruthy();
@@ -88,9 +90,18 @@ it('keeps unknown complex module calculations read-only in the guided editor', a
   fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'complex-draft' } });
   expect(screen.getByText(/does not support changing or executing those calculations yet/i)).toBeTruthy();
   expect(screen.queryByLabelText('Pump fillage threshold (%)')).toBeNull();
-  for (const label of ['Save draft', 'Submit for review', 'Run sample cases']) {
+  for (const label of ['Save draft', 'Submit for review']) {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: label }).disabled).toBe(true);
   }
+  expect(screen.queryByRole('button', { name: 'Run sample cases' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Sample cases' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Rule' })).toBeNull();
+  expect(document.querySelector('.guided-authoring-workbench')?.getAttribute('data-inspect-only')).toBe('true');
+  fireEvent.click(screen.getByRole('tab', { name: 'IDE' }));
+  expect(screen.getByRole('navigation', { name: 'Outline' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Calculations' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Sample cases' })).toBeNull();
+  expect(screen.getByText(/does not support changing or executing those calculations yet/i)).toBeTruthy();
 });
 
 it('keeps draft edits and the selected trace when switching between Workflow and IDE', async () => {
