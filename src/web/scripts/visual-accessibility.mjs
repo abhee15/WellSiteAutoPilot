@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { delay, root, startVisualBrowser } from './lib/visual-browser.mjs';
