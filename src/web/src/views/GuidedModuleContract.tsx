@@ -99,7 +99,7 @@ function ContractPorts({
                   aria-pressed={selected.kind === kind && selected.index === index}
                   onClick={() => onSelect({ kind, index })}
                 />
-                <span>{shapeLabel(port.valueSchema?.schema)}</span>
+                <span>{port.valueSchema ? shapeLabel(port.valueSchema.schema) : t('guided.contractScalar')}</span>
                 {(port.canonicalUnit || port.unit) && <span>{port.canonicalUnit || port.unit}</span>}
               </li>
             ))}
@@ -206,8 +206,12 @@ export function GuidedModuleContract({
       <summary>
         {t('guided.contractHeading')} ·{' '}
         {t('guided.contractCounts', {
-          inputs: contract.inputs.length,
-          outputs: contract.outputs.length,
+          inputs: t(contract.inputs.length === 1 ? 'guided.contractInputOne' : 'guided.contractInputMany', {
+            count: contract.inputs.length,
+          }),
+          outputs: t(contract.outputs.length === 1 ? 'guided.contractOutputOne' : 'guided.contractOutputMany', {
+            count: contract.outputs.length,
+          }),
         })}
       </summary>
       <p>{t(showExecutionBoundary ? 'guided.contractSelectPort' : 'guided.contractBoundary')}</p>

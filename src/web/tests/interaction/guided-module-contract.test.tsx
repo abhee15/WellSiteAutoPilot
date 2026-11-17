@@ -41,7 +41,7 @@ it('distinguishes undeclared outputs from an absence of module recommendations',
     />,
   );
   fireEvent.click(screen.getByText('Declared data contract', { exact: false }));
-  expect(screen.getByText(/No outputs are declared.*does not exclude recommendations/)).toBeTruthy();
+  expect(screen.getByText(/No typed outputs are declared/)).toBeTruthy();
 });
 
 it('does not render a malformed manifest as a trustworthy contract', () => {
@@ -56,7 +56,9 @@ it('shows the declared code execution boundary without inventing a calculation g
   expect(screen.getByRole('region', { name: 'Module execution' })).toBeTruthy();
   expect(screen.getByText('DotNet runtime')).toBeTruthy();
   expect(screen.getByText('sample.card-calibration · 2.0.0')).toBeTruthy();
-  expect(screen.getByText(/Input-to-output dependencies and intermediate values require recorded execution evidence/i)).toBeTruthy();
+  expect(
+    screen.getByText(/Input-to-output dependencies and intermediate values require recorded execution evidence/i),
+  ).toBeTruthy();
   expect(screen.queryByText('Load × scale + offset')).toBeNull();
   expect(screen.getByRole('button', { name: 'SurfaceCards' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'CalibratedCards' })).toBeTruthy();
@@ -77,7 +79,9 @@ it('does not manufacture an implementation runtime or intermediate steps when ab
   );
   expect(screen.getByText('Runtime not declared')).toBeTruthy();
   expect(screen.getByText('Internal steps not recorded.')).toBeTruthy();
-  expect(screen.getByText(/Input-to-output dependencies and intermediate values require recorded execution evidence/i)).toBeTruthy();
+  expect(
+    screen.getByText(/Input-to-output dependencies and intermediate values require recorded execution evidence/i),
+  ).toBeTruthy();
 });
 
 it('leaves the ordinary guided contract uncluttered when execution overview is disabled', () => {
