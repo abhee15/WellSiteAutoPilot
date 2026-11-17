@@ -381,16 +381,16 @@ it('previews a saved revision with an imported well without enabling submission'
     );
     await screen.findByRole('option', { name: 'Live draft' });
     fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'live-draft' } });
-    fireEvent.click(screen.getByText('Preview with a live well'));
-    fireEvent.change(screen.getByLabelText('Well name or asset ID'), { target: { value: 'well' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Find wells' }));
-    const wells = await screen.findByRole('combobox', { name: 'Sample well' });
+    fireEvent.click(screen.getByText('Preview with a sample asset'));
+    fireEvent.change(screen.getByLabelText('Asset name or ID'), { target: { value: 'well' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find assets' }));
+    const wells = await screen.findByRole('combobox', { name: 'Sample asset' });
     expect(screen.queryByRole('option', { name: 'Manual well' })).toBeNull();
     expect(compatibility).not.toHaveBeenCalled();
     fireEvent.change(wells, { target: { value: 'other' } });
     const previousRequest = compatibility.mock.lastCall?.[0];
     expect(previousRequest?.body.assetId).toBe('other');
-    expect(screen.getByText('Checking this well against the draft’s inputs…')).toBeTruthy();
+    expect(screen.getByText('Checking this asset against the draft’s declared inputs…')).toBeTruthy();
     fireEvent.change(wells, { target: { value: 'imported' } });
     expect(previousRequest?.signal?.aborted).toBe(true);
     expect(compatibility).toHaveBeenLastCalledWith({
@@ -484,7 +484,7 @@ it('previews a saved revision with an imported well without enabling submission'
     );
     const requestCount = discover.mock.calls.length;
     fireEvent.change(screen.getByLabelText('History duration'), { target: { value: '1' } });
-    await screen.findByText('Finding quantities for this well…');
+    await screen.findByText('Finding available quantities for this asset…');
     await waitFor(() => expect(discover).toHaveBeenCalledTimes(requestCount + 1));
     const oldWindowRequest = discover.mock.lastCall?.[0];
     expect(quantity.disabled).toBe(true);
