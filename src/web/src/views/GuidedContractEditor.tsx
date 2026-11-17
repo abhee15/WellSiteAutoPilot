@@ -1,0 +1,290 @@
+import { useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
+import { CheckboxField, NumberField, SelectField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
+import { t } from '../localization';
+
+/**
+ * Edits the portable typed contract (roles are preserved, inputs and outputs are edited) as the same saved V2
+ * manifest the server validates. It never invents calculations, sample sources or provider fields.
+ */
+type Json = Record<string, unknown>;
+export type PortKind = 'input' | 'output';
+
+const listKey = { input: 'dataRequirements', output: 'outputRequirements' } as const;
+const maximumPorts = 64;
+const identifier = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const defaultCapability = 'structured.current';
+type ScalarType = 'number' | 'string';
+
+function isObject(value: unknown): value is Json {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function parseManifest(source: string | null | undefined): Json | null {
+  if (!source) return null;
+  try {
+    const value: unknown = JSON.parse(source);
+    return isObject(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function portsOf(manifest: Json, kind: PortKind): Json[] {
+  const list = manifest[listKey[kind]];
+  return Array.isArray(list) ? list.filter(isObject) : [];
+}
+
+function scalarSchema(id: string, type: ScalarType) {
+  return {
+    schemaId: 'authoring.' + id + '.' + type + '/v1',
+    schema: type === 'number' ? { type } : { type, minLength: 1, maxLength: 128 },
+  };
+}
+
+function scalarTypeOf(port: Json): ScalarType | null {
+  const schema = isObject(port.valueSchema) && isObject(port.valueSchema.schema) ? port.valueSchema.schema : null;
+  return schema && (schema.type === 'number' || schema.type === 'string') && !('items' in schema) ? schema.type : null;
+}
+
+/** A blank, valid-to-save contract: one neutral asset role and no ports yet. */
+export function blankContractManifest(name: string): string {
+  return JSON.stringify({
+    manifestVersion: 2,
+    moduleId: 'authoring.' + crypto.randomUUID(),
+    version: '1.0.0',
+    displayName: name,
+    publisher: 'WellSite AutoPilot',
+    runtime: 'DotNet',
+    executionProfile: 'ScheduledOneShot',
+    entryPoint: 'contract.unset',
+    minimumSdkVersion: '1.2.0',
+    assetRequirements: [{ role: 'asset', minimumCount: 1, maximumCount: 1, requiredTraits: [] }],
+    dataRequirements: [],
+    commandRequirements: [],
+    outputRequirements: [],
+  });
+}
+
+export function isContractOnlyManifest(source: string | null | undefined): boolean {
+  return parseManifest(source)?.entryPoint === 'contract.unset';
+}
+
+/** True when every port has a quantity the server will accept; the server remains the authority. */
+export function contractIsComplete(source: string | null | undefined): boolean {
+  const manifest = parseManifest(source);
+  if (!manifest) return false;
+  return (['input', 'output'] as const).every((kind) =>
+    portsOf(manifest, kind).every(
+      (port) =>
+        typeof port.quantity === 'string' &&
+        identifier.test(port.quantity) &&
+        (kind === 'output' ||
+          (typeof port.requiredCapability === 'string' && identifier.test(port.requiredCapability))),
+    ),
+  );
+}
+
+function withPorts(manifest: Json, kind: PortKind, ports: Json[]): Json {
+  return { ...manifest, [listKey[kind]]: ports };
+}
+
+function nextId(ports: Json[], kind: PortKind): string {
+  const used = new Set(ports.map((port) => port.id));
+  let n = ports.length + 1;
+  while (used.has(kind + '-' + n)) n += 1;
+  return kind + '-' + n;
+}
+
+function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
+  const id = nextId(ports, kind);
+  const quantity = 'Quantity' + id.slice(id.lastIndexOf('-') + 1);
+  const valueSchema = scalarSchema(id, 'number');
+  if (kind === 'output') return { id, quantity, unit: null, valueSchema };
+  const roles = Array.isArray(manifest.assetRequirements) ? manifest.assetRequirements.filter(isObject) : [];
+  return {
+    id,
+    assetRole: typeof roles[0]?.role === 'string' ? roles[0].role : 'asset',
+    quantity,
+    access: 'Current',
+    canonicalUnit: null,
+    maximumAgeSeconds: null,
+    allowUncertainQuality: false,
+    valueSchema,
+    requiredCapability: defaultCapability,
+  };
+}
+
+export function GuidedContractEditor({
+  manifestJson,
+  disabled,
+  onChange,
+}: {
+  manifestJson: string;
+  disabled: boolean;
+  onChange: (manifestJson: string) => void;
+}) {
+  const [selection, setSelection] = useState<{ kind: PortKind; index: number }>({ kind: 'input', index: 0 });
+  const manifest = parseManifest(manifestJson);
+  if (!manifest) return null;
+
+  const lists = { input: portsOf(manifest, 'input'), output: portsOf(manifest, 'output') };
+  const kind =
+    lists[selection.kind].length > 0 || lists[selection.kind === 'input' ? 'output' : 'input'].length === 0
+      ? selection.kind
+      : selection.kind === 'input'
+        ? 'output'
+        : 'input';
+  const index = Math.min(selection.index, Math.max(0, lists[kind].length - 1));
+  const port = lists[kind][index];
+
+  function commit(next: Json) {
+    onChange(JSON.stringify(next));
+  }
+
+  function update(patch: Json) {
+    const ports = lists[kind].map((item, position) => (position === index ? { ...item, ...patch } : item));
+    commit(withPorts(manifest!, kind, ports));
+  }
+
+  function add(addKind: PortKind) {
+    const ports = [...lists[addKind], newPort(manifest!, addKind, lists[addKind])];
+    commit(withPorts(manifest!, addKind, ports));
+    setSelection({ kind: addKind, index: ports.length - 1 });
+  }
+
+  function remove() {
+    commit(
+      withPorts(
+        manifest!,
+        kind,
+        lists[kind].filter((_, position) => position !== index),
+      ),
+    );
+    setSelection({ kind, index: Math.max(0, index - 1) });
+  }
+
+  function textValue(value: unknown) {
+    return typeof value === 'string' ? value : '';
+  }
+
+  const unitKey = kind === 'input' ? 'canonicalUnit' : 'unit';
+  const scalar = port ? scalarTypeOf(port) : null;
+
+  return (
+    <section aria-label={t('guided.contractEditor')}>
+      <div className="guided-authoring-contract-groups">
+        <div className="guided-authoring-contract-list">
+          {(['input', 'output'] as const).map((group) => (
+            <section key={group} aria-label={t(group === 'input' ? 'guided.contractInputs' : 'guided.contractOutputs')}>
+              <h4>{t(group === 'input' ? 'guided.contractInputs' : 'guided.contractOutputs')}</h4>
+              {lists[group].length === 0 ? (
+                <p>{t(group === 'input' ? 'guided.editorNoInputs' : 'guided.editorNoOutputs')}</p>
+              ) : (
+                <ul className="guided-authoring-contract-ports">
+                  {lists[group].map((item, position) => (
+                    <li key={textValue(item.id) || position}>
+                      <ActionButton
+                        label={textValue(item.quantity) || textValue(item.id)}
+                        variant="quiet"
+                        aria-pressed={kind === group && index === position}
+                        onClick={() => setSelection({ kind: group, index: position })}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <ActionButton
+                label={t(group === 'input' ? 'guided.addInput' : 'guided.addOutput')}
+                disabled={disabled || lists[group].length >= maximumPorts}
+                onClick={() => add(group)}
+              />
+            </section>
+          ))}
+        </div>
+        {port && (
+          <section className="guided-authoring-contract-details" aria-label={t('guided.contractDetails')}>
+            <h4>{textValue(port.quantity) || textValue(port.id)}</h4>
+            <div className="guided-authoring-fields">
+              <TextField
+                label={t('guided.portQuantity')}
+                maxLength={128}
+                value={textValue(port.quantity)}
+                disabled={disabled}
+                error={identifier.test(textValue(port.quantity)) ? undefined : t('guided.portIdentifierInvalid')}
+                onChange={(event) => update({ quantity: event.target.value })}
+              />
+              <TextField
+                label={t('guided.portUnit')}
+                maxLength={64}
+                value={textValue(port[unitKey])}
+                disabled={disabled}
+                onChange={(event) => update({ [unitKey]: event.target.value === '' ? null : event.target.value })}
+              />
+              {scalar ? (
+                <SelectField
+                  label={t('guided.portType')}
+                  value={scalar}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    update({ valueSchema: scalarSchema(textValue(port.id), event.target.value as ScalarType) })
+                  }
+                >
+                  <option value="number">{t('guided.typeNumber')}</option>
+                  <option value="string">{t('guided.typeText')}</option>
+                </SelectField>
+              ) : (
+                <Notice tone="info" announce={false}>
+                  {t('guided.portStructured')}
+                </Notice>
+              )}
+              {kind === 'input' && (
+                <>
+                  <SelectField
+                    label={t('guided.portAccess')}
+                    value={textValue(port.access) || 'Current'}
+                    disabled={disabled}
+                    onChange={(event) => update({ access: event.target.value })}
+                  >
+                    <option value="Current">{t('guided.accessCurrent')}</option>
+                    <option value="History">{t('guided.accessHistory')}</option>
+                  </SelectField>
+                  <NumberField
+                    label={t('guided.portMaxAge')}
+                    min={1}
+                    step={1}
+                    value={typeof port.maximumAgeSeconds === 'number' ? port.maximumAgeSeconds : ''}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      update({ maximumAgeSeconds: event.target.value === '' ? null : Number(event.target.value) })
+                    }
+                  />
+                  <CheckboxField
+                    label={t('guided.portUncertain')}
+                    checked={port.allowUncertainQuality === true}
+                    disabled={disabled}
+                    onChange={(event) => update({ allowUncertainQuality: event.target.checked })}
+                  />
+                  <TextField
+                    label={t('guided.portCapability')}
+                    maxLength={128}
+                    value={textValue(port.requiredCapability)}
+                    disabled={disabled}
+                    error={
+                      identifier.test(textValue(port.requiredCapability))
+                        ? undefined
+                        : t('guided.portIdentifierInvalid')
+                    }
+                    onChange={(event) => update({ requiredCapability: event.target.value })}
+                  />
+                </>
+              )}
+            </div>
+            <ActionButton label={t('guided.removePort')} disabled={disabled} onClick={remove} />
+          </section>
+        )}
+      </div>
+    </section>
+  );
+}

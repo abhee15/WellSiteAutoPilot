@@ -8,7 +8,8 @@ namespace WellSiteAutoPilot.Application.Logic;
 
 public static partial class LogicModuleManifestValidator
 {
-    public static void Validate(LogicModuleManifest manifest)
+    /// <param name="allowEmptyPorts">Authoring drafts may declare zero inputs/outputs while being built; executable modules may not.</param>
+    public static void Validate(LogicModuleManifest manifest, bool allowEmptyPorts = false)
     {
         ArgumentNullException.ThrowIfNull(manifest);
 
@@ -66,10 +67,10 @@ public static partial class LogicModuleManifestValidator
         ValidateDataRequirements(manifest.AssetRequirements, manifest.DataRequirements);
         ValidateCommandRequirements(manifest.AssetRequirements, manifest.CommandRequirements);
         ValidateDescription(manifest.Description);
-        ValidateStructuredContract(manifest);
+        ValidateStructuredContract(manifest, allowEmptyPorts);
     }
 
-    private static void ValidateStructuredContract(LogicModuleManifest manifest)
+    private static void ValidateStructuredContract(LogicModuleManifest manifest, bool allowEmptyPorts)
     {
         if (manifest.ManifestVersion == 1)
         {
@@ -82,8 +83,11 @@ public static partial class LogicModuleManifestValidator
             !LogicModuleSemanticVersion.TryParse(manifest.MinimumSdkVersion, out var minimumSdk) ||
             minimumSdk!.CompareTo(structuredSdk) < 0)
             Fail("MODULE_CONTRACT_INVALID", "Structured modules require SDK 1.2.0 or later.");
-        if (manifest.Runtime != LogicRuntimeKind.DotNet || manifest.DataRequirements.Count is < 1 or > 64 ||
-            manifest.OutputRequirements is null || manifest.OutputRequirements.Count is < 1 or > 64)
+        var minimumPorts = allowEmptyPorts ? 0 : 1;
+        if (manifest.Runtime != LogicRuntimeKind.DotNet || manifest.DataRequirements.Count < minimumPorts ||
+            manifest.DataRequirements.Count > 64 ||
+            manifest.OutputRequirements is null || manifest.OutputRequirements.Count < minimumPorts ||
+            manifest.OutputRequirements.Count > 64)
             Fail("MODULE_CONTRACT_INVALID", "Structured modules require .NET, 1-64 inputs and 1-64 outputs.");
         foreach (var input in manifest.DataRequirements)
         {
@@ -120,9 +124,13 @@ public static partial class LogicModuleManifestValidator
             Fail("MODULE_VALUE_SCHEMA_INVALID", "A value schema requires an identity and explicit root type.");
     }
 
-    public static async Task ValidateSchemasAsync(LogicModuleManifest manifest, CancellationToken cancellationToken = default)
+    public static Task ValidateSchemasAsync(LogicModuleManifest manifest, CancellationToken cancellationToken = default) =>
+        ValidateSchemasAsync(manifest, allowEmptyPorts: false, cancellationToken);
+
+    public static async Task ValidateSchemasAsync(LogicModuleManifest manifest, bool allowEmptyPorts,
+        CancellationToken cancellationToken = default)
     {
-        Validate(manifest);
+        Validate(manifest, allowEmptyPorts);
         await ValidateParameterSchemaAsync(manifest, cancellationToken);
         if (manifest.ManifestVersion != 2) return;
         foreach (var schema in manifest.DataRequirements.Select(r => r.ValueSchema!)

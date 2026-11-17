@@ -22,6 +22,7 @@ public static class GuidedContractDraft
         if (manifest.CommandRequirements is not { Count: 0 })
             throw new WellSiteAutoPilotException("GUIDED_CONTRACT_COMMANDS_UNSUPPORTED", FailureKind.Validation,
                 "A contract-only draft cannot declare commands.");
-        await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellationToken);
+        // A draft is saved while it is being built, so zero ports are allowed here but never in an executable module.
+        await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, allowEmptyPorts: true, cancellationToken);
     }
 }
