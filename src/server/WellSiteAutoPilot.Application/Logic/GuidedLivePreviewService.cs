@@ -279,8 +279,9 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 else
                 {
                     var trend = await ReadHistoryOperationAsync(initial, operation, operation.Quantity!, startUtc, endUtc, 1, cancellationToken);
-                    quantities.Add(new(trend.Quantity, trend.Samples.FirstOrDefault()?.Unit, trend.Samples.Count > 0
-                        ? "Observed" : "NoSamples"));
+                    quantities.Add(trend.Samples.Count > 0
+                        ? new(trend.Quantity, trend.Samples[0].Unit, "Observed")
+                        : new(trend.Quantity, null, "NoSamples"));
                 }
             }
             catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
