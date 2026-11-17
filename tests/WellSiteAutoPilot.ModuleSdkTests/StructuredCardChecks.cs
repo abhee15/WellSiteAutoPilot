@@ -45,7 +45,8 @@ internal static class StructuredCardChecks
         var steps = trace.Steps.ToArray();
         Assert(trace.Version == 1 && steps.Length == 3, "Expected two real card steps plus the aggregate.");
         Assert(steps[0].Id == "calibrate-card-1" && steps[0].Kind == "Transform" &&
-            steps[0].RequirementIds.SequenceEqual(new[] { "cards", "calibration" }) &&
+            steps[0].RequirementIds.Count == 2 &&
+            steps[0].RequirementIds.First() == "cards" && steps[0].RequirementIds.Last() == "calibration" &&
             steps[0].Metrics.Single(m => m.Id == "peakLoad").Value == 410m,
             "First card's reported calculation trace was incorrect.");
         Assert(steps[1].Id == "calibrate-card-2" &&
