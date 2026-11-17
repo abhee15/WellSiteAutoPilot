@@ -88,6 +88,18 @@
   min-width: 0;
 }
 
+/* A three-stage projection of the manifest's declared boundary, not code internals. */
+.guided-authoring-contract-list[data-execution-boundary='true'] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (width <= 56em) {
+  .guided-authoring-contract-list[data-execution-boundary='true'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .guided-authoring-contract-groups h4 {
   margin-block: var(--space-12);
 }
