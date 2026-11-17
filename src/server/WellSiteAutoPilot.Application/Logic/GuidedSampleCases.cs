@@ -41,7 +41,7 @@ public static class GuidedSampleCases
     {
         ArgumentNullException.ThrowIfNull(evidence);
         if (evidence.FailureCode is not null || evidence.Result is null) return null;
-        return evidence.Result.Recommendations.Any() ? evidence.Result.OutcomeCode : NoOutcome;
+        return evidence.Result.Recommendations.Count > 0 ? evidence.Result.OutcomeCode : NoOutcome;
     }
 
     /// <summary>Submission evidence is only trustworthy when every asserted case observed what the author expected.</summary>
