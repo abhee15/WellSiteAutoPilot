@@ -41,6 +41,24 @@ internal static class StructuredCardChecks
         }
         Assert(cards[1].GetProperty("kind").GetString() == "FULL", "FULL was replaced by REFERENCE.");
 
+        var trace = result.CalculationTrace ?? throw new InvalidOperationException("Offline card trace was omitted.");
+        var steps = trace.Steps.ToArray();
+        Assert(trace.Version == 1 && steps.Length == 3, "Expected two real card steps plus the aggregate.");
+        Assert(steps[0].Id == "calibrate-card-1" && steps[0].Kind == "Transform" &&
+            steps[0].RequirementIds.SequenceEqual(new[] { "cards", "calibration" }) &&
+            steps[0].Metrics.Single(m => m.Id == "peakLoad").Value == 410m,
+            "First card's reported calculation trace was incorrect.");
+        Assert(steps[1].Id == "calibrate-card-2" &&
+            steps[1].Metrics.Single(m => m.Id == "peakLoad").Value == 490m,
+            "Second card's reported calculation trace was incorrect.");
+        Assert(steps[2].Id == "aggregate-peak-load" && steps[2].Kind == "Aggregate" &&
+            steps[2].PriorStepIds.SequenceEqual(new[] { steps[0].Id, steps[1].Id }) &&
+            steps[2].Metrics.Single().Value == 490m && steps[2].Metrics.Single().Unit == "lb",
+            "Aggregate trace dependency or engineering value was incorrect.");
+        Assert((await StructuredModuleOfflineHost.ExecuteAsync(new Probe(module.Identity,
+            result with { CalculationTrace = null }), definition, context)).CalculationTrace is null,
+            "Optional trace broke backward compatibility with uninstrumented modules.");
+
         // Host validation happens before user code. Invalid shape, schema, identity,
         // freshness and pairing cannot turn into a successful result or intent.
         var probe = new Probe(module.Identity, result);
@@ -78,6 +96,22 @@ internal static class StructuredCardChecks
         missingOffset[0]!["capturedAtUtc"] = "2026-10-27T12:00:00";
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(module, definition,
             Replace(first with { Value = first.Value with { Data = Json(missingOffset.ToJsonString()) } })), "CARD_SAMPLES_INVALID");
+
+        async Task RejectTrace(StructuredCalculationTraceV1 invalid) =>
+            await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(new Probe(module.Identity,
+                result with { CalculationTrace = invalid }), definition, context), "MODULE_TRACE_INVALID");
+
+        await RejectTrace(trace with { Version = 2 });
+        await RejectTrace(trace with { Steps = [steps[0] with { RequirementIds = ["missing"] }, .. steps.Skip(1)] });
+        await RejectTrace(trace with { Steps = [steps[0], steps[1] with { Id = steps[0].Id }, steps[2]] });
+        await RejectTrace(trace with { Steps = [steps[0] with { PriorStepIds = [steps[1].Id] }, .. steps.Skip(1)] });
+        await RejectTrace(trace with { Steps = [steps[0] with { Metrics = [
+            new("peakLoad", 410m, "lb"), new("peakLoad", 410m, "lb")] }, .. steps.Skip(1)] });
+        await RejectTrace(trace with { Steps = [steps[0] with { Metrics = [
+            new("peakLoad", 410m, "lb\nsecret")] }, .. steps.Skip(1)] });
+        await RejectTrace(trace with { Steps = Enumerable.Range(0, 65)
+            .Select(i => new StructuredCalculationStepV1("step-" + i, "Transform", ["cards"], [],
+                [new("value", i, null)])).ToArray() });
 
         var invalidResult = result with { EngineeringResults = [peakLoad with { Value = peakLoad.Value with { Data = Json("true") } }] };
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(new Probe(module.Identity, invalidResult), definition, context), "MODULE_VALUE_INVALID");
