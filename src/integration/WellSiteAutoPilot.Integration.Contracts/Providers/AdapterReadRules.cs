@@ -11,6 +11,16 @@ public sealed record AdapterReadRule(
     IReadOnlySet<string> CurrentQuantities,
     IReadOnlyList<StructuredCurrentRead>? StructuredCurrentReads = null)
 {
+    /// <summary>
+    /// Authoring only. A V2 contract declares a scalar current reading as the registry's own <c>engineering.current</c>
+    /// capability with a number schema, while <see cref="AllowsCurrentRead"/> keeps matching scalar reads only when both are
+    /// absent. This deliberately does not widen <see cref="AllowsCurrentRead"/>: assignment must keep rejecting inputs the
+    /// worker cannot execute yet, so a draft can be checked against a sample Asset without implying it is runnable.
+    /// </summary>
+    public bool AllowsScalarCurrentDeclaration(string? quantity, string? requiredCapability, string? schemaType) =>
+        quantity is not null && requiredCapability == AdapterReadRules.EngineeringCurrentCapability &&
+        schemaType == "number" && CurrentQuantities.Contains(quantity);
+
     /// <summary>True when a current read of this quantity, with this capability and schema, is one the adapter serves.</summary>
     public bool AllowsCurrentRead(string? quantity, string? requiredCapability, string? schemaId) =>
         quantity is not null && (
@@ -26,6 +36,7 @@ public sealed record StructuredCurrentRead(string Quantity, string RequiredCapab
 public static class AdapterReadRules
 {
     public const string StructuredCurrentCapability = "structured.current";
+    public const string EngineeringCurrentCapability = "engineering.current";
     public const string ForeSiteKey = "foresite";
     public const string CygNetKey = "cygnet";
     public const string CygNetResourceKind = "cygnet.facility";

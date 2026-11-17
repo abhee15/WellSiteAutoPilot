@@ -45,7 +45,7 @@ public static class EngineeringOperationSchemas
     public static AdapterOperationDescriptor Current(string key, string name, string description, string quantity,
         string resourceKind, string? unit, string timestamp, string quality, int timeoutSeconds, string? structuredSchemaId = null) =>
         new(key, name, description, ProviderCapabilityKind.CurrentData,
-            structuredSchemaId is null ? "engineering.current" : "structured.current", "1.0",
+            structuredSchemaId is null ? AdapterReadRules.EngineeringCurrentCapability : AdapterReadRules.StructuredCurrentCapability, "1.0",
             CurrentRequest, CurrentResponse, timestamp, quality,
             new(1, MeasurementPayloadLimits.MaximumValueBytes, MeasurementPayloadLimits.MaximumReplyBytes, timeoutSeconds),
             quantity, resourceKind, unit, structuredSchemaId);
