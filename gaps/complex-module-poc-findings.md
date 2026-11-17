@@ -76,3 +76,10 @@ New gaps:
 - Age 0 is rejected (module_data_max_age_invalid) while a null age is accepted; the UI shows only the generic message (P9).
 
 Not tested: ESP/PCP quantities (no fillage by design), commands, structured inputs other than cards and calibration, large assets lists in the UI, any run of the module.
+
+## CL 1108676 (#639, P8 fix) mirrored to Perforce
+
+- P8 (blank or one-sided contract-only drafts rejected with 400 MODULE_CONTRACT_INVALID) is fixed in Perforce from this CL. CL 1108673 (#636) carried the bug until now.
+- Checked: Server Release build and ExecutionContractV2Tests pass on the P4 tree. The fix was verified live by API on the fix branch before it merged (blank manifest POST returned 200, revision 1). It was not re-run through the UI on the P4 tree.
+- Mirror note: Program.cs merged with existing local differences (the P4 copy is 6 lines shorter than GitHub: it lacks the Audit and Changes usings). This difference predates this CL; worth a diff review of P4 Program.cs against develop.
+- No new product gaps from this CL.
