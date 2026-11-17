@@ -16,6 +16,50 @@
   gap: var(--space-12);
 }
 
+/* Creation and draft navigation are transient, not part of the engineering editor.
+   Keep the selected module's workbench wider than the chrome above it. */
+.guided-authoring-entry {
+  display: grid;
+  grid-template-columns: auto minmax(var(--layout-field-min), 1fr) auto;
+  align-items: end;
+  gap: var(--space-12);
+}
+
+.guided-authoring-draft-picker {
+  min-width: 0;
+  max-width: var(--layout-form-wide);
+}
+
+.guided-authoring-starters {
+  min-width: 0;
+  align-self: end;
+}
+
+.guided-authoring-starters > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.guided-authoring-starters > summary::-webkit-details-marker {
+  display: none;
+}
+
+.guided-authoring-starters[open] > .guided-authoring-actions {
+  display: grid;
+  gap: var(--space-8);
+  padding-block-start: var(--space-8);
+}
+
+@media (width <= 56em) {
+  .guided-authoring-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .guided-authoring-draft-picker {
+    max-width: none;
+  }
+}
+
 .guided-authoring-view-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
