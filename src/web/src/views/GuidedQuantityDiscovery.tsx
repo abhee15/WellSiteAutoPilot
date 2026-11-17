@@ -14,6 +14,11 @@ const sources = [
   { key: 'WellTest', label: 'guided.wellTestQuantities' },
 ] as const;
 type Capability = (typeof sources)[number]['key'];
+export type FillageQuantity = 'PumpFillage' | 'AveragePumpFillage';
+
+export function isFillageQuantity(quantity: unknown): quantity is FillageQuantity {
+  return quantity === 'PumpFillage' || quantity === 'AveragePumpFillage';
+}
 type HistoryWindow = { startUtc: string; endUtc: string };
 
 const evidenceNotices = {
@@ -38,10 +43,14 @@ export function GuidedQuantityDiscovery({
   draftId,
   revision,
   assetId,
+  fillageChoice,
+  onSelectFillage,
 }: {
   draftId: string;
   revision: number;
   assetId: string;
+  fillageChoice?: FillageQuantity;
+  onSelectFillage?: (quantity: FillageQuantity) => void;
 }) {
   const [capability, setCapability] = useState<Capability>('WellTrend');
   const [result, setResult] = useState<Discovery | null>(null);
@@ -120,15 +129,37 @@ export function GuidedQuantityDiscovery({
               {result.data.wellTest && <ReportedWellTest test={result.data.wellTest} />}
               {result.data.quantities?.length ? (
                 <ul>
-                  {result.data.quantities.map((entry) => (
-                    <li key={entry.quantity}>
-                      {entry.quantity}
-                      {entry.unit && <> ({entry.unit})</>} ·{' '}
-                      {t(
-                        quantityStatuses[entry.status as keyof typeof quantityStatuses] ?? 'guided.quantityUnavailable',
-                      )}
-                    </li>
-                  ))}
+                  {result.data.quantities.map((entry) => {
+                    const quantity = entry.quantity;
+                    const offerInput =
+                      capability === 'Surveillance' &&
+                      fillageChoice &&
+                      quantity !== fillageChoice &&
+                      isFillageQuantity(quantity) &&
+                      entry.status === 'CurrentObserved' &&
+                      entry.unit === '%';
+                    return (
+                      <li key={quantity}>
+                        {entry.quantity}
+                        {entry.unit && <> ({entry.unit})</>} ·{' '}
+                        {t(
+                          quantityStatuses[entry.status as keyof typeof quantityStatuses] ??
+                            'guided.quantityUnavailable',
+                        )}
+                        {offerInput && onSelectFillage && (
+                          <ActionButton
+                            label={t(
+                              quantity === 'AveragePumpFillage'
+                                ? 'guided.useAverageFillage'
+                                : 'guided.useCurrentFillage',
+                            )}
+                            onClick={() => onSelectFillage(quantity)}
+                            variant="quiet"
+                          />
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : result.data.wellTest ? (
                 <Notice>{t('guided.noWellTestQuantities')}</Notice>

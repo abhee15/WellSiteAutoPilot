@@ -19,7 +19,7 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { outcomeLabel } from '../words';
-import { GuidedQuantityDiscovery } from './GuidedQuantityDiscovery';
+import { GuidedQuantityDiscovery, type FillageQuantity } from './GuidedQuantityDiscovery';
 import { GuidedSurfaceCardsPreview } from './GuidedSurfaceCardsPreview';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
 
@@ -48,10 +48,14 @@ export function GuidedLivePreview({
   draftId,
   revision,
   inputs = [],
+  fillageChoice,
+  onSelectFillage,
 }: {
   draftId: string;
   revision: number;
   inputs?: readonly { id: string; quantity: string }[];
+  fillageChoice?: FillageQuantity;
+  onSelectFillage?: (quantity: FillageQuantity) => void;
 }) {
   const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
   const [hours, setHours] = useState('4');
@@ -370,7 +374,10 @@ export function GuidedLivePreview({
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkWell(assetId)} />
         )}
         {assetId && (
-          <GuidedQuantityDiscovery key={`${draftId}:${revision}:${assetId}`} {...{ draftId, revision, assetId }} />
+          <GuidedQuantityDiscovery
+            key={`${draftId}:${revision}:${assetId}`}
+            {...{ draftId, revision, assetId, fillageChoice, onSelectFillage }}
+          />
         )}
         <div>
           <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />

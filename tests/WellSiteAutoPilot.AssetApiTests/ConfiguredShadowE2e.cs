@@ -89,6 +89,10 @@ internal static class ConfiguredShadowE2e
         Console.WriteLine("Configured Shadow V2 real HTTP/PostgreSQL/JetStream/simulator journey, request recovery, provenance and failure checks passed.");
         await VerifyGuidedAsync(client, assetId, pressure: false);
         using var simulator = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5091") };
+        using (var seeded = await simulator.PutAsJsonAsync("/api/sim/v1/assets/WELL-101/current/AveragePumpFillage",
+            new { value = 64, unit = "%", quality = "Good" }))
+            seeded.EnsureSuccessStatusCode();
+        await VerifyGuidedAsync(client, assetId, pressure: false, fillage: ("AveragePumpFillage", 64));
         using (var reset = await simulator.PostAsJsonAsync("/api/sim/v1/scenarios/reset", new { scenario = "pressure-differential" }))
             reset.EnsureSuccessStatusCode();
         try
@@ -105,18 +109,20 @@ internal static class ConfiguredShadowE2e
         }
     }
 
-    private static async Task VerifyGuidedAsync(HttpClient client, Guid assetId, bool pressure)
+    private static async Task VerifyGuidedAsync(HttpClient client, Guid assetId, bool pressure,
+        (string Quantity, int Value)? fillage = null)
     {
+        var scalar = fillage ?? ("PumpFillage", 82);
         client.DefaultRequestHeaders.Remove("X-Correlation-ID");
         client.DefaultRequestHeaders.Add("X-Correlation-ID", "ci-guided-shadow-e2e");
         var inputs = pressure
             ? new[] { (Id: "casing-pressure", Quantity: "CasingPressure"), (Id: "tubing-pressure", Quantity: "TubingPressure") }
-            : new[] { (Id: "fillage", Quantity: "PumpFillage") };
+            : new[] { (Id: "fillage", scalar.Quantity) };
         var manifestJson = JsonSerializer.Serialize(new
         {
             manifestVersion = 1,
             moduleId = "ci.guided-" + Guid.NewGuid().ToString("N"),
-            version = "1.0.0", displayName = pressure ? "Guided pressure differential" : "Guided pump fillage", publisher = "WellSite AutoPilot",
+            version = "1.0.0", displayName = pressure ? "Guided pressure differential" : "Guided " + scalar.Quantity, publisher = "WellSite AutoPilot",
             runtime = "DotNet", executionProfile = "ScheduledOneShot",
             entryPoint = pressure ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint, minimumSdkVersion = "1.1.0",
             assetRequirements = new[] { new { role = "well", minimumCount = 1, maximumCount = 1, requiredTraits = Array.Empty<string>() } },
@@ -136,12 +142,12 @@ internal static class ConfiguredShadowE2e
         var revision = draft.GetProperty("revision").GetInt32();
         object previewRequest = pressure
             ? new { expectedRevision = revision, pressure = new { casingPsi = 400, tubingPsi = 120 }, parametersJson = "{}" }
-            : new { expectedRevision = revision, value = 82, parametersJson = "{}" };
+            : new { expectedRevision = revision, value = scalar.Value, parametersJson = "{}" };
         var preview = await Read(await client.PostAsJsonAsync(draftPath + "/preview", previewRequest), HttpStatusCode.OK);
         object submissionRequest = pressure
             ? new { expectedRevision = revision, pressureReadings = new[] { new { casingPsi = (int?)400, tubingPsi = 120 },
                 new { casingPsi = (int?)270, tubingPsi = 120 }, new { casingPsi = (int?)null, tubingPsi = 120 } } }
-            : new { expectedRevision = revision, readings = new int?[] { 82, 90, null } };
+            : new { expectedRevision = revision, readings = new int?[] { scalar.Value, 90, null } };
         var submission = await Read(await client.PostAsJsonAsync(draftPath + "/submit", submissionRequest), HttpStatusCode.OK);
         var packageSha256 = submission.GetProperty("packageSha256").GetString();
         if (preview.GetProperty("packageSha256").GetString() != packageSha256)
@@ -187,9 +193,11 @@ internal static class ConfiguredShadowE2e
             throw new InvalidOperationException("The configured worker execution diverged from the guided preview: " + result);
         using var output = JsonDocument.Parse(result.GetProperty("outputJson").GetString()!);
         var observations = output.RootElement.GetProperty("inputObservations").EnumerateArray().ToArray();
-        decimal[] expected = pressure ? [120, 400] : [82];
+        decimal[] expected = pressure ? [120, 400] : [scalar.Value];
         if (observations.Any(item => item.GetProperty("assetId").GetGuid() != assetId) ||
             !observations.Select(item => item.GetProperty("value").GetDecimal()).Order().SequenceEqual(expected) ||
+            !observations.Select(item => item.GetProperty("quantity").GetString()).Order()
+                .SequenceEqual(inputs.Select(input => input.Quantity).Order()) ||
             output.RootElement.GetProperty("controlIntents").GetArrayLength() != 0)
             throw new InvalidOperationException("The guided run lost input provenance or emitted a control intent.");
         if (pressure && output.RootElement.GetProperty("engineeringResults")[0].GetProperty("value").GetDecimal() != 280)
@@ -206,7 +214,7 @@ internal static class ConfiguredShadowE2e
                 badRun.GetProperty("failureCode").GetString() != "EXECUTION_INPUT_QUALITY_REJECTED")
                 throw new InvalidOperationException("The worker accepted a bad pressure reading: " + badRun);
         }
-        Console.WriteLine($"Guided draft, preview, approval and configured Shadow execution passed for {(pressure ? "pressure differential" : "pump fillage")}.");
+        Console.WriteLine($"Guided draft, preview, approval and configured Shadow execution passed for {(pressure ? "pressure differential" : scalar.Quantity)}.");
     }
 
     private static async Task AwaitPackagePublication(HttpClient client, string path)

@@ -292,7 +292,8 @@ it('previews a saved revision with an imported well without enabling submission'
       {
         id: 'live-draft',
         revision: 3,
-        manifestJson: '{"displayName":"Live draft","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
+        manifestJson:
+          '{"displayName":"Live draft","dataRequirements":[{"id":"fillage","quantity":"PumpFillage","access":"Current","canonicalUnit":"%"}]}',
         definition: { default: 70 },
       },
     ],
@@ -554,6 +555,35 @@ it('previews a saved revision with an imported well without enabling submission'
       context.mockRestore();
     }
     expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
+
+    vi.mocked(discoverGuidedModuleQuantities).mockResolvedValueOnce({
+      data: {
+        supported: true,
+        evidenceStatus: 'ApplicabilityUnverified',
+        quantities: [
+          { quantity: 'PumpFillage', unit: '%', status: 'CurrentObserved' },
+          { quantity: 'AveragePumpFillage', unit: '%', status: 'CurrentObserved' },
+        ],
+      },
+    } as never);
+    const requirement = { id: 'fillage', quantity: 'AveragePumpFillage', access: 'Current', canonicalUnit: '%' };
+    const updatedManifest = JSON.stringify({ displayName: 'Live draft', dataRequirements: [requirement] });
+    vi.mocked(editGuidedModuleDraft).mockResolvedValueOnce({
+      data: { id: 'live-draft', revision: 4, manifestJson: updatedManifest, definition: { default: 70 } },
+    } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+    const useAverage = await screen.findByRole('button', { name: 'Use average pump fillage as input' });
+    expect(screen.queryByRole('button', { name: 'Use current pump fillage as input' })).toBeNull();
+    fireEvent.click(useAverage);
+    expect(screen.getByLabelText<HTMLSelectElement>('Fillage input').value).toBe('AveragePumpFillage');
+    expect(screen.queryByText('Preview with a live well')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await screen.findByText('Draft saved.');
+    const edit = vi.mocked(editGuidedModuleDraft).mock.lastCall?.[0];
+    expect(edit?.path).toEqual({ id: 'live-draft' });
+    expect(edit?.body.expectedRevision).toBe(3);
+    expect(JSON.parse(edit?.body.manifestJson ?? '').dataRequirements).toEqual([requirement]);
+    expect(screen.getByLabelText('Average pump fillage threshold (%)')).toBeTruthy();
   } finally {
     vi.unstubAllGlobals();
   }
