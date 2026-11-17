@@ -1333,6 +1333,8 @@ export const englishMessages = {
   'guided.staleScenarios': 'Save the draft and rerun the sample cases to check the edited rule.',
   'guided.fillageRule': 'Recommend a review when pump fillage is below the threshold.',
   'guided.newModule': 'New module',
+  'guided.openDraft': 'Open draft',
+  'guided.chooseDraft': 'Choose a saved draft',
   'guided.draftsTab': 'Drafts',
   'guided.reviewsTab': 'Reviews',
   'guided.historyInput': 'Historical input',
