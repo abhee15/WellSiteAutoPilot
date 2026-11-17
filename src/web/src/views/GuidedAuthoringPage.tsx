@@ -19,6 +19,7 @@ import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
 import { SectionTabs } from '../components/SectionTabs';
 import { GuidedLivePreview } from './GuidedLivePreview';
+import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -533,6 +534,7 @@ export function GuidedAuthoringPage({
                       onChange={(event) => setName(event.target.value)}
                     />
                   </div>
+                  <GuidedModuleContract manifestJson={draft?.manifestJson} />
                 </section>
                 <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
                   <PanelHeader title={t('guided.rule')} level={3} />

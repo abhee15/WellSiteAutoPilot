@@ -58,6 +58,80 @@
   }
 }
 
+.guided-authoring-contract {
+  border-block-start: var(--border-width-thin) solid var(--color-border-subtle);
+  padding-block-start: var(--space-12);
+}
+
+.guided-authoring-contract summary {
+  cursor: pointer;
+}
+
+.guided-authoring-contract > p {
+  color: var(--color-text-subtle);
+}
+
+.guided-authoring-contract-groups {
+  display: grid;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.guided-authoring-contract-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+}
+
+.guided-authoring-contract-list > section {
+  flex: 1 1 var(--layout-field-min);
+  min-width: 0;
+}
+
+.guided-authoring-contract-groups h4 {
+  margin-block: var(--space-12);
+}
+
+.guided-authoring-contract-ports {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guided-authoring-contract-ports li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.guided-authoring-contract-ports li > span {
+  color: var(--color-text-subtle);
+  overflow-wrap: anywhere;
+}
+
+.guided-authoring-contract-ports [aria-pressed='true'] {
+  text-decoration: underline;
+}
+
+.guided-authoring-contract-details {
+  min-width: 0;
+  border-block-start: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.guided-authoring-contract-details dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-8);
+  overflow-wrap: anywhere;
+}
+
+.guided-authoring-contract-details dd {
+  margin: 0;
+}
+
 .guided-authoring-view-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

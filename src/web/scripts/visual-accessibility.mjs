@@ -16,6 +16,7 @@ const cases = [
   ['guided-authoring', '?view=ide', 1440], ['guided-authoring', '?view=ide', 768],
   ['guided-authoring', '?view=ide', 820], ['guided-authoring', '?view=ide', 1024], ['guided-authoring', '?view=ide', 1180],
   ['guided-authoring', '?view=surface-cards', 1440], ['guided-authoring', '?view=surface-cards', 768],
+  ['guided-authoring', '?view=contract', 1440], ['guided-authoring', '?view=contract', 1024],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -57,6 +58,33 @@ try {
     await channel.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
     try { await settled(); } catch (error) { problems.push(`${key}: ${error.message}`); continue; }
+    if (page === 'guided-authoring' && query === '?view=contract') {
+      const selected = await evaluate(`(() => {
+        const picker = document.querySelector('.guided-authoring-draft-picker select');
+        if (!picker) return false;
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+        if (!setter) return false;
+        setter.call(picker, 'visual-card-calibration');
+        picker.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`);
+      if (!selected) {
+        problems.push(`${key}: failed to select the complex calibration sample`);
+        continue;
+      }
+      await settled();
+      const opened = await evaluate(`(() => {
+        const disclosure = document.querySelector('.guided-authoring-contract > summary');
+        if (!disclosure) return false;
+        disclosure.click();
+        return true;
+      })()`);
+      if (!opened) {
+        problems.push(`${key}: complex contract disclosure was not available`);
+        continue;
+      }
+      await settled();
+    }
     if (page === 'guided-authoring' && query === '?view=surface-cards') {
       const plot = await evaluate(`(() => {
         const canvas = document.querySelector('.guided-surface-card canvas');
@@ -92,7 +120,9 @@ try {
         };
       })()`);
       const phone = width === 390;
-      if (layout.editor === phone || layout.ide !== (query === '?view=ide') || !layout.review || !layout.evidence || layout.approval === phone
+      const contract = query === '?view=contract';
+      if (layout.editor === phone || layout.ide !== (query === '?view=ide')
+        || layout.review === contract || layout.evidence === contract || layout.approval !== (!phone && !contract)
         || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels
         || (!phone && (layout.sideBySide !== (width > 896) || !layout.actionsAboveEditor || layout.tabOverflow))) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
