@@ -358,6 +358,7 @@ export function GuidedLivePreview({
           </Notice>
         )}
         {(compatibility?.kind === 'error' ||
+          compatibility?.kind === 'noInputChecks' ||
           (compatibility?.kind === 'result' &&
             compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkAsset(assetId)} />
