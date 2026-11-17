@@ -724,6 +724,17 @@ trend_quantities = request("POST", quantity_url, OTHER, trend_body)
 assert trend_quantities["supported"], trend_quantities
 assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantities["quantities"]} == {
     ("PumpFillage", "%", "Observed"), ("SPM", "SPM", "Observed")}, trend_quantities
+stroke_trend_body = {key: value for key, value in history_body.items() if key != "inputId"}
+stroke_trend_body["quantity"] = "SPM"
+for denied_user in (None, ADMIN):
+    request("POST", history_url, denied_user, stroke_trend_body, expected=401 if denied_user is None else 404)
+request("POST", history_url, OTHER, dict(stroke_trend_body, expectedRevision=2), expected=409)
+request("POST", history_url, OTHER, dict(stroke_trend_body, assetId=other_alpha["id"]), expected=404)
+request("POST", history_url, OTHER, dict(stroke_trend_body, inputId="fillage"), expected=400)
+request("POST", history_url, OTHER, dict(stroke_trend_body, quantity="CasingPressure"), expected=400)
+stroke_trend = request("POST", history_url, OTHER, stroke_trend_body)
+assert stroke_trend["quantity"] == "SPM" and stroke_trend["samples"], stroke_trend
+assert all(sample["quality"] == "Unknown" and sample["unit"] == "SPM" for sample in stroke_trend["samples"]), stroke_trend
 daily_body = dict(live_body, capability="DailyAverages", startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
 daily_quantities = request("POST", quantity_url, OTHER, daily_body)
 assert daily_quantities == {"supported": True, "quantities": [

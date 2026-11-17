@@ -1388,6 +1388,7 @@ export const englishMessages = {
   'guided.dailyAverageQuantities': 'Daily averages',
   'guided.wellTrendQuantities': 'Well trend',
   'guided.discoverQuantityAction': 'Discover',
+  'guided.inspectTrend': 'Inspect {quantity} trend',
   'guided.quantityWindow': 'Search window',
   'guided.quantityUnsupported': 'This source has no registered read for the selected well or search window.',
   'guided.quantityDiscoveryFailed': 'Could not discover quantities for this well.',

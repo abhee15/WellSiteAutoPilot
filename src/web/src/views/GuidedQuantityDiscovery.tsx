@@ -19,7 +19,7 @@ export type FillageQuantity = 'PumpFillage' | 'AveragePumpFillage';
 export function isFillageQuantity(quantity: unknown): quantity is FillageQuantity {
   return quantity === 'PumpFillage' || quantity === 'AveragePumpFillage';
 }
-type HistoryWindow = { startUtc: string; endUtc: string };
+export type HistoryWindow = { startUtc: string; endUtc: string };
 
 const evidenceNotices = {
   ApplicabilityUnverified: 'guided.surveillanceApplicabilityUnverified',
@@ -45,12 +45,16 @@ export function GuidedQuantityDiscovery({
   assetId,
   fillageChoice,
   onSelectFillage,
+  inspectBusy,
+  onInspectTrend,
 }: {
   draftId: string;
   revision: number;
   assetId: string;
   fillageChoice?: FillageQuantity;
   onSelectFillage?: (quantity: FillageQuantity) => void;
+  inspectBusy: boolean;
+  onInspectTrend: (quantity: string, window: HistoryWindow) => void;
 }) {
   const [capability, setCapability] = useState<Capability>('WellTrend');
   const [result, setResult] = useState<Discovery | null>(null);
@@ -138,6 +142,8 @@ export function GuidedQuantityDiscovery({
                       isFillageQuantity(quantity) &&
                       entry.status === 'CurrentObserved' &&
                       entry.unit === '%';
+                    const trendWindow =
+                      capability === 'WellTrend' && entry.status === 'Observed' ? result.window : undefined;
                     return (
                       <li key={quantity}>
                         {entry.quantity}
@@ -145,6 +151,14 @@ export function GuidedQuantityDiscovery({
                         {t(
                           quantityStatuses[entry.status as keyof typeof quantityStatuses] ??
                             'guided.quantityUnavailable',
+                        )}
+                        {trendWindow && quantity && (
+                          <ActionButton
+                            label={t('guided.inspectTrend', { quantity })}
+                            disabled={inspectBusy}
+                            onClick={() => onInspectTrend(quantity, trendWindow)}
+                            variant="quiet"
+                          />
                         )}
                         {offerInput && onSelectFillage && (
                           <ActionButton

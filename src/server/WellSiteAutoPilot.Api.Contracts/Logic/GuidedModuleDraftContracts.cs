@@ -42,8 +42,9 @@ public sealed record GuidedLivePreviewResponse(int Revision, string PackageSha25
 public sealed record GuidedLiveReadingResponse(string InputId, string Quantity, decimal? Value, string Unit,
     DateTimeOffset TimestampUtc, string Quality, string? TimestampKind);
 
-public sealed record GuidedHistoryPreviewRequest(int ExpectedRevision, Guid AssetId, string InputId,
-    DateTimeOffset? StartUtc, DateTimeOffset? EndUtc, int MaximumSamples, GuidedSiteHistoryWindowRequest? SiteWindow = null);
+public sealed record GuidedHistoryPreviewRequest(int ExpectedRevision, Guid AssetId, string? InputId,
+    DateTimeOffset? StartUtc, DateTimeOffset? EndUtc, int MaximumSamples, GuidedSiteHistoryWindowRequest? SiteWindow = null,
+    string? Quantity = null);
 
 public sealed record GuidedSiteHistoryWindowRequest(string EndLocal, string TimeZoneId, int DurationMinutes);
 

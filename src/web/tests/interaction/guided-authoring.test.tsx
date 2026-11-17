@@ -389,6 +389,25 @@ it('previews a saved revision with an imported well without enabling submission'
         }) as unknown,
       }),
     );
+    const trendDiscovery = vi.mocked(discoverGuidedModuleQuantities).mock.lastCall?.[0].body;
+    vi.mocked(previewGuidedModuleInputHistory).mockResolvedValueOnce({
+      data: {
+        quantity: 'SPM',
+        startUtc: trendDiscovery?.startUtc,
+        endUtc: trendDiscovery?.endUtc,
+        samples: [{ value: 5.5, unit: 'SPM', quality: 'Unknown', timestampUtc: trendDiscovery?.startUtc }],
+      },
+    } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect SPM trend' }));
+    expect(await screen.findByText(/5\.5 SPM · Unknown/)).toBeTruthy();
+    expect(vi.mocked(previewGuidedModuleInputHistory).mock.lastCall?.[0].body).toEqual({
+      expectedRevision: 3,
+      assetId: 'imported',
+      maximumSamples: 100,
+      quantity: 'SPM',
+      startUtc: trendDiscovery?.startUtc,
+      endUtc: trendDiscovery?.endUtc,
+    });
     fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'DailyAverages' } });
     expect(screen.queryByText(/Observed in this window/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
