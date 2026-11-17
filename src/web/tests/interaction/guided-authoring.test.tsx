@@ -346,6 +346,9 @@ it('treats no returned input checks as unverified compatibility rather than fail
     expect(await screen.findByText(/No input checks were returned for this asset/i)).toBeTruthy();
     expect(screen.queryByText(/satisfies all checked input requirements/i)).toBeNull();
     expect(screen.queryByText('Could not check this asset.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+    await waitFor(() => expect(checkGuidedModuleAssetCompatibility).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(/No input checks were returned for this asset/i)).toBeTruthy();
     expect(checkGuidedModuleAssetCompatibility).toHaveBeenCalledWith({
       path: { id: 'draft-no-checks' },
       body: { expectedRevision: 1, assetId: 'asset-1' },
