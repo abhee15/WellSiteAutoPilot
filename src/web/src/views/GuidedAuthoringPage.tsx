@@ -264,7 +264,7 @@ export function GuidedAuthoringPage({
   ) {
     setPressure(nextPressure);
     setDraft(next);
-    setContractManifest(next && isContractOnlyManifest(next.manifestJson) ? next.manifestJson : null);
+    setContractManifest(next?.manifestJson && isContractOnlyManifest(next.manifestJson) ? next.manifestJson : null);
     setName(displayName(next?.manifestJson));
     setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
