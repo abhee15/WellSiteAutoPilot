@@ -2070,7 +2070,12 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "Provide a bounded module manifest.");
     using var source = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(request.ManifestJson));
     WellSiteAutoPilot.Domain.Logic.LogicModuleManifest manifest;
-    try { manifest = await LogicModuleManifestReader.ReadAsync(source, cancellationToken); }
+    try
+    {
+        manifest = request.Definition is null
+            ? await LogicModuleManifestReader.ReadDraftAsync(source, cancellationToken)
+            : await LogicModuleManifestReader.ReadAsync(source, cancellationToken);
+    }
     catch (System.Text.Json.JsonException error)
     {
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "The module manifest is malformed.", innerException: error);
