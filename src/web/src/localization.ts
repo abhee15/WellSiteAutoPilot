@@ -1339,7 +1339,7 @@ export const englishMessages = {
   'guided.executionRuntime': '{runtime} runtime',
   'guided.executionUnknown': 'Runtime not declared',
   'guided.executionOpaque': 'Internal steps not recorded.',
-  'guided.executionUntraced': 'Input-to-output dependencies and intermediate values require recorded execution evidence.'
+  'guided.executionUntraced': 'Input-to-output dependencies and intermediate values require recorded execution evidence.',
   'guided.contractDetails': 'Selected input or output details',
   'guided.contractCounts': '{inputs} inputs · {outputs} outputs',
   'guided.contractBoundary': 'These are declared module inputs and outputs, not a map of calculations inside code. Sample asset bindings and runtime evidence are separate.',
