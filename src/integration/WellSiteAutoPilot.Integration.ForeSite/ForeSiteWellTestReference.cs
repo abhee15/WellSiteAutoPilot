@@ -5,9 +5,9 @@ namespace WellSiteAutoPilot.Integration.ForeSite;
 public static class ForeSiteWellTestReference
 {
     public static readonly AdapterOperationDescriptor Latest = new(
-        "well-test.latest-reported", "Latest reported well test",
-        "Read the latest test record identity, dates and reported status for one well.",
-        ProviderCapabilityKind.ExtensionRead, "well-test.latest-reported", "1.0",
+        ForeSiteLatestWellTestContract.OperationKey, "Latest reported well test",
+        "Read the latest test record identity, dates, reported status and recognized numeric fields for one well.",
+        ProviderCapabilityKind.ExtensionRead, "well-test.latest-reported", ForeSiteLatestWellTestContract.Version,
         new("well-test.latest-request/v1", [new("assetExternalId", "string", true, "Imported ForeSite well ID.")]),
         new("well-test.latest-reported/v1", [
             new("assetExternalId", "string", true, "Imported ForeSite well ID."),
@@ -17,6 +17,7 @@ public static class ForeSiteWellTestReference
             new("test.testEndDate", "date-time|null", false, "Source test end date, with original offset."),
             new("test.status", "string|null", false, "Provider test status when supplied."),
             new("test.validation", "object", true, "Provider classification and validation codes and descriptions."),
+            new("test.reportedQuantityFields", "string[]", false, "Recognized source fields with numeric values; conveys no eligibility or units."),
             new("retrievedAtUtc", "date-time", true, "Time of retrieval."),
             new("source", "string", true, "Provider provenance.")]),
         "SampleDate and TestEndDate are independent source fields. Retrieval time is separate.",

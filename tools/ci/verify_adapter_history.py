@@ -95,7 +95,7 @@ review = call("foresite", latest_test("102"), operation=test_path)
 assert review["test"]["status"] == "Review", review
 assert review["test"]["validation"]["classificationDescription"] == "RejectedTest", review
 assert review["test"]["validation"]["description"] == "Oil rate above acceptance limit", review
-assert "oil" not in review["test"], review
+assert review["test"]["reportedQuantityFields"] == ["Oil", "Water"] and "oil" not in review["test"], review
 assert review["test"]["sampleDate"].endswith("-06:00") and review["test"]["testEndDate"].endswith("-06:00"), review
 assert datetime.fromisoformat(review["retrievedAtUtc"]) > datetime.fromisoformat(review["test"]["testEndDate"]), review
 assert call("foresite", latest_test("103"), operation=test_path)["test"] is None

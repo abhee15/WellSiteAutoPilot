@@ -216,7 +216,8 @@ app.MapGet("/foresite/WellTests/GetLatestWellTestData/{wellId:long}", (long well
         SampleDate = "2025-02-01T07:00:00-06:00", TestEndDate = "2025-02-01T08:00:00-06:00",
         Status = wellId == 102 ? "Review" : null,
         SPTCode = wellId == 102 ? (int?)9 : null, SPTCodeDescription = wellId == 102 ? "RejectedTest" : null,
-        ValidationStatus = wellId == 102 ? "Oil rate above acceptance limit" : null, Oil = 23.0m
+        ValidationStatus = wellId == 102 ? "Oil rate above acceptance limit" : null,
+        Oil = 23.0m, Water = wellId == 102 ? (decimal?)0 : null
     }, new System.Text.Json.JsonSerializerOptions());
 });
 

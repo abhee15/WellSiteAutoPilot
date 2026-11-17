@@ -369,6 +369,36 @@ it('previews a saved revision with an imported well without enabling submission'
     expect(screen.queryByText(/Observed in this window/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
     expect(await screen.findByText('TotalFluidRateInferred · No samples in this window')).toBeTruthy();
+    vi.mocked(discoverGuidedModuleQuantities)
+      .mockResolvedValueOnce({
+        data: {
+          supported: true,
+          quantities: [{ quantity: 'Oil', status: 'Reported' }],
+          wellTest: {
+            sampleDate: '2025-02-01T07:00:00-06:00',
+            status: 'Review',
+            classification: 'RejectedTest',
+            validation: 'Oil rate above acceptance limit',
+          },
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: { supported: true, evidenceStatus: 'ApplicabilityUnverified', quantities: [] },
+      } as never);
+    fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'WellTest' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+    expect(await screen.findByText('Oil · Reported on this test')).toBeTruthy();
+    expect(screen.getByText('RejectedTest')).toBeTruthy();
+    expect(screen.getByText('2025-02-01T07:00:00-06:00')).toBeTruthy();
+    expect(vi.mocked(discoverGuidedModuleQuantities).mock.lastCall?.[0].body).toEqual({
+      expectedRevision: 3,
+      assetId: 'imported',
+      capability: 'WellTest',
+    });
+    fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'Surveillance' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+    expect(await screen.findByText(/Surveillance quantity applicability awaits verification/)).toBeTruthy();
+    expect(screen.queryByText('Oil · Reported on this test')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Run live preview' }));
     expect(await screen.findByText(/PumpFillage · 82 % · Good/)).toBeTruthy();
     expect(vi.mocked(previewGuidedModuleWithLiveInputs)).toHaveBeenLastCalledWith({

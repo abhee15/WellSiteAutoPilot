@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace WellSiteAutoPilot.Api.Contracts.Logic;
 
 public sealed record GuidedThresholdDefinitionRequest(string Parameter, decimal Default, string OutcomeCode, string Title, string Detail);
@@ -51,9 +53,14 @@ public sealed record GuidedHistoryPreviewResponse(string Quantity, DateTimeOffse
 public sealed record GuidedHistorySampleResponse(decimal Value, string Unit, DateTimeOffset TimestampUtc, string Quality);
 
 public sealed record GuidedQuantityDiscoveryRequest(int ExpectedRevision, Guid AssetId, string Capability,
-    DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+    DateTimeOffset? StartUtc = null, DateTimeOffset? EndUtc = null);
 
-public sealed record GuidedQuantityDiscoveryResponse(bool Supported, IReadOnlyList<GuidedDiscoveredQuantityResponse> Quantities);
+public sealed record GuidedQuantityDiscoveryResponse(bool Supported, IReadOnlyList<GuidedDiscoveredQuantityResponse> Quantities,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? EvidenceStatus,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GuidedReportedWellTestResponse? WellTest);
+
+public sealed record GuidedReportedWellTestResponse(DateTimeOffset? SampleDate, DateTimeOffset? TestEndDate,
+    string? Status, string? Classification, string? Validation);
 
 public sealed record GuidedDiscoveredQuantityResponse(string Quantity, string? Unit, string Status);
 
