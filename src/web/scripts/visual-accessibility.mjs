@@ -92,13 +92,13 @@ try {
         const text = document.body.innerText;
         const action = name => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === name);
         return text.includes('SurfaceCards') && text.includes('Calibration')
-          && text.includes('This module declares structured or code-backed calculations')
+          && text.includes('View-only complex module')
           && !text.includes('Recommend a review when pump fillage is below the threshold')
-          && action('Save draft')?.disabled === true
-          && action('Submit for review')?.disabled === true
+          && action('Save draft') === undefined
+          && action('Submit for review') === undefined
           && action('Run sample cases') === undefined
           && text.includes('DotNet runtime')
-          && text.includes('Contract boundary only')
+          && text.includes('Input-to-output dependencies and intermediate values')
           && document.querySelector('[aria-label="Module execution"]')
           && !document.querySelector('.guided-authoring-inspector')
           && document.querySelector('.guided-authoring-workbench')?.dataset.inspectOnly === 'true';
@@ -124,12 +124,13 @@ try {
         const workbench = bounds('.guided-authoring-workbench');
         const inspector = document.querySelector('.guided-authoring-inspector')?.getBoundingClientRect();
         const tabs = document.querySelector('.guided-authoring-view-bar .tab-strip');
-        const tools = bounds('.guided-authoring-view-bar > .guided-authoring-actions');
+        const tools = document.querySelector('.guided-authoring-view-bar > .guided-authoring-actions')?.getBoundingClientRect();
         return {
           sideBySide: Boolean(inspector && editor.right <= inspector.left && editor.top === inspector.top),
           inspectorPresent: Boolean(inspector),
           fullWidth: Math.abs(workbench.width - editor.width) <= 2,
-          actionsAboveEditor: tools.bottom <= editor.top,
+          actionsAboveEditor: !tools || tools.bottom <= editor.top,
+          actionsPresent: Boolean(tools),
           tabOverflow: tabs.scrollWidth > tabs.clientWidth,
           editor: visible('.guided-authoring-editor'),
           ide: visible('.guided-authoring-workbench[data-view=ide] .guided-authoring-outline'),
@@ -150,7 +151,8 @@ try {
       if (layout.editor === phone || layout.ide !== (query === '?view=ide')
         || layout.review === contract || layout.evidence === contract || layout.approval !== (!phone && !contract)
         || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels
-        || (contract && (!layout.fullWidth || layout.inspectorPresent))
+        || (contract && (!layout.fullWidth || layout.inspectorPresent || layout.actionsPresent))
+        || (!contract && !layout.actionsPresent)
         || (!phone && (!contract && layout.sideBySide !== (width > 896)
           || !layout.actionsAboveEditor || layout.tabOverflow))) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);

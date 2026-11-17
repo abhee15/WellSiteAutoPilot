@@ -210,7 +210,7 @@ export function GuidedModuleContract({
           outputs: contract.outputs.length,
         })}
       </summary>
-      <p>{t('guided.contractBoundary')}</p>
+      <p>{t(showExecutionBoundary ? 'guided.contractSelectPort' : 'guided.contractBoundary')}</p>
       <div className="guided-authoring-contract-groups">
         <div className="guided-authoring-contract-list" data-execution-boundary={showExecutionBoundary}>
           <ContractPorts ports={contract.inputs} kind="input" selected={selection} onSelect={setSelection} />
