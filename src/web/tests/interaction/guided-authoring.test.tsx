@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
+import { GuidedLivePreview } from '../../src/views/GuidedLivePreview';
 import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import {
   approveGuidedModuleSubmission,
@@ -323,6 +324,35 @@ it('lists the exact submitted revision for reviewers and opens its evidence', as
     expect(screen.getByRole('link', { name: 'Back to reviews' }).getAttribute('href')).toBe('#authoring/reviews');
   } finally {
     window.history.replaceState(null, '', window.location.pathname);
+  }
+});
+
+it('treats no returned input checks as unverified compatibility rather than failure or success', async () => {
+  vi.mocked(checkGuidedModuleAssetCompatibility).mockResolvedValue({
+    data: { inputs: [] },
+  } as never);
+  const fetch = vi.fn(async () => new Response(JSON.stringify([
+    { id: 'asset-1', name: 'Sample rod pump', isActive: true, ownerConnectionId: 'source', path: [] },
+  ])));
+  vi.stubGlobal('fetch', fetch);
+  try {
+    render(<GuidedLivePreview draftId="draft-no-checks" revision={1} inputs={[]} />);
+    fireEvent.click(screen.getByText('Preview with a sample asset'));
+    expect(screen.getByText(/currently supports imported wells/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Asset name or ID'), { target: { value: 'pump' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find assets' }));
+    const assets = await screen.findByRole('combobox', { name: 'Sample asset' });
+    fireEvent.change(assets, { target: { value: 'asset-1' } });
+    expect(await screen.findByText(/No input checks were returned for this asset/i)).toBeTruthy();
+    expect(screen.queryByText(/satisfies all checked input requirements/i)).toBeNull();
+    expect(screen.queryByText('Could not check this asset.')).toBeNull();
+    expect(checkGuidedModuleAssetCompatibility).toHaveBeenCalledWith({
+      path: { id: 'draft-no-checks' },
+      body: { expectedRevision: 1, assetId: 'asset-1' },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+  } finally {
+    vi.unstubAllGlobals();
   }
 });
 
