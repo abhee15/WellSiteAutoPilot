@@ -31,7 +31,9 @@ type WellPreview =
   | { kind: 'unsupported'; preview: 'productionDays' | 'surfaceCards' };
 
 type Compatibility =
-  { kind: 'checking' } | { kind: 'result'; data: GuidedAssetCompatibilityResponse } | { kind: 'error' };
+  | { kind: 'checking' }
+  | { kind: 'result'; inputs: NonNullable<GuidedAssetCompatibilityResponse['inputs']> }
+  | { kind: 'error' };
 
 const compatibilityLabels = {
   Satisfied: 'guided.assetInputSatisfied',
