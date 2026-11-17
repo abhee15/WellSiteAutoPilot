@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authoring workspace probe</title>
+<link rel="stylesheet" href="../../../src/web/src/tokens.css"><link rel="stylesheet" href="../../../src/web/src/styles.css">
+<style>
+body { padding:var(--space-24); } main { max-width:var(--layout-readable); margin:auto; } .workspace {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:var(--space-16);max-width:none;} main {max-width:100%;} .card {min-width:0;padding:var(--space-18);background:var(--color-surface-panel);border:var(--border-width-thin) solid var(--color-border-subtle);border-radius:var(--radius-8);} header {display:flex;gap:var(--space-16);align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:var(--space-16);} h1 {font-size:var(--font-size-heading);margin:0;} h2 {font-size:var(--font-size-body);margin-top:0;} p,small {overflow-wrap:anywhere;} .muted {color:var(--color-text-subtle);} .steps {padding:0;list-style:none;display:grid;gap:var(--space-8);} .steps button {width:100%;text-align:left;white-space:normal;} .steps small {display:block;} button[aria-pressed=true] {outline:var(--focus-ring-width) solid var(--color-focus-ring);} label {display:grid;gap:var(--space-6);margin-block:var(--space-12);} input,select {min-width:0;width:100%;min-height:var(--size-touch-target);font:inherit;} .actions {display:flex;flex-wrap:wrap;gap:var(--space-8);} table {width:100%;table-layout:fixed;} td,th {text-align:left;padding:var(--space-8);overflow-wrap:anywhere;} pre {white-space:pre-wrap;overflow-wrap:anywhere;} .results {margin-top:var(--space-16);} .status {min-height:var(--size-touch-target);} @media(max-width:900px){body{padding:var(--space-12);} .workspace{grid-template-columns:minmax(0,1fr);} .steps{grid-template-columns:repeat(2,minmax(0,1fr));}}
+</style></head><body><main>
+<header><div><p class="muted">Logic / Authoring · disposable design probe</p><h1>Surface card analysis</h1></div><div class="actions"><button id="test" class="primary-button" disabled>Test fixture</button><button id="build" disabled>Probe build</button><button id="cancel" hidden>Cancel</button><button id="download" disabled>Export probe report</button></div></header>
+<p class="muted">Synthetic fixtures only. Calculations run locally in this prototype. Build states are simulated; no package, provider call, catalog submission or control command is produced.</p>
+<p id="status" class="status" role="status">Loading repository card fixture…</p>
+<div class="workspace">
+<nav class="card" aria-label="Module outline"><h2>Module outline</h2><ul class="steps">
+<li><button data-step="sources" aria-pressed="true">Sources<small>2 data bindings + calculation service</small></button></li>
+<li><button data-step="calibrate" aria-pressed="false">Calibrate load<small>cards + scale + offset</small></button></li>
+<li><button data-step="peak" aria-pressed="false">Peak load<small>maximum across calibrated cards</small></button></li>
+<li><button data-step="predict" aria-pressed="false">Calculation service<small>WAMI-shaped stub · peak × factor</small></button></li>
+<li><button data-step="margin" aria-pressed="false">Decision margin<small>prediction − threshold</small></button></li>
+<li><button data-step="proposal" aria-pressed="false">Proposed outcome<small>branch on margin · simulation only</small></button></li>
+</ul></nav>
+<section class="card" aria-labelledby="detail-title"><h2 id="detail-title">Sources and dependencies</h2><p id="description"></p><h3>Dependency view</h3><ol><li>Cards + calibration → calibrated curves</li><li>Calibrated curves → peak load</li><li>Peak load → external calculation stub → prediction</li><li>Prediction + threshold → margin → proposed outcome</li></ol>
+<details open><summary>Add or edit a dependent calculation</summary>
+<label>Calculation being edited<select id="edit-node"><option value="new">New calculation</option></select></label>
+<label>Calculation name<input id="node-label" value="Load difference" maxlength="128"></label>
+<label>Operation<select id="node-operation"><option value="difference">Difference (left − right)</option><option value="ratio">Ratio (left ÷ right)</option></select></label>
+<label>Left dependency<select id="node-left"><option value="peak">Peak load</option><option value="prediction">Stub prediction</option><option value="margin">Margin</option></select></label>
+<label>Right dependency<select id="node-right"><option value="prediction">Stub prediction</option><option value="peak">Peak load</option><option value="margin">Margin</option></select></label>
+<button id="save-node" type="button" aria-describedby="node-error">Save calculation</button><p id="node-error" role="alert"></p><ul id="custom-nodes"></ul>
+<label>Outcome condition<select id="condition"><option value="positive">Review when margin is positive</option><option value="nonpositive">Review when margin is zero or negative</option></select></label>
+<label>Import probe document<input id="import-document" type="file" accept="application/json"></label>
+<p class="muted">Two bounded scalar operations probe editable dependencies. Card transformations remain an opaque SDK step. This is not a complete authoring language.</p></details>
+<details><summary>Calculation implementation</summary><pre>calibrated = cards.map(card =&gt; card.load.map(v =&gt; v * scale + offset))
+peak = max(calibrated.flat())
+prediction = WAMI_SHAPED_STUB(peak, factor)
+margin = prediction - threshold
+<span id="condition-formula">outcome = margin &gt; 0 ? 'Review adjustment' : 'No adjustment'</span>
+</pre><p class="muted">Explicit probe calculations. This is not a graph compiler, source-code importer or WAMI model.</p></details></section>
+<aside class="card" aria-label="Properties"><h2>Properties</h2><p class="muted">Revisit any calculation. Edits invalidate test evidence and the simulated build. A valid draft can build without executing tests.</p><label>Load scale<input id="scale" type="number" value="2" min="0.1" max="10" step="0.1"></label><label>Load offset (lbf)<input id="offset" type="number" value="10" min="-10000" max="10000"></label><label>Stub factor<input id="factor" type="number" value="0.8" min="0" max="1" step="0.1"></label><label>Threshold (lbf)<input id="threshold" type="number" value="300" min="0" max="1000000"></label><label>Fixture case<select id="case"><option value="good">Valid card collection</option><option value="broken">Mismatched load/position arrays</option></select></label><label>Probe build outcome<select id="build-case"><option value="success">Success</option><option value="failure">Compiler failure</option></select></label></aside>
+</div>
+<section class="card results" aria-labelledby="result-title"><h2 id="result-title">Test evidence and intermediate values</h2><p id="revision">Draft revision 0 · not tested</p><table><thead><tr><th>Calculation</th><th>Value</th><th>Depends on</th></tr></thead><tbody id="trace"></tbody></table><details><summary>Structured calibrated curves</summary><pre id="curves">No current test evidence</pre></details></section>
+</main><script type="module" src="workspace.mjs"></script></body></html>

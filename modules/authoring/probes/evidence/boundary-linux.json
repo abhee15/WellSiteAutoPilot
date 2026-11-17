@@ -1,0 +1,19 @@
+{
+  "probe": "ordinary-child-synthetic-boundary",
+  "platform": "Linux",
+  "status": "measurement-completed",
+  "releaseGate": "blocked",
+  "observed": {
+    "readOutsideBuildDirectory": true,
+    "connectedToLoopback": true
+  },
+  "conclusion": "A temporary working directory and ordinary subprocess provide neither filesystem nor network isolation.",
+  "notEstablished": [
+    "Restricted Windows identity/ACLs",
+    "Operational secret denial",
+    "CPU/memory limits",
+    "Complete process-tree cancellation",
+    "Clean offline SDK provisioning",
+    "A deployable sandbox"
+  ]
+}
