@@ -179,6 +179,7 @@ await ModuleResultFailureChecks.RunAsync(request, new GatewayDataClient(httpClie
 StructuredTraceTransportChecks.Run();
 await WellSiteAutoPilot.ExecutionContractV2Tests.PackageHostChecks.RunAsync();
 await WellSiteAutoPilot.ExecutionContractV2Tests.DeclarativePackageChecks.RunAsync(request, now);
+await WellSiteAutoPilot.ExecutionContractV2Tests.GuidedContractDraftChecks.RunAsync();
 ServiceCredentialPrecedenceChecks.Run();
 if (observed.InputObservations.Count != 2 || observed.InputObservations.Any(input =>
     input.Quality != "Good" || input.TimestampUtc != now || string.IsNullOrWhiteSpace(input.Source)))

@@ -2066,8 +2066,6 @@ app.Run();
 
 static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModuleDraftRequest request, CancellationToken cancellationToken)
 {
-    if (request.Definition is not { } definition)
-        throw new WellSiteAutoPilotException("GUIDED_DRAFT_DEFINITION_REQUIRED", FailureKind.Validation, "A threshold definition is required.");
     if (string.IsNullOrWhiteSpace(request.ManifestJson) || request.ManifestJson.Length > 65_536)
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "Provide a bounded module manifest.");
     using var source = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(request.ManifestJson));
@@ -2077,6 +2075,9 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
     {
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "The module manifest is malformed.", innerException: error);
     }
+    if (request.Definition is not { } definition)
+        // Contract-only: the server owns the placeholder entry point so no client can claim runnable code.
+        return new(manifest with { EntryPoint = GuidedContractDraft.UnsetEntryPoint });
     return new(manifest with
     {
         EntryPoint = manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
@@ -2089,7 +2090,7 @@ static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
 {
     var definition = draft.Content.Definition;
     return new(draft.Id, draft.Revision, GuidedDraftManifestJson.Serialize(draft.Content.Manifest),
-        new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
+        definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
 }
 
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(

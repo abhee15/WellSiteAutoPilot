@@ -3,7 +3,15 @@ using WellSiteAutoPilot.Failures;
 
 namespace WellSiteAutoPilot.Application.Logic;
 
-public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, ThresholdDefinition Definition);
+/// <summary>
+/// Saved authoring content. <see cref="Definition"/> is the only executable logic Guided Authoring supports today.
+/// When it is null the draft is a portable typed contract (roles, inputs, outputs, parameters) with no logic yet:
+/// it can be saved, reopened and inspected, but never previewed or submitted.
+/// </summary>
+public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, ThresholdDefinition? Definition = null)
+{
+    public bool IsContractOnly => Definition is null;
+}
 
 /// <summary>Editable authoring state. Submission captures an artifact from an exact draft revision.</summary>
 public sealed record GuidedModuleDraft(
@@ -13,6 +21,9 @@ public sealed record GuidedModuleDraft(
     {
         ArgumentNullException.ThrowIfNull(content);
         RequireRevision(expectedRevision);
+        if (Content.IsContractOnly != content.IsContractOnly)
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_KIND_IMMUTABLE", FailureKind.Validation,
+                "A guided draft cannot switch between a contract-only draft and a threshold rule.");
         if (!string.Equals(Content.Manifest.ModuleId, content.Manifest.ModuleId, StringComparison.Ordinal) ||
             !string.Equals(Content.Manifest.Version, content.Manifest.Version, StringComparison.Ordinal) ||
             Content.Manifest.EntryPoint != content.Manifest.EntryPoint)
@@ -27,16 +38,25 @@ public sealed record GuidedModuleDraft(
     {
         ArgumentNullException.ThrowIfNull(cases);
         RequireRevision(expectedRevision);
+        RequireThresholdLogic();
         if (cases.Count is < 1 or > 50)
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
                 "Provide between one and fifty scenarios for the submitted draft.");
 
-        var artifact = await DeclarativeThresholdPackageBuilder.BuildAsync(Content.Manifest, Content.Definition, cancellationToken);
+        var artifact = await DeclarativeThresholdPackageBuilder.BuildAsync(Content.Manifest, Content.Definition!, cancellationToken);
         var evidence = new List<DeclarativeThresholdEvidence>(cases.Count);
         foreach (var sample in cases)
             evidence.Add(await DeclarativeThresholdPreview.EvaluateAsync(artifact, sample, cancellationToken));
 
         return new(Id, Revision, artifact, evidence.AsReadOnly());
+    }
+
+    /// <summary>Contract-only drafts have no supported runtime path, so preview and submission fail explicitly.</summary>
+    internal void RequireThresholdLogic()
+    {
+        if (Content.IsContractOnly)
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_LOGIC_UNSUPPORTED", FailureKind.Validation,
+                "This draft declares a contract but has no supported logic to preview or submit yet.");
     }
 
     internal void RequireRevision(int expectedRevision)

@@ -4,9 +4,10 @@ namespace WellSiteAutoPilot.Api.Contracts.Logic;
 
 public sealed record GuidedThresholdDefinitionRequest(string Parameter, decimal Default, string OutcomeCode, string Title, string Detail);
 
-public sealed record SaveGuidedModuleDraftRequest(string ManifestJson, GuidedThresholdDefinitionRequest Definition, int? ExpectedRevision);
+/// <summary>A null Definition saves a contract-only draft: a typed manifest with no logic to preview or submit.</summary>
+public sealed record SaveGuidedModuleDraftRequest(string ManifestJson, GuidedThresholdDefinitionRequest? Definition, int? ExpectedRevision);
 
-public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest Definition);
+public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest? Definition);
 
 public sealed record GuidedPressureReadingRequest(decimal? CasingPsi, decimal? TubingPsi);
 

@@ -20,7 +20,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     public async Task<GuidedModuleDraft> CreateAsync(GuidedModuleDraftContent content, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
-        await DeclarativeThresholdPackageBuilder.BuildAsync(content.Manifest, content.Definition, cancellationToken);
+        await ValidateContentAsync(content, cancellationToken);
         var draft = new GuidedModuleDraft(Guid.NewGuid(), subject.UserId, 1, content);
         await drafts.AddOwnedAsync(draft, subject, actor, cancellationToken);
         return draft;
@@ -31,6 +31,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         CancellationToken cancellationToken = default)
     {
         var draft = await GetAsync(id, subject, cancellationToken);
+        draft.RequireThresholdLogic();
         var submission = await draft.PrepareSubmissionAsync(expectedRevision,
             [CreateSample(draft, value, parametersJson, pressure)], cancellationToken);
         return submission.Evidence.Single();
@@ -76,6 +77,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
                 "Provide between one and fifty sample readings.");
         var draft = await GetAsync(id, subject, cancellationToken);
+        draft.RequireThresholdLogic();
         var samples = readings is not null
             ? readings.Select(value => CreateSample(draft, value, "{}", null)).ToArray()
             : pressureReadings!.Select(pressure => CreateSample(draft, null, "{}", pressure)).ToArray();
@@ -104,6 +106,14 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
             : new(run, run.ToString("D"), asset, now, parametersJson, "{}", Observation(requirements.Single(), value));
     }
 
+    private static Task ValidateContentAsync(GuidedModuleDraftContent content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return content.Definition is { } definition
+            ? DeclarativeThresholdPackageBuilder.BuildAsync(content.Manifest, definition, cancellationToken)
+            : GuidedContractDraft.ValidateAsync(content.Manifest, cancellationToken);
+    }
+
     public async Task<GuidedModuleDraft> GetAsync(Guid id, AccessSubject subject, CancellationToken cancellationToken = default) =>
         await drafts.FindOwnedAsync(id, subject, cancellationToken) ??
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_NOT_FOUND", FailureKind.NotFound, "The guided draft was not found.");
@@ -113,7 +123,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     {
         var draft = await GetAsync(id, subject, cancellationToken);
         var edited = draft.Edit(expectedRevision, content);
-        await DeclarativeThresholdPackageBuilder.BuildAsync(content.Manifest, content.Definition, cancellationToken);
+        await ValidateContentAsync(content, cancellationToken);
         await drafts.UpdateOwnedAsync(edited, expectedRevision, subject, actor, cancellationToken);
         return edited;
     }

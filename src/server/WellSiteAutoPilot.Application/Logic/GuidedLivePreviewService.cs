@@ -21,7 +21,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     {
         var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
         draft.RequireRevision(expectedRevision);
-        var artifact = await DeclarativeThresholdPackageBuilder.BuildAsync(draft.Content.Manifest, draft.Content.Definition, cancellationToken);
+        draft.RequireThresholdLogic();
+        var artifact = await DeclarativeThresholdPackageBuilder.BuildAsync(draft.Content.Manifest, draft.Content.Definition!, cancellationToken);
         var module = artifact.Package.DeclarativeModule!;
         var initial = await ReadContextAsync(subject, assetId, cancellationToken);
         var manifest = artifact.Package.Manifest;
