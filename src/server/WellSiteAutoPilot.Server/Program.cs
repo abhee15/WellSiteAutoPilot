@@ -1353,7 +1353,8 @@ v1.MapPost("/guided-module-drafts/{id:guid}/quantity-discovery",
         CancellationToken cancellationToken) =>
     {
         var result = await preview.DiscoverQuantitiesAsync(id, request.ExpectedRevision, request.AssetId,
-            request.Capability, request.StartUtc, request.EndUtc, access.Subject, cancellationToken);
+            request.Capability, request.StartUtc, request.EndUtc, access.Subject,
+            request.SiteWindow is { } site ? new(site.EndLocal, site.TimeZoneId, site.DurationMinutes) : null, cancellationToken);
         return new GuidedQuantityDiscoveryResponse(result.Supported, result.Quantities.Select(item =>
             new GuidedDiscoveredQuantityResponse(item.Quantity, item.Unit, item.Status)).ToArray(), result.EvidenceStatus,
             result.WellTest is { } test ? new GuidedReportedWellTestResponse(

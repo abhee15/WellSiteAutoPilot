@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { discoverGuidedModuleQuantities } from '../api/generated/v1/sdk.gen';
 import type { GuidedQuantityDiscoveryResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
-import { SelectField } from '../components/FormFields';
+import { SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
@@ -14,7 +14,14 @@ const sources = [
   { key: 'WellTest', label: 'guided.wellTestQuantities' },
 ] as const;
 type Capability = (typeof sources)[number]['key'];
-type HistoryWindow = { startUtc: string; endUtc: string };
+export type UtcWindow = { startUtc: string; endUtc: string };
+export type HistoryBounds =
+  UtcWindow | { siteWindow: { endLocal: string; timeZoneId: string; durationMinutes: number } };
+
+function trailingWindow(hours: number): UtcWindow {
+  const end = Math.floor(Date.now() / 1000) * 1000;
+  return { startUtc: new Date(end - hours * 3600000).toISOString(), endUtc: new Date(end).toISOString() };
+}
 
 const evidenceNotices = {
   ApplicabilityUnverified: 'guided.surveillanceApplicabilityUnverified',
@@ -30,97 +37,250 @@ const quantityStatuses = {
 } as const;
 
 type Discovery =
-  | { kind: 'loading' }
-  | { kind: 'error' }
-  | { kind: 'result'; data: GuidedQuantityDiscoveryResponse; window?: HistoryWindow };
+  | {
+      kind: 'error';
+      message: 'guided.quantityDiscoveryFailed' | 'guided.siteTimeUnresolved' | 'guided.siteZoneInvalid';
+    }
+  | { kind: 'result'; data: GuidedQuantityDiscoveryResponse; bounds?: HistoryBounds };
 
 export function GuidedQuantityDiscovery({
   draftId,
   revision,
   assetId,
+  inputs,
+  busy,
+  onHistory,
+  onDaily,
+  onChange,
 }: {
   draftId: string;
   revision: number;
   assetId: string;
+  inputs: readonly { id: string; quantity: string }[];
+  busy: boolean;
+  onHistory: (inputId: string, bounds: HistoryBounds) => void;
+  onDaily: (bounds: UtcWindow) => void;
+  onChange: () => void;
 }) {
-  const [capability, setCapability] = useState<Capability>('WellTrend');
+  const [capability, setCapability] = useState<Capability | ''>('');
+  const [hours, setHours] = useState('4');
+  const [anchor, setAnchor] = useState('now');
+  const [endLocal, setEndLocal] = useState('');
+  const [timeZoneId, setTimeZoneId] = useState('');
+  const [quantity, setQuantity] = useState('');
   const [result, setResult] = useState<Discovery | null>(null);
-  const request = useRef<AbortController | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  const [attempt, setAttempt] = useState(0);
+  const hasSiteWindow = capability === 'WellTrend' && anchor === 'site';
+  const ready = Boolean(capability) && (!hasSiteWindow || Boolean(endLocal && timeZoneId.trim()));
 
-  async function discover() {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setResult({ kind: 'loading' });
-    const end = Math.floor(Date.now() / 1000) * 1000;
-    const window =
-      capability === 'DailyAverages' || capability === 'WellTrend'
-        ? {
-            startUtc: new Date(end - (capability === 'DailyAverages' ? 7 : 1) * 86400000).toISOString(),
-            endUtc: new Date(end).toISOString(),
-          }
-        : undefined;
-    try {
-      const { data } = await discoverGuidedModuleQuantities({
-        path: { id: draftId },
-        body: { expectedRevision: revision, assetId, capability, ...window },
-        signal: controller.signal,
-      });
-      if (!controller.signal.aborted) {
-        setResult(data ? { kind: 'result', data, window } : { kind: 'error' });
-      }
-    } catch {
-      if (!controller.signal.aborted) setResult({ kind: 'error' });
-    }
+  function reset() {
+    setResult(null);
+    setQuantity('');
+    onChange();
   }
+
+  useEffect(() => {
+    if (!ready) return;
+    const controller = new AbortController();
+    // Wait for site time and zone typing before querying the provider.
+    const timer = setTimeout(() => void discover(), hasSiteWindow ? 350 : 0);
+    async function discover() {
+      const bounds: HistoryBounds | undefined = hasSiteWindow
+        ? { siteWindow: { endLocal, timeZoneId: timeZoneId.trim(), durationMinutes: Number(hours) * 60 } }
+        : capability === 'DailyAverages'
+          ? trailingWindow(7 * 24)
+          : capability === 'WellTrend'
+            ? trailingWindow(Number(hours))
+            : undefined;
+      try {
+        const { data, error } = await discoverGuidedModuleQuantities({
+          path: { id: draftId },
+          body: { expectedRevision: revision, assetId, capability, ...bounds },
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (data) {
+          setResult({ kind: 'result', data, bounds });
+          return;
+        }
+        const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+        setResult({
+          kind: 'error',
+          message:
+            code === 'GUIDED_HISTORY_SITE_TIME_UNRESOLVED'
+              ? 'guided.siteTimeUnresolved'
+              : code === 'GUIDED_HISTORY_SITE_ZONE_INVALID'
+                ? 'guided.siteZoneInvalid'
+                : 'guided.quantityDiscoveryFailed',
+        });
+      } catch {
+        if (!controller.signal.aborted) setResult({ kind: 'error', message: 'guided.quantityDiscoveryFailed' });
+      }
+    }
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [assetId, attempt, capability, draftId, endLocal, hasSiteWindow, hours, ready, revision, timeZoneId]);
+
+  const historical = capability === 'WellTrend' || capability === 'DailyAverages';
+  const catalog = result?.kind === 'result' && result.data.supported ? (result.data.quantities ?? []) : [];
+  const observed = catalog.flatMap((entry) =>
+    entry.status === 'Observed' && entry.quantity ? [{ ...entry, quantity: entry.quantity }] : [],
+  );
+  const evidence = historical ? catalog.filter((entry) => entry.status !== 'Observed') : catalog;
+  const selected = observed.find((entry) => entry.quantity === quantity);
+  const matchingInput = inputs.find((input) => input.quantity === selected?.quantity);
+  const canPreview =
+    capability === 'DailyAverages' ? selected?.quantity === 'TotalFluidRateInferred' : Boolean(matchingInput);
+  const bounds = result?.kind === 'result' ? result.bounds : undefined;
+  const window = bounds && 'startUtc' in bounds ? bounds : undefined;
 
   const evidenceStatus = result?.kind === 'result' ? result.data.evidenceStatus : undefined;
   const evidenceNotice = evidenceStatus ? evidenceNotices[evidenceStatus as keyof typeof evidenceNotices] : undefined;
 
   return (
-    <details>
-      <summary>{t('guided.discoverQuantities')}</summary>
+    <div>
       <div className="guided-authoring-fields">
         <SelectField
           label={t('guided.quantitySource')}
           value={capability}
+          disabled={busy}
           onChange={(event) => {
-            request.current?.abort();
-            setCapability(event.target.value as Capability);
-            setResult(null);
+            reset();
+            setCapability(event.target.value as Capability | '');
           }}
         >
+          <option value="">{t('guided.chooseQuantitySource')}</option>
           {sources.map((source) => (
             <option key={source.key} value={source.key}>
               {t(source.label)}
             </option>
           ))}
         </SelectField>
-        <ActionButton
-          label={t('guided.discoverQuantityAction')}
-          disabled={result?.kind === 'loading'}
-          onClick={() => void discover()}
-        />
+        {capability === 'WellTrend' && (
+          <>
+            <SelectField
+              label={t('guided.historyAnchor')}
+              value={anchor}
+              disabled={busy}
+              onChange={(event) => {
+                reset();
+                setAnchor(event.target.value);
+              }}
+            >
+              <option value="now">{t('guided.historyNow')}</option>
+              <option value="site">{t('guided.historySiteTime')}</option>
+            </SelectField>
+            {hasSiteWindow && (
+              <>
+                <TextField
+                  type="datetime-local"
+                  label={t('guided.historyEndLocal')}
+                  value={endLocal}
+                  disabled={busy}
+                  onChange={(event) => {
+                    reset();
+                    setEndLocal(event.target.value);
+                  }}
+                />
+                <TextField
+                  label={t('guided.historySiteZone')}
+                  helper={t('guided.historySiteZoneExample')}
+                  value={timeZoneId}
+                  maxLength={128}
+                  disabled={busy}
+                  onChange={(event) => {
+                    reset();
+                    setTimeZoneId(event.target.value);
+                  }}
+                />
+              </>
+            )}
+            <SelectField
+              label={t('guided.historyWindow')}
+              value={hours}
+              disabled={busy}
+              onChange={(event) => {
+                reset();
+                setHours(event.target.value);
+              }}
+            >
+              <option value="1">{t('guided.historyOneHour')}</option>
+              <option value="4">{t('guided.historyFourHours')}</option>
+              <option value="24">{t('guided.historyDay')}</option>
+            </SelectField>
+          </>
+        )}
+        {historical && (
+          <SelectField
+            label={t('guided.historyInput')}
+            value={quantity}
+            disabled={busy || !observed.length}
+            onChange={(event) => {
+              onChange();
+              setQuantity(event.target.value);
+            }}
+          >
+            <option value="">{t('guided.chooseHistoricalQuantity')}</option>
+            {observed.map((entry) => (
+              <option key={entry.quantity} value={entry.quantity}>
+                {entry.unit ? `${entry.quantity} (${entry.unit})` : entry.quantity}
+              </option>
+            ))}
+          </SelectField>
+        )}
+        {selected &&
+          canPreview &&
+          bounds &&
+          (capability === 'DailyAverages' && window ? (
+            <ActionButton label={t('guided.readProductionDays')} disabled={busy} onClick={() => onDaily(window)} />
+          ) : (
+            <ActionButton
+              label={t('guided.readHistory')}
+              disabled={busy}
+              onClick={() => {
+                if (matchingInput) onHistory(matchingInput.id, bounds);
+              }}
+            />
+          ))}
       </div>
       <div aria-live="polite">
-        {result?.kind === 'error' && <Notice tone="warning">{t('guided.quantityDiscoveryFailed')}</Notice>}
+        {ready && !result && <Notice>{t('guided.quantityDiscoveryLoading')}</Notice>}
+        {selected && !canPreview && (
+          <Notice>
+            {t(capability === 'WellTrend' ? 'guided.trendRequiresDraftInput' : 'guided.dailyDiscoveryOnly')}
+          </Notice>
+        )}
+        {result?.kind === 'error' && (
+          <Notice tone="warning">
+            {t(result.message)}
+            <ActionButton
+              label={t('guided.discoverQuantityAction')}
+              disabled={busy}
+              onClick={() => {
+                reset();
+                setAttempt(attempt + 1);
+              }}
+            />
+          </Notice>
+        )}
         {result?.kind === 'result' &&
           (!result.data.supported ? (
             <Notice>{t('guided.quantityUnsupported')}</Notice>
           ) : (
             <>
               {evidenceNotice && <Notice>{t(evidenceNotice)}</Notice>}
-              {result.window && (
+              {window && (
                 <p>
-                  {t('guided.quantityWindow')} {formatTimestamp(result.window.startUtc)} –{' '}
-                  {formatTimestamp(result.window.endUtc)}
+                  {t('guided.quantityWindow')} {formatTimestamp(window.startUtc)} – {formatTimestamp(window.endUtc)}
                 </p>
               )}
               {result.data.wellTest && <ReportedWellTest test={result.data.wellTest} />}
-              {result.data.quantities?.length ? (
+              {historical && !catalog.length && <Notice>{t('guided.quantityNoSamples')}</Notice>}
+              {evidence.length ? (
                 <ul>
-                  {result.data.quantities.map((entry) => (
+                  {evidence.map((entry) => (
                     <li key={entry.quantity}>
                       {entry.quantity}
                       {entry.unit && <> ({entry.unit})</>} ·{' '}
@@ -136,7 +296,7 @@ export function GuidedQuantityDiscovery({
             </>
           ))}
       </div>
-    </details>
+    </div>
   );
 }
 

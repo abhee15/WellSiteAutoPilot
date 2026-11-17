@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
 import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
@@ -365,71 +365,31 @@ it('previews a saved revision with an imported well without enabling submission'
     });
     expect(screen.queryByText('PumpFillage · Reading missing')).toBeNull();
     expect(screen.getByText('PumpFillage · Meets requirement')).toBeTruthy();
-    vi.mocked(discoverGuidedModuleQuantities)
-      .mockResolvedValueOnce({
-        data: { supported: true, quantities: [{ quantity: 'SPM', unit: 'SPM', status: 'Observed' }] },
-      } as never)
-      .mockResolvedValueOnce({
-        data: {
-          supported: true,
-          quantities: [{ quantity: 'TotalFluidRateInferred', status: 'NoSamples' }],
-        },
-      } as never);
-    fireEvent.click(screen.getByText('Discover well quantities'));
-    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
-    expect(await screen.findByText(/SPM \(SPM\) · Observed in this window/)).toBeTruthy();
-    expect(vi.mocked(discoverGuidedModuleQuantities)).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        path: { id: 'live-draft' },
-        body: expect.objectContaining({
-          expectedRevision: 3,
-          assetId: 'imported',
-          capability: 'WellTrend',
-        }) as unknown,
-      }),
-    );
-    fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'DailyAverages' } });
-    expect(screen.queryByText(/Observed in this window/)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
-    expect(await screen.findByText('TotalFluidRateInferred · No samples in this window')).toBeTruthy();
-    vi.mocked(discoverGuidedModuleQuantities)
-      .mockResolvedValueOnce({
-        data: {
-          supported: true,
-          quantities: [{ quantity: 'Oil', status: 'Reported' }],
-          wellTest: {
-            sampleDate: '2025-02-01T07:00:00-06:00',
-            status: 'Review',
-            classification: 'RejectedTest',
-            validation: 'Oil rate above acceptance limit',
-          },
-        },
-      } as never)
-      .mockResolvedValueOnce({
-        data: { supported: true, evidenceStatus: 'ApplicabilityUnverified', quantities: [] },
-      } as never);
-    fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'WellTest' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
-    expect(await screen.findByText('Oil · Reported on this test')).toBeTruthy();
-    expect(screen.getByText('RejectedTest')).toBeTruthy();
-    expect(screen.getByText('2025-02-01T07:00:00-06:00')).toBeTruthy();
-    expect(vi.mocked(discoverGuidedModuleQuantities).mock.lastCall?.[0].body).toEqual({
-      expectedRevision: 3,
-      assetId: 'imported',
-      capability: 'WellTest',
-    });
-    fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'Surveillance' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
-    expect(await screen.findByText(/Surveillance quantity applicability awaits verification/)).toBeTruthy();
-    expect(screen.queryByText('Oil · Reported on this test')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Run live preview' }));
-    expect(await screen.findByText(/PumpFillage · 82 % · Good/)).toBeTruthy();
-    expect(vi.mocked(previewGuidedModuleWithLiveInputs)).toHaveBeenLastCalledWith({
-      path: { id: 'live-draft' },
-      body: { expectedRevision: 3, assetId: 'imported' },
-      signal: expect.any(AbortSignal) as AbortSignal,
-    });
-    vi.mocked(previewGuidedModuleInputHistory).mockResolvedValue({
+    const discover = vi.mocked(discoverGuidedModuleQuantities);
+    const source = screen.getByLabelText('Quantity source');
+    const trendCatalog = {
+      supported: true,
+      quantities: [
+        { quantity: 'PumpFillage', unit: '%', status: 'Observed' },
+        { quantity: 'SPM', unit: 'SPM', status: 'Observed' },
+        { quantity: 'AveragePumpFillage', status: 'NoSamples' },
+      ],
+    };
+    discover.mockResolvedValueOnce({ data: trendCatalog } as never);
+    fireEvent.change(source, { target: { value: 'WellTrend' } });
+    const fillage = await screen.findByRole('option', { name: 'PumpFillage (%)' });
+    expect(screen.queryByRole('option', { name: 'AveragePumpFillage' })).toBeNull();
+    const quantity = screen.getByLabelText<HTMLSelectElement>('Historical quantity');
+    fireEvent.change(quantity, { target: { value: 'SPM' } });
+    expect(screen.getByText('Add this quantity to the draft to preview its trend.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Load history' })).toBeNull();
+    fireEvent.change(quantity, { target: { value: 'PumpFillage' } });
+    expect(fillage).toBeTruthy();
+    const discoveryRequest = discover.mock.lastCall?.[0].body;
+    expect(discoveryRequest).toMatchObject({ expectedRevision: 3, assetId: 'imported', capability: 'WellTrend' });
+
+    const history = vi.mocked(previewGuidedModuleInputHistory);
+    history.mockResolvedValueOnce({
       data: {
         quantity: 'PumpFillage',
         truncated: true,
@@ -438,50 +398,78 @@ it('previews a saved revision with an imported well without enabling submission'
     } as never);
     fireEvent.click(screen.getByRole('button', { name: 'Load history' }));
     expect(await screen.findByText(/79 % · Unknown/)).toBeTruthy();
-    expect(screen.getByText(/The sample limit was reached/)).toBeTruthy();
-    expect(vi.mocked(previewGuidedModuleInputHistory)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: { id: 'live-draft' },
-        body: expect.objectContaining({
-          expectedRevision: 3,
-          assetId: 'imported',
-          inputId: 'fillage',
-          maximumSamples: 100,
-        }) as unknown,
-      }),
-    );
+    expect(history.mock.lastCall?.[0].body).toEqual({
+      expectedRevision: 3,
+      assetId: 'imported',
+      inputId: 'fillage',
+      maximumSamples: 100,
+      startUtc: discoveryRequest?.startUtc,
+      endUtc: discoveryRequest?.endUtc,
+    });
+
     fireEvent.change(screen.getByLabelText('Window ends at'), { target: { value: 'site' } });
     expect(screen.queryByText(/79 % · Unknown/)).toBeNull();
-    expect((screen.getByRole('button', { name: 'Load history' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(quantity.value).toBe('');
+    expect(quantity.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Window end at the site'), { target: { value: '2025-11-02T02:00' } });
+    discover.mockResolvedValueOnce({ error: { code: 'GUIDED_HISTORY_SITE_TIME_UNRESOLVED' } } as never);
     fireEvent.change(screen.getByLabelText('Site time zone'), { target: { value: 'America/Chicago' } });
-    vi.mocked(previewGuidedModuleInputHistory)
-      .mockResolvedValueOnce({ error: { code: 'GUIDED_HISTORY_SITE_TIME_UNRESOLVED' } } as never)
-      .mockResolvedValueOnce({
-        data: {
-          quantity: 'PumpFillage',
-          startUtc: '2025-11-02T04:00:00Z',
-          endUtc: '2025-11-02T08:00:00Z',
-          samples: [],
-        },
-      } as never);
-    fireEvent.click(screen.getByRole('button', { name: 'Load history' }));
     expect(await screen.findByText(/That time is skipped or repeated/)).toBeTruthy();
+    discover.mockResolvedValueOnce({ data: trendCatalog } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByRole('option', { name: 'PumpFillage (%)' });
+    fireEvent.change(quantity, { target: { value: 'PumpFillage' } });
+    const siteWindow = { endLocal: '2025-11-02T02:00', timeZoneId: 'America/Chicago', durationMinutes: 240 };
+    expect(discover.mock.lastCall?.[0].body).toMatchObject({ siteWindow });
+    history.mockResolvedValueOnce({
+      data: { quantity: 'PumpFillage', startUtc: '2025-11-02T04:00:00Z', endUtc: '2025-11-02T08:00:00Z', samples: [] },
+    } as never);
     fireEvent.click(screen.getByRole('button', { name: 'Load history' }));
     expect(await screen.findByText('2025-11-02T08:00:00Z')).toBeTruthy();
-    expect(screen.getByText(/Ends 2025-11-02 02:00/)).toBeTruthy();
-    expect(vi.mocked(previewGuidedModuleInputHistory)).toHaveBeenLastCalledWith({
-      path: { id: 'live-draft' },
-      body: {
-        expectedRevision: 3,
-        assetId: 'imported',
-        inputId: 'fillage',
-        maximumSamples: 100,
-        siteWindow: { endLocal: '2025-11-02T02:00', timeZoneId: 'America/Chicago', durationMinutes: 240 },
-      },
-      signal: expect.any(AbortSignal) as AbortSignal,
+    expect(history.mock.lastCall?.[0].body).toEqual({
+      expectedRevision: 3,
+      assetId: 'imported',
+      inputId: 'fillage',
+      maximumSamples: 100,
+      siteWindow,
     });
-    vi.mocked(previewGuidedModuleProductionDays).mockResolvedValueOnce({
+
+    let finishOldWindow: (response: Awaited<ReturnType<typeof discoverGuidedModuleQuantities>>) => void = () => {};
+    discover.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOldWindow = resolve;
+        }),
+    );
+    const requestCount = discover.mock.calls.length;
+    fireEvent.change(screen.getByLabelText('History duration'), { target: { value: '1' } });
+    await screen.findByText('Finding quantities for this well…');
+    await waitFor(() => expect(discover).toHaveBeenCalledTimes(requestCount + 1));
+    const oldWindowRequest = discover.mock.lastCall?.[0];
+    expect(quantity.disabled).toBe(true);
+
+    discover.mockResolvedValueOnce({
+      data: {
+        supported: true,
+        quantities: [
+          { quantity: 'TotalFluidRateInferred', unit: 'STB/d', status: 'Observed' },
+          { quantity: 'OilRateInferred', unit: 'STB/d', status: 'Observed' },
+        ],
+      },
+    } as never);
+    fireEvent.change(source, { target: { value: 'DailyAverages' } });
+    expect(quantity.value).toBe('');
+    expect(screen.queryByText('2025-11-02T08:00:00Z')).toBeNull();
+    await screen.findByRole('option', { name: 'TotalFluidRateInferred (STB/d)' });
+    expect(oldWindowRequest?.signal?.aborted).toBe(true);
+    await act(async () => finishOldWindow({ data: trendCatalog } as never));
+    expect(screen.queryByRole('option', { name: 'PumpFillage (%)' })).toBeNull();
+    fireEvent.change(quantity, { target: { value: 'OilRateInferred' } });
+    expect(screen.getByText('The daily series preview supports inferred total fluid rate.')).toBeTruthy();
+    fireEvent.change(quantity, { target: { value: 'TotalFluidRateInferred' } });
+    const dailyRequest = discover.mock.lastCall?.[0].body;
+    const daily = vi.mocked(previewGuidedModuleProductionDays);
+    daily.mockResolvedValueOnce({
       data: {
         unit: 'STB/d',
         retrievedAtUtc: '2026-11-12T15:00:00Z',
@@ -491,28 +479,34 @@ it('previews a saved revision with an imported well without enabling submission'
         ],
       },
     } as never);
-    const production = screen.getByRole('button', { name: 'Read last 7 days of production' });
-    fireEvent.click(production);
+    fireEvent.click(screen.getByRole('button', { name: 'Read last 7 days of production' }));
     expect(await screen.findByText(/0 STB\/d/)).toBeTruthy();
     expect(screen.getByText('2026-11-02T00:00:00-06:00')).toBeTruthy();
-    expect(screen.getByText(/Unavailable/)).toBeTruthy();
-    expect(screen.queryByText(/79 % · Unknown/)).toBeNull();
-    expect(vi.mocked(previewGuidedModuleProductionDays)).toHaveBeenLastCalledWith({
-      path: { id: 'live-draft' },
-      body: {
-        expectedRevision: 3,
-        assetId: 'imported',
-        startUtc: expect.any(String) as string,
-        endUtc: expect.any(String) as string,
-      },
-      signal: expect.any(AbortSignal) as AbortSignal,
+    expect(daily.mock.lastCall?.[0].body).toEqual({
+      expectedRevision: 3,
+      assetId: 'imported',
+      startUtc: dailyRequest?.startUtc,
+      endUtc: dailyRequest?.endUtc,
     });
-    vi.mocked(previewGuidedModuleProductionDays).mockResolvedValueOnce({
-      error: { code: 'GUIDED_PRODUCTION_DAYS_UNSUPPORTED' },
+
+    discover.mockResolvedValueOnce({
+      data: {
+        supported: true,
+        quantities: [{ quantity: 'Oil', status: 'Reported' }],
+        wellTest: { sampleDate: '2025-02-01T07:00:00-06:00', classification: 'RejectedTest' },
+      },
     } as never);
-    fireEvent.click(production);
-    expect(await screen.findByText('This connection does not support the daily production preview.')).toBeTruthy();
+    fireEvent.change(source, { target: { value: 'WellTest' } });
+    expect(await screen.findByText('Oil · Reported on this test')).toBeTruthy();
+    expect(screen.getByText('RejectedTest')).toBeTruthy();
+    expect(screen.queryByLabelText('Historical quantity')).toBeNull();
     expect(screen.queryByText(/0 STB\/d/)).toBeNull();
+    discover.mockResolvedValueOnce({ data: { supported: true, evidenceStatus: 'ApplicabilityUnverified' } } as never);
+    fireEvent.change(source, { target: { value: 'Surveillance' } });
+    expect(await screen.findByText(/Surveillance quantity applicability awaits verification/)).toBeTruthy();
+    expect(screen.queryByLabelText('Historical quantity')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Run live preview' }));
+    expect(await screen.findByText(/PumpFillage · 82 % · Good/)).toBeTruthy();
     const draw = {
       clearRect: vi.fn(),
       beginPath: vi.fn(),

@@ -724,6 +724,13 @@ trend_quantities = request("POST", quantity_url, OTHER, trend_body)
 assert trend_quantities["supported"], trend_quantities
 assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantities["quantities"]} == {
     ("PumpFillage", "%", "Observed"), ("SPM", "SPM", "Observed")}, trend_quantities
+site_trend_body = dict(live_body, capability="WellTrend", siteWindow=site_window)
+assert request("POST", quantity_url, OTHER, site_trend_body) == trend_quantities
+request("POST", quantity_url, OTHER, dict(trend_body, siteWindow=site_window), expected=400)
+request("POST", quantity_url, OTHER, dict(site_trend_body, capability="DailyAverages"), expected=400)
+invalid_site_trend = request("POST", quantity_url, OTHER,
+    dict(site_trend_body, siteWindow=dict(site_window, endLocal="2025-11-02T01:30")), expected=400)
+assert invalid_site_trend["code"] == "GUIDED_HISTORY_SITE_TIME_UNRESOLVED", invalid_site_trend
 daily_body = dict(live_body, capability="DailyAverages", startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
 daily_quantities = request("POST", quantity_url, OTHER, daily_body)
 assert daily_quantities == {"supported": True, "quantities": [
