@@ -17,6 +17,7 @@ const cases = [
   ['guided-authoring', '?view=ide', 820], ['guided-authoring', '?view=ide', 1024], ['guided-authoring', '?view=ide', 1180],
   ['guided-authoring', '?view=surface-cards', 1440], ['guided-authoring', '?view=surface-cards', 768],
   ['guided-authoring', '?view=contract', 1440], ['guided-authoring', '?view=contract', 1024],
+  ['guided-authoring', '?view=contract', 768],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -92,7 +93,9 @@ try {
           && !text.includes('Recommend a review when pump fillage is below the threshold')
           && action('Save draft')?.disabled === true
           && action('Submit for review')?.disabled === true
-          && action('Run sample cases')?.disabled === true;
+          && action('Run sample cases') === undefined
+          && !document.querySelector('.guided-authoring-inspector')
+          && document.querySelector('.guided-authoring-workbench')?.dataset.inspectOnly === 'true';
       })()`);
       if (!accurate) {
         problems.push(`${key}: complex module exposes unsupported edits or invented guided-rule evaluation`);
@@ -112,11 +115,14 @@ try {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
         const bounds = selector => document.querySelector(selector).getBoundingClientRect();
         const editor = bounds('.guided-authoring-main');
-        const inspector = bounds('.guided-authoring-inspector');
+        const workbench = bounds('.guided-authoring-workbench');
+        const inspector = document.querySelector('.guided-authoring-inspector')?.getBoundingClientRect();
         const tabs = document.querySelector('.guided-authoring-view-bar .tab-strip');
         const tools = bounds('.guided-authoring-view-bar > .guided-authoring-actions');
         return {
-          sideBySide: editor.right <= inspector.left && editor.top === inspector.top,
+          sideBySide: Boolean(inspector && editor.right <= inspector.left && editor.top === inspector.top),
+          inspectorPresent: Boolean(inspector),
+          fullWidth: Math.abs(workbench.width - editor.width) <= 2,
           actionsAboveEditor: tools.bottom <= editor.top,
           tabOverflow: tabs.scrollWidth > tabs.clientWidth,
           editor: visible('.guided-authoring-editor'),
@@ -138,7 +144,9 @@ try {
       if (layout.editor === phone || layout.ide !== (query === '?view=ide')
         || layout.review === contract || layout.evidence === contract || layout.approval !== (!phone && !contract)
         || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels
-        || (!phone && (layout.sideBySide !== (width > 896) || !layout.actionsAboveEditor || layout.tabOverflow))) {
+        || (contract && (!layout.fullWidth || layout.inspectorPresent))
+        || (!phone && (!contract && layout.sideBySide !== (width > 896)
+          || !layout.actionsAboveEditor || layout.tabOverflow))) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
       }
     }
