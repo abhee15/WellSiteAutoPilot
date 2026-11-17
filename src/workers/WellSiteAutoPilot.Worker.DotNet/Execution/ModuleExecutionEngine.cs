@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Failures;
@@ -306,6 +307,21 @@ public sealed class ModuleExecutionEngine(
 
 }
 
+/// <summary>
+/// V2 structured execution evidence. Trace is optional, module-reported and already validated by the
+/// structured offline host. Its absence preserves the exact legacy structured-output JSON shape.
+/// </summary>
+internal sealed record StructuredObservedExecutionOutputV2(
+    string OutcomeCode,
+    IReadOnlyCollection<StructuredResultValue> EngineeringResults,
+    IReadOnlyCollection<RecommendationIntentDraft> Recommendations,
+    IReadOnlyCollection<ControlIntentDraft> ControlIntents,
+    IReadOnlyDictionary<string, string> StateUpdates,
+    IReadOnlyCollection<StructuredInputValue>? InputObservations,
+    int ValueContractVersion,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    StructuredCalculationTraceV1? CalculationTrace);
+
 public sealed record ObservedExecutionResult(LogicModuleExecutionResult Result,
     IReadOnlyCollection<LogicInputValue> InputObservations)
 {
@@ -316,12 +332,9 @@ public sealed record ObservedExecutionResult(LogicModuleExecutionResult Result,
     {
         var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
         var json = StructuredResult is { } structured
-            ? System.Text.Json.JsonSerializer.Serialize(new
-            {
+            ? System.Text.Json.JsonSerializer.Serialize(new StructuredObservedExecutionOutputV2(
                 structured.OutcomeCode, structured.EngineeringResults, structured.Recommendations,
-                structured.ControlIntents, structured.StateUpdates, InputObservations = StructuredInputs,
-                ValueContractVersion = 2
-            }, options)
+                structured.ControlIntents, structured.StateUpdates, StructuredInputs, 2, structured.CalculationTrace), options)
             : System.Text.Json.JsonSerializer.Serialize(new
             {
                 Result.OutcomeCode, Result.EngineeringResults, Result.Recommendations,

@@ -176,6 +176,7 @@ if (result.OutcomeCode != "MULTI_INPUT_COMPLETED" ||
 
 var observed = await engine.ExecuteObservedAsync(request, "observed-input-test", now);
 await ModuleResultFailureChecks.RunAsync(request, new GatewayDataClient(httpClient), now);
+StructuredTraceTransportChecks.Run();
 await WellSiteAutoPilot.ExecutionContractV2Tests.PackageHostChecks.RunAsync();
 await WellSiteAutoPilot.ExecutionContractV2Tests.DeclarativePackageChecks.RunAsync(request, now);
 ServiceCredentialPrecedenceChecks.Run();
