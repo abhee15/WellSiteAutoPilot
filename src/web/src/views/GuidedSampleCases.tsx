@@ -84,7 +84,7 @@ export function GuidedSampleCases({
                 <TextField
                   label={t('guided.caseName', { number })}
                   maxLength={60}
-                  value={item.name}
+                  value={item.name ?? ''}
                   disabled={disabled}
                   onChange={(event) => update(index, { name: event.target.value })}
                 />
