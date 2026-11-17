@@ -76,7 +76,12 @@ try {
       await settled();
       const opened = await evaluate(`(() => {
         const disclosure = document.querySelector('.guided-authoring-contract');
-        return Boolean(disclosure?.open);
+        const summary = disclosure?.querySelector('summary');
+        if (!disclosure?.open || !summary) return false;
+        summary.click();
+        const canCollapse = !disclosure.open;
+        summary.click();
+        return canCollapse && disclosure.open;
       })()`);
       if (!opened) {
         problems.push(`${key}: complex contract did not open automatically`);
