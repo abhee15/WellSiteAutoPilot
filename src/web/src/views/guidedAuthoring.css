@@ -71,6 +71,7 @@
 
 .guided-authoring-workbench {
   grid-template-columns: minmax(0, 2fr) minmax(var(--layout-field-min), 1fr);
+  align-items: start;
   gap: var(--space-16);
 }
 
@@ -78,25 +79,46 @@
   grid-template-columns: minmax(var(--layout-field-min), 1fr) minmax(0, 3fr) minmax(var(--layout-field-min), 2fr);
 }
 
-.guided-authoring-outline {
-  justify-items: start;
+.guided-authoring-outline,
+.guided-authoring-main > section,
+.guided-authoring-inspector {
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--color-surface-panel);
 }
 
-.guided-authoring-outline [aria-pressed='true'] {
+.guided-authoring-outline > .panel-header,
+.guided-authoring-main > section > .panel-header,
+.guided-authoring-inspector > .panel-header {
+  padding: var(--space-12) var(--space-16);
+}
+
+.guided-authoring-outline-list,
+.guided-authoring-pane-body {
+  display: grid;
+  gap: var(--space-12);
+  min-width: 0;
+  padding: var(--space-12) var(--space-16) var(--space-16);
+}
+
+.guided-authoring-outline,
+.guided-authoring-inspector {
+  gap: 0;
+}
+
+.guided-authoring-outline-list > button {
+  justify-content: flex-start;
+  text-align: start;
+  white-space: normal;
+}
+
+.guided-authoring-outline-list [aria-pressed='true'] {
   border-color: var(--color-border-selected);
   background: var(--color-surface-row-hover);
 }
 
-.guided-authoring-outline .panel-header,
-.guided-authoring-main .panel-header,
-.guided-authoring-inspector .panel-header {
-  padding-inline: 0;
-}
-
-.guided-authoring-inspector,
-.guided-authoring-workbench[data-view='ide'] .guided-authoring-main {
-  border-inline-start: var(--border-width-thin) solid var(--color-border-subtle);
-  padding-inline-start: var(--space-16);
+.guided-authoring-pane-body :is(p, ul) {
+  margin-block: 0;
 }
 
 @media (width <= 75em) {
@@ -106,14 +128,11 @@
 
   .guided-authoring-outline {
     grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
   }
 
-  .guided-authoring-workbench[data-view='ide'] .guided-authoring-main {
-    border-inline-start: 0;
-    padding-inline-start: 0;
+  .guided-authoring-outline-list {
+    display: flex;
+    flex-wrap: wrap;
   }
 }
 
@@ -121,11 +140,6 @@
   .guided-authoring-workbench,
   .guided-authoring-workbench[data-view='ide'] {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .guided-authoring-inspector {
-    border-inline-start: 0;
-    padding-inline-start: 0;
   }
 }
 

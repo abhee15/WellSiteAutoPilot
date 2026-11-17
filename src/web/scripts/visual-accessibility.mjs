@@ -13,6 +13,7 @@ const cases = [
   ['operator-review', '', 1440], ['operator-review', '?page=overview', 390],
   ['shared-forms', '', 1440], ['shared-forms', '', 390],
   ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
+  ['guided-authoring', '?view=review', 390], ['guided-authoring', '?view=review', 1440],
   ['guided-authoring', '?view=ide', 1440], ['guided-authoring', '?view=ide', 768],
   ['guided-authoring', '?view=ide', 820], ['guided-authoring', '?view=ide', 1024], ['guided-authoring', '?view=ide', 1180],
   ['guided-authoring', '?view=surface-cards', 1440], ['guided-authoring', '?view=surface-cards', 768],
@@ -66,17 +67,31 @@ try {
       })()`);
       if (!plot) problems.push(`${key}: stored surface card chart is empty or overflows the page`);
     } else if (page === 'guided-authoring') {
+      const phone = width === 390;
+      const review = query === '?view=review';
+      if (!phone && !review) {
+        await evaluate(`(() => {
+          const button = label => [...document.querySelectorAll('button')].find(item => item.textContent.trim() === label);
+          button('Fillage check').click();
+        })()`);
+        if (query === '?view=ide') {
+          await evaluate(`[...document.querySelectorAll('.guided-authoring-outline button')]
+            .find(item => item.textContent.trim() === 'Rule').click()`);
+        }
+        await evaluate(`document.querySelector('.guided-authoring-inspector button').click()`);
+        await settled();
+      }
       const layout = await evaluate(`(() => {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
-        const bounds = selector => document.querySelector(selector).getBoundingClientRect();
+        const bounds = selector => document.querySelector(selector)?.getBoundingClientRect();
         const editor = bounds('.guided-authoring-main');
         const inspector = bounds('.guided-authoring-inspector');
         const tabs = document.querySelector('.guided-authoring-view-bar .tab-strip');
         const tools = bounds('.guided-authoring-view-bar > .guided-authoring-actions');
         return {
-          sideBySide: editor.right <= inspector.left && editor.top === inspector.top,
-          actionsAboveEditor: tools.bottom <= editor.top,
-          tabOverflow: tabs.scrollWidth > tabs.clientWidth,
+          sideBySide: Boolean(editor && inspector && editor.right <= inspector.left && editor.top === inspector.top),
+          actionsAboveEditor: Boolean(tools && editor && tools.bottom <= editor.top),
+          tabOverflow: Boolean(tabs && tabs.scrollWidth > tabs.clientWidth),
           editor: visible('.guided-authoring-editor'),
           ide: visible('.guided-authoring-workbench[data-view=ide] .guided-authoring-outline'),
           review: visible('.guided-authoring-review'),
@@ -91,10 +106,11 @@ try {
           }),
         };
       })()`);
-      const phone = width === 390;
-      if (layout.editor === phone || layout.ide !== (query === '?view=ide') || !layout.review || !layout.evidence || layout.approval === phone
-        || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels
-        || (!phone && (layout.sideBySide !== (width > 896) || !layout.actionsAboveEditor || layout.tabOverflow))) {
+      const editing = !phone && !review;
+      if (layout.editor !== editing || layout.ide !== (query === '?view=ide') || layout.review !== review
+        || layout.evidence !== (editing || review) || layout.approval !== (review && !phone)
+        || layout.phoneMessage !== (phone && !review) || layout.overflow || !layout.navLabels
+        || (editing && (layout.sideBySide !== (width > 896) || !layout.actionsAboveEditor || layout.tabOverflow))) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
       }
     }

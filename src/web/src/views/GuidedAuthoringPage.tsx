@@ -503,68 +503,74 @@ export function GuidedAuthoringPage({
               {view === 'ide' && (
                 <nav className="guided-authoring-outline" aria-label={t('guided.outline')}>
                   <PanelHeader title={t('guided.outline')} level={3} />
-                  <ActionButton
-                    label={t('guided.moduleDetails')}
-                    aria-controls={moduleSectionId}
-                    aria-pressed={activeSection === 'module'}
-                    onClick={() => setEditorSection('module')}
-                  />
-                  <ActionButton
-                    label={t('guided.rule')}
-                    aria-controls={ruleSectionId}
-                    aria-pressed={activeSection === 'rule'}
-                    onClick={() => setEditorSection('rule')}
-                  />
-                  {showLivePreview && (
+                  <div className="guided-authoring-outline-list">
                     <ActionButton
-                      label={t('guided.liveData')}
-                      aria-controls={liveSectionId}
-                      aria-pressed={activeSection === 'live'}
-                      onClick={() => setEditorSection('live')}
+                      label={t('guided.moduleDetails')}
+                      aria-controls={moduleSectionId}
+                      aria-pressed={activeSection === 'module'}
+                      onClick={() => setEditorSection('module')}
                     />
-                  )}
+                    <ActionButton
+                      label={t('guided.rule')}
+                      aria-controls={ruleSectionId}
+                      aria-pressed={activeSection === 'rule'}
+                      onClick={() => setEditorSection('rule')}
+                    />
+                    {showLivePreview && (
+                      <ActionButton
+                        label={t('guided.liveData')}
+                        aria-controls={liveSectionId}
+                        aria-pressed={activeSection === 'live'}
+                        onClick={() => setEditorSection('live')}
+                      />
+                    )}
+                  </div>
                 </nav>
               )}
               <div className="guided-authoring-main">
                 <section id={moduleSectionId} hidden={view === 'ide' && activeSection !== 'module'}>
                   <PanelHeader title={t('guided.moduleDetails')} level={3} />
-                  <div className="guided-authoring-fields">
-                    <TextField
-                      label={t('guided.name')}
-                      maxLength={256}
-                      value={name}
-                      disabled={busy}
-                      onChange={(event) => setName(event.target.value)}
-                    />
+                  <div className="guided-authoring-pane-body">
+                    <div className="guided-authoring-fields">
+                      <TextField
+                        label={t('guided.name')}
+                        maxLength={256}
+                        value={name}
+                        disabled={busy}
+                        onChange={(event) => setName(event.target.value)}
+                      />
+                    </div>
                   </div>
                 </section>
                 <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
                   <PanelHeader title={t('guided.rule')} level={3} />
-                  <p>{t(ruleLabel)}</p>
-                  <div className="guided-authoring-fields">
-                    {canChooseFillage && (
-                      <SelectField
-                        id={fillageFieldId}
-                        label={t('guided.fillageInput')}
-                        value={fillage}
+                  <div className="guided-authoring-pane-body">
+                    <p>{t(ruleLabel)}</p>
+                    <div className="guided-authoring-fields">
+                      {canChooseFillage && (
+                        <SelectField
+                          id={fillageFieldId}
+                          label={t('guided.fillageInput')}
+                          value={fillage}
+                          disabled={busy}
+                          onChange={(event) => {
+                            if (isFillageQuantity(event.target.value)) setFillage(event.target.value);
+                          }}
+                        >
+                          <option value="PumpFillage">{t('guided.currentFillage')}</option>
+                          <option value="AveragePumpFillage">{t('guided.averageFillage')}</option>
+                        </SelectField>
+                      )}
+                      <NumberField
+                        label={t(thresholdLabel)}
+                        min={0}
+                        max={maximum}
+                        step="any"
+                        value={threshold}
                         disabled={busy}
-                        onChange={(event) => {
-                          if (isFillageQuantity(event.target.value)) setFillage(event.target.value);
-                        }}
-                      >
-                        <option value="PumpFillage">{t('guided.currentFillage')}</option>
-                        <option value="AveragePumpFillage">{t('guided.averageFillage')}</option>
-                      </SelectField>
-                    )}
-                    <NumberField
-                      label={t(thresholdLabel)}
-                      min={0}
-                      max={maximum}
-                      step="any"
-                      value={threshold}
-                      disabled={busy}
-                      onChange={(event) => setThreshold(event.target.value)}
-                    />
+                        onChange={(event) => setThreshold(event.target.value)}
+                      />
+                    </div>
                   </div>
                 </section>
                 {showLivePreview && draft?.id && draft.revision && (
@@ -594,43 +600,45 @@ export function GuidedAuthoringPage({
               </div>
               <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
                 <PanelHeader title={t('guided.scenarios')} level={3} />
-                <div className="guided-authoring-actions">
-                  <ActionButton
-                    label={t('guided.preview')}
-                    disabled={busy || !draft || dirty}
-                    onClick={() => void run(preview)}
-                  />
-                </div>
-                {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
-                {!dirty &&
-                  evidence.length > 0 &&
-                  (view === 'workflow' ? (
-                    <ul>
-                      {evidence.map((item, index) => (
-                        <li key={index}>
-                          {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <>
-                      <SelectField
-                        label={t('guided.scenario')}
-                        value={scenario}
-                        onChange={(event) => setScenario(Number(event.target.value))}
-                      >
-                        {evidence.map((_, index) => (
-                          <option key={index} value={index}>
-                            {t('guided.scenarioNumber', { number: index + 1 })}
-                          </option>
+                <div className="guided-authoring-pane-body">
+                  <div className="guided-authoring-actions">
+                    <ActionButton
+                      label={t('guided.preview')}
+                      disabled={busy || !draft || dirty}
+                      onClick={() => void run(preview)}
+                    />
+                  </div>
+                  {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
+                  {!dirty &&
+                    evidence.length > 0 &&
+                    (view === 'workflow' ? (
+                      <ul>
+                        {evidence.map((item, index) => (
+                          <li key={index}>
+                            {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
+                          </li>
                         ))}
-                      </SelectField>
-                      <p>
-                        {sampleReading(scenario, evidence[scenario].differentialPsi)} {' · '}{' '}
-                        {sampleResult(evidence[scenario])}
-                      </p>
-                    </>
-                  ))}
+                      </ul>
+                    ) : (
+                      <>
+                        <SelectField
+                          label={t('guided.scenario')}
+                          value={scenario}
+                          onChange={(event) => setScenario(Number(event.target.value))}
+                        >
+                          {evidence.map((_, index) => (
+                            <option key={index} value={index}>
+                              {t('guided.scenarioNumber', { number: index + 1 })}
+                            </option>
+                          ))}
+                        </SelectField>
+                        <p>
+                          {sampleReading(scenario, evidence[scenario].differentialPsi)} {' · '}{' '}
+                          {sampleResult(evidence[scenario])}
+                        </p>
+                      </>
+                    ))}
+                </div>
               </section>
             </div>
             {submittedReference && (
