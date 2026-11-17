@@ -17,9 +17,10 @@ import type {
 import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
+import { SectionTabs } from '../components/SectionTabs';
 import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
-import { NumberField, RadioGroup, SelectField, TextField } from '../components/FormFields';
+import { NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
 import { t } from '../localization';
@@ -180,6 +181,7 @@ export function GuidedAuthoringPage({
   const [view, setView] = useState(() => readEditorView(userId));
   const [editorSection, setEditorSection] = useState<'module' | 'rule' | 'live'>('module');
   const [scenario, setScenario] = useState(0);
+  const editorId = useId();
   const moduleSectionId = useId();
   const ruleSectionId = useId();
   const liveSectionId = useId();
@@ -232,14 +234,18 @@ export function GuidedAuthoringPage({
     return () => controller.abort();
   }, [canReview, initialReviewReference]);
 
-  function select(next: GuidedModuleDraftResponse | null, nextPressure = Boolean(isPressure(next?.manifestJson))) {
+  function select(
+    next: GuidedModuleDraftResponse | null,
+    nextPressure = Boolean(isPressure(next?.manifestJson)),
+    section: typeof editorSection = 'module',
+  ) {
     setPressure(nextPressure);
     setDraft(next);
     setName(displayName(next?.manifestJson));
     setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
     setScenario(0);
-    setEditorSection('module');
+    setEditorSection(section);
     setSubmittedReference('');
     setNotice(null);
     setError(false);
@@ -276,8 +282,7 @@ export function GuidedAuthoringPage({
   const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty);
   const activeSection = editorSection === 'live' && !showLivePreview ? 'rule' : editorSection;
 
-  function changeView(value: string) {
-    const next = value === 'ide' ? 'ide' : 'workflow';
+  function changeView(next: EditorView) {
     setView(next);
     if (!userId) return;
     try {
@@ -326,7 +331,7 @@ export function GuidedAuthoringPage({
         : await createGuidedModuleDraft({ body });
     if (!data) throw new Error();
     markSaved();
-    select(data);
+    select(data, pressure, activeSection);
     setRefresh((previous) => previous + 1);
     setNotice('guided.saved');
   }
@@ -417,16 +422,38 @@ export function GuidedAuthoringPage({
                 <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
               )}
             </div>
-            <RadioGroup
-              label={t('guided.editorView')}
-              value={view}
-              options={[
-                { value: 'workflow', label: t('guided.workflow') },
-                { value: 'ide', label: t('guided.ide') },
-              ]}
-              onChange={changeView}
-            />
-            <div className="guided-authoring-workbench" data-view={view}>
+            <div className="guided-authoring-view-bar">
+              <SectionTabs<EditorView>
+                prefix={editorId}
+                panelId={editorId + '-editor'}
+                label={t('guided.editorView')}
+                selected={view}
+                tabs={[
+                  { id: 'workflow', label: t('guided.workflow') },
+                  { id: 'ide', label: t('guided.ide') },
+                ]}
+                onSelect={changeView}
+              />
+              <div className="guided-authoring-actions">
+                <ActionButton
+                  label={t('guided.save')}
+                  disabled={busy || !valid || !dirty}
+                  onClick={() => void run(save)}
+                />
+                <ActionButton
+                  label={t('guided.submit')}
+                  disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                  onClick={() => void run(submit)}
+                />
+              </div>
+            </div>
+            <div
+              className="guided-authoring-workbench"
+              data-view={view}
+              id={editorId + '-editor'}
+              role="tabpanel"
+              aria-labelledby={editorId + '-tab-' + view}
+            >
               {view === 'ide' && (
                 <nav className="guided-authoring-outline" aria-label={t('guided.outline')}>
                   <PanelHeader title={t('guided.outline')} level={3} />
@@ -539,18 +566,6 @@ export function GuidedAuthoringPage({
                     </>
                   ))}
               </section>
-            </div>
-            <div className="guided-authoring-actions">
-              <ActionButton
-                label={t('guided.save')}
-                disabled={busy || !valid || !dirty}
-                onClick={() => void run(save)}
-              />
-              <ActionButton
-                label={t('guided.submit')}
-                disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
-                onClick={() => void run(submit)}
-              />
             </div>
             {submittedReference && (
               <TextField

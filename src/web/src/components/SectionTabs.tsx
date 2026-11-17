@@ -5,11 +5,12 @@ import { TabBar, TabStrip } from './TabStrip';
 export type SectionTab<T extends string> = { id: T; label: string; disabled?: boolean };
 
 /** In-place tabpanels: arrow keys move focus; Enter/Space activates the focused tab. */
-export function SectionTabs<T extends string>({ prefix, label, tabs, selected, disabled = false, onSelect }: {
+export function SectionTabs<T extends string>({ prefix, label, tabs, selected, panelId, disabled = false, onSelect }: {
   prefix: string;
   label: string;
   tabs: readonly SectionTab<T>[];
   selected: T;
+  panelId?: string;
   disabled?: boolean;
   onSelect: (id: T) => void;
 }) {
@@ -36,7 +37,7 @@ export function SectionTabs<T extends string>({ prefix, label, tabs, selected, d
   return <TabBar>
     <TabStrip label={label} mode="tabs">
       {tabs.map(tab => <button key={tab.id} type="button" role="tab" className="tab-strip-item"
-        id={prefix + '-tab-' + tab.id} aria-controls={prefix + '-' + tab.id}
+        id={prefix + '-tab-' + tab.id} aria-controls={panelId ?? prefix + '-' + tab.id}
         aria-selected={selected === tab.id} tabIndex={focusableId === tab.id && !tab.disabled ? 0 : -1}
         disabled={disabled || tab.disabled}
         onFocus={() => setFocusedId(tab.id)}
