@@ -29,6 +29,7 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
             new("days[].start", "date-time", true, "Source StartDateTime, with its offset."),
             new("days[].end", "date-time", true, "Source EndDateTime, with its offset."),
             new("days[].value", "decimal|null", false, "Provider-reported value when present."),
+            new("observedQuantities", "object[]", false, "Additional inferred phase-rate fields with numeric values and source units in the window."),
             new("retrievedAtUtc", "date-time", true, "Separate retrieval instant."),
             new("source", "string", true, "ForeSite daily-average provenance.")]),
         "Whole source production days selected by StartDateTime in [start, end). Boundaries and offsets are preserved.",
@@ -82,6 +83,7 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
 
         var days = new List<ForeSiteDailyAverageRecord>();
         var ids = new HashSet<long>();
+        var observed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var row in values.EnumerateArray())
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -99,6 +101,10 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
                 value = number;
             }
             days.Add(new(id.ToString(CultureInfo.InvariantCulture), start, end, value));
+            if (start >= from && start < to)
+                foreach (var quantity in ForeSiteDailyAverageContract.InferredPhaseRates)
+                    if (row.TryGetProperty(quantity, out var phase) && phase.ValueKind == JsonValueKind.Number && phase.TryGetDecimal(out _))
+                        observed.Add(quantity);
         }
         days.Sort((left, right) => left.Start.CompareTo(right.Start));
         for (var i = 1; i < days.Count; i++)
@@ -108,7 +114,10 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
         var selected = days.Where(day => day.Start >= from && day.Start < to).ToArray();
         if (unit is null && selected.Any(day => day.Value is not null))
             throw new ForeSiteMeasurementException("FORESITE_DAILY_UNIT_MISSING");
-        return new(externalId, Quantity, unit, from.ToUniversalTime(), to.ToUniversalTime(), selected, DateTimeOffset.UtcNow, Source);
+        return new(externalId, Quantity, unit, from.ToUniversalTime(), to.ToUniversalTime(), selected, DateTimeOffset.UtcNow, Source)
+        {
+            ObservedQuantities = ReadObservedQuantities(root, observed)
+        };
     }
 
     private static string? ReadUnit(JsonElement root)
@@ -118,11 +127,25 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
         if (!units.TryGetProperty(Quantity, out var unit) || unit.ValueKind == JsonValueKind.Null) return null;
         ValidateObject(unit);
         if (!unit.TryGetProperty("UnitKey", out var key) || key.ValueKind == JsonValueKind.Null) return null;
-        if (key.ValueKind != JsonValueKind.String || key.GetString() is not { Length: > 0 and <= 32 } text ||
-            string.IsNullOrWhiteSpace(text) || text.Any(char.IsControl))
-            throw InvalidResponse();
-        return text;
+        return UnitText(key) ?? throw InvalidResponse();
     }
+
+    private static List<ForeSiteDailyObservedQuantity> ReadObservedQuantities(JsonElement root, HashSet<string> observed)
+    {
+        // ReadUnit has already checked the Units object. Malformed optional phase units cannot invalidate the total rate.
+        var quantities = new List<ForeSiteDailyObservedQuantity>(observed.Count);
+        if (root.TryGetProperty("Units", out var units) && units.ValueKind == JsonValueKind.Object)
+            foreach (var name in ForeSiteDailyAverageContract.InferredPhaseRates)
+                if (observed.Contains(name) && units.TryGetProperty(name, out var unit) && unit.ValueKind == JsonValueKind.Object &&
+                    unit.EnumerateObject().Count(field => field.Name.Equals("UnitKey", StringComparison.OrdinalIgnoreCase)) == 1 &&
+                    unit.TryGetProperty("UnitKey", out var key) && UnitText(key) is { } text)
+                    quantities.Add(new(name, text));
+        return quantities;
+    }
+
+    private static string? UnitText(JsonElement key) =>
+        key.ValueKind == JsonValueKind.String && key.GetString() is { Length: > 0 and <= 32 } text &&
+        !string.IsNullOrWhiteSpace(text) && !text.Any(char.IsControl) ? text : null;
 
     private static void ValidateObject(JsonElement item)
     {

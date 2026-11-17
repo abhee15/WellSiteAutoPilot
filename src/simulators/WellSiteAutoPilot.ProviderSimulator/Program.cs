@@ -314,9 +314,9 @@ app.MapGet("/foresite/Surveillance/Well/DailyAverage/{wellId:long}/{start}/{end}
         var returnedWell = wellId == 102 ? 101 : wellId;
         var rows = new[]
         {
-            new { Id = 7003, WellId = returnedWell, StartDateTime = "2026-11-03T06:00:00Z", EndDateTime = "2026-11-04T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)1 },
-            new { Id = 7002, WellId = returnedWell, StartDateTime = "2026-11-02T00:00:00-06:00", EndDateTime = "2026-11-02T23:59:59.9900000-06:00", TotalFluidRateInferred = (decimal?)null },
-            new { Id = 7001, WellId = returnedWell, StartDateTime = "2026-11-01T05:00:00Z", EndDateTime = "2026-11-02T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)0 }
+            new { Id = 7003, WellId = returnedWell, StartDateTime = "2026-11-03T06:00:00Z", EndDateTime = "2026-11-04T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)1, OilRateInferred = (decimal?)1, WaterRateInferred = (decimal?)1 },
+            new { Id = 7002, WellId = returnedWell, StartDateTime = "2026-11-02T00:00:00-06:00", EndDateTime = "2026-11-02T23:59:59.9900000-06:00", TotalFluidRateInferred = (decimal?)null, OilRateInferred = (decimal?)null, WaterRateInferred = (decimal?)null },
+            new { Id = 7001, WellId = returnedWell, StartDateTime = "2026-11-01T05:00:00Z", EndDateTime = "2026-11-02T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)0, OilRateInferred = (decimal?)0, WaterRateInferred = (decimal?)null }
         };
         // Let the UI exercise the rolling preview window as well as the fixed DST fixture.
         if (start >= new DateTimeOffset(2026, 11, 4, 6, 0, 0, TimeSpan.Zero))
@@ -324,12 +324,17 @@ app.MapGet("/foresite/Surveillance/Well/DailyAverage/{wellId:long}/{start}/{end}
             var midnight = end.UtcDateTime.Date;
             rows = [
                 new { Id = 7004, WellId = returnedWell, StartDateTime = midnight.AddDays(-1).ToString("O"),
-                    EndDateTime = midnight.AddMilliseconds(-10).ToString("O"), TotalFluidRateInferred = (decimal?)420 }
+                    EndDateTime = midnight.AddMilliseconds(-10).ToString("O"), TotalFluidRateInferred = (decimal?)420, OilRateInferred = (decimal?)250, WaterRateInferred = (decimal?)170 }
             ];
         }
         return Results.Json(new
         {
-            Units = new { TotalFluidRateInferred = new { UnitKey = "STB/d" } },
+            Units = new
+            {
+                TotalFluidRateInferred = new { UnitKey = "STB/d" },
+                OilRateInferred = new { UnitKey = "STB/d" },
+                WaterRateInferred = new { UnitKey = "STB/d" }
+            },
             Values = wellId == 103 || state.Scenario == "foresite-history-empty" ? [] : rows
         }, new System.Text.Json.JsonSerializerOptions());
     });
