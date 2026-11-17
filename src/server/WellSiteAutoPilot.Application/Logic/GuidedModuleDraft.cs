@@ -8,7 +8,8 @@ namespace WellSiteAutoPilot.Application.Logic;
 /// When it is null the draft is a portable typed contract (roles, inputs, outputs, parameters) with no logic yet:
 /// it can be saved, reopened and inspected, but never previewed or submitted.
 /// </summary>
-public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, ThresholdDefinition? Definition = null)
+public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, ThresholdDefinition? Definition = null,
+    IReadOnlyList<GuidedSampleCase>? SampleCases = null)
 {
     public bool IsContractOnly => Definition is null;
 }

@@ -1424,7 +1424,8 @@ v1.MapPost("/guided-module-drafts/{id:guid}/preview",
             cancellationToken);
         var recommendation = evidence.Result?.Recommendations.SingleOrDefault();
         return new GuidedModulePreviewResponse(request.ExpectedRevision, evidence.PackageSha256,
-            evidence.Result?.OutcomeCode, evidence.FailureCode, recommendation?.Title, recommendation?.Detail, evidence.Result?.EngineeringResults.SingleOrDefault()?.Value);
+            evidence.Result?.OutcomeCode, evidence.FailureCode, recommendation?.Title, recommendation?.Detail, evidence.Result?.EngineeringResults.SingleOrDefault()?.Value,
+            GuidedSampleCases.Observed(evidence));
     })
     .WithName("PreviewGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModulePreviewResponse>();
@@ -2083,14 +2084,16 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
         EntryPoint = manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
             ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint
     },
-        new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
+        new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
+        request.SampleCases?.Select(item => new GuidedSampleCase(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray());
 }
 
 static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
 {
     var definition = draft.Content.Definition;
     return new(draft.Id, draft.Revision, GuidedDraftManifestJson.Serialize(draft.Content.Manifest),
-        definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
+        definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
+        draft.Content.SampleCases?.Select(item => new GuidedSampleCaseRequest(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray());
 }
 
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(

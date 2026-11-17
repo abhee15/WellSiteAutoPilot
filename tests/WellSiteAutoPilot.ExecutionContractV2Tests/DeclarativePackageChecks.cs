@@ -121,6 +121,25 @@ internal static class DeclarativePackageChecks
             submission.Evidence.Single().PackageSha256 != submission.Artifact.Package.Sha256)
             throw new InvalidOperationException("Submission evidence was not pinned to the selected draft revision.");
 
+        // Authored sample cases: named, validated against the rule, and asserted separately from what the module observed.
+        GuidedSampleCase[] cases = [new("Low fillage", 62, null, null, "LOW_FILLAGE"), new("At boundary", 70, null, null, "NONE"), new("Unchecked", 80, null, null, null)];
+        GuidedSampleCases.Validate(draft.Content with { SampleCases = cases });
+        Task Invalid(params GuidedSampleCase[] bad) { GuidedSampleCases.Validate(draft.Content with { SampleCases = bad }); return Task.CompletedTask; }
+        await RejectAsync(() => Invalid(new("", 1, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new("A", 1, null, null, null), new("a", 2, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new("Pair", null, 100, 50, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new("Wrong code", 1, null, null, "OTHER")), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Task.Run(() => GuidedSampleCases.Validate(new GuidedModuleDraftContent(manifest) with { SampleCases = cases })), "GUIDED_SAMPLE_CASES_INVALID");
+        var observedCases = new List<DeclarativeThresholdEvidence>();
+        foreach (var item in cases)
+            observedCases.Add(await DeclarativeThresholdPreview.EvaluateAsync(artifact, new DeclarativeThresholdSample(request.ExecutionId, "guided", asset.AssetId, now, "{}", "{}",
+                new(binding.RequirementId, asset.AssetId, binding.Quantity, item.Value!.Value, "%", now, "Good", "fixture"))));
+        if (GuidedSampleCases.Observed(observedCases[0]) != "LOW_FILLAGE" || GuidedSampleCases.Observed(observedCases[1]) != "NONE")
+            throw new InvalidOperationException("Observed sample outcomes were not derived from the executed result.");
+        GuidedSampleCases.RequireExpectations(cases, observedCases);
+        await RejectAsync(() => Task.Run(() => GuidedSampleCases.RequireExpectations([cases[0] with { ExpectedOutcome = "NONE" }], observedCases.Take(1).ToArray())),
+            "GUIDED_SAMPLE_EXPECTATION_FAILED");
+
         if (Directory.Exists(directory)) throw new InvalidOperationException("Declarative execution extracted package files.");
         Console.WriteLine("Guided package and worker parity passed for defaults, overrides, equality, missing inputs, and invalid artifacts.");
     }

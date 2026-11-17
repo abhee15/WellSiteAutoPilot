@@ -72,16 +72,26 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         IReadOnlyList<decimal?>? readings, AccessSubject subject, SecurityActorContext actor,
         IReadOnlyList<GuidedPressureReading?>? pressureReadings = null, CancellationToken cancellationToken = default)
     {
-        if ((readings is null) == (pressureReadings is null) ||
-            (readings?.Count ?? pressureReadings?.Count) is < 1 or > 50 || pressureReadings?.Any(sample => sample is null) == true)
-            throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
-                "Provide between one and fifty sample readings.");
         var draft = await GetAsync(id, subject, cancellationToken);
         draft.RequireThresholdLogic();
-        var samples = readings is not null
-            ? readings.Select(value => CreateSample(draft, value, "{}", null)).ToArray()
-            : pressureReadings!.Select(pressure => CreateSample(draft, null, "{}", pressure)).ToArray();
+        // Authored cases are the evidence of record. Posted readings remain for drafts saved before cases existed.
+        var stored = draft.Content.SampleCases is { Count: > 0 } authored ? authored : null;
+        if (stored is not null && (readings is not null || pressureReadings is not null))
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
+                "This draft has saved sample cases; submit without posting readings.");
+        if (stored is null && ((readings is null) == (pressureReadings is null) ||
+            (readings?.Count ?? pressureReadings?.Count) is < 1 or > 50 || pressureReadings?.Any(sample => sample is null) == true))
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
+                "Provide between one and fifty sample readings.");
+        var samples = stored is not null
+            ? stored.Select(item => draft.Content.Manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
+                ? CreateSample(draft, null, "{}", new GuidedPressureReading(item.CasingPsi, item.TubingPsi))
+                : CreateSample(draft, item.Value, "{}", null)).ToArray()
+            : readings is not null
+                ? readings.Select(value => CreateSample(draft, value, "{}", null)).ToArray()
+                : pressureReadings!.Select(pressure => CreateSample(draft, null, "{}", pressure)).ToArray();
         var submission = await draft.PrepareSubmissionAsync(expectedRevision, samples, cancellationToken);
+        if (stored is not null) GuidedSampleCases.RequireExpectations(stored, submission.Evidence);
         return await drafts.SubmitOwnedAsync(draft, submission, subject, actor, cancellationToken);
     }
 
@@ -109,6 +119,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     private static Task ValidateContentAsync(GuidedModuleDraftContent content, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
+        GuidedSampleCases.Validate(content);
         return content.Definition is { } definition
             ? DeclarativeThresholdPackageBuilder.BuildAsync(content.Manifest, definition, cancellationToken)
             : GuidedContractDraft.ValidateAsync(content.Manifest, cancellationToken);

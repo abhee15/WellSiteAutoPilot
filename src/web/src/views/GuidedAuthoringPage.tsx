@@ -13,6 +13,7 @@ import type {
   GuidedModulePreviewResponse,
   GuidedModuleReviewResponse,
   GuidedPressureReadingRequest,
+  GuidedSampleCaseRequest,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
@@ -29,6 +30,7 @@ import {
 import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
+import { GuidedSampleCases, defaultSampleCases } from './GuidedSampleCases';
 import { NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
@@ -216,6 +218,8 @@ export function GuidedAuthoringPage({
   const [name, setName] = useState('');
   const [threshold, setThreshold] = useState('70');
   const [evidence, setEvidence] = useState<GuidedModulePreviewResponse[]>([]);
+  // Authored sample cases; null means the draft's saved cases (or the starting cases for a new draft) are unchanged.
+  const [cases, setCases] = useState<GuidedSampleCaseRequest[] | null>(null);
   const [reviewKey, setReviewKey] = useState(initialReviewReference);
   const [submittedReference, setSubmittedReference] = useState('');
   const [review, setReview] = useState<GuidedModuleReviewResponse | null>(null);
@@ -268,6 +272,7 @@ export function GuidedAuthoringPage({
     setName(displayName(next?.manifestJson));
     setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
+    setCases(null);
     setScenario(0);
     setEditorSection(section);
     setSubmittedReference('');
@@ -290,14 +295,9 @@ export function GuidedAuthoringPage({
 
   const boundary = draft?.definition?.default ?? (pressure ? 150 : 70);
   const maximum = pressure ? 10000 : 100;
-  const readings = [boundary === 0 ? 8 : Math.max(0, boundary - 8), boundary, null] as const;
-  const pressureReadings: GuidedPressureReadingRequest[] = [
-    { casingPsi: 120, tubingPsi: 120 },
-    { casingPsi: boundary, tubingPsi: 0 },
-    { casingPsi: boundary + 1, tubingPsi: 0 },
-    { casingPsi: null, tubingPsi: 120 },
-  ];
-  const sampleCount = pressure ? pressureReadings.length : readings.length;
+  const baselineCases = draft?.sampleCases ?? defaultSampleCases(pressure, boundary);
+  const activeCases = cases ?? baselineCases;
+  const sampleCount = activeCases.length;
   const contractOnly = contractManifest !== null;
   const inspectOnly = Boolean(draft && !contractOnly && !supportsGuidedRule(draft.manifestJson));
   const valid = contractOnly
@@ -311,7 +311,9 @@ export function GuidedAuthoringPage({
     contractOnly &&
     Boolean(draft) &&
     JSON.stringify(parseManifest(contractManifest)) !== JSON.stringify(parseManifest(draft?.manifestJson));
-  const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary) || contractChanged;
+  const casesChanged = cases !== null && JSON.stringify(cases) !== JSON.stringify(baselineCases);
+  const dirty =
+    name !== displayName(draft?.manifestJson) || threshold !== String(boundary) || contractChanged || casesChanged;
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
   const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
@@ -329,9 +331,10 @@ export function GuidedAuthoringPage({
   }
 
   function sampleReading(index: number, differential?: number | null) {
-    if (pressure) return <PressureEvidence reading={pressureReadings[index]} differential={differential} />;
-    const reading = readings[index];
-    return reading === null ? t('guided.unavailable') : reading + '%';
+    const sample = activeCases[index];
+    if (!sample) return null;
+    if (pressure) return <PressureEvidence reading={sample} differential={differential} />;
+    return sample.value === null || sample.value === undefined ? t('guided.unavailable') : sample.value + '%';
   }
 
   function sampleResult(item: GuidedModulePreviewResponse) {
@@ -378,6 +381,7 @@ export function GuidedAuthoringPage({
         }),
         default: Number(threshold),
       },
+      sampleCases: activeCases,
     };
     const { data } =
       draft?.id && draft.revision
@@ -395,12 +399,14 @@ export function GuidedAuthoringPage({
     const id = draft.id;
     const expectedRevision = draft.revision;
     const results = await Promise.all(
-      (pressure ? pressureReadings.map((sample) => ({ pressure: sample })) : readings.map((value) => ({ value }))).map(
-        (sample) =>
-          previewGuidedModuleDraft({
-            path: { id },
-            body: { expectedRevision, ...sample, parametersJson: '{}' },
-          }),
+      (pressure
+        ? activeCases.map((sample) => ({ pressure: { casingPsi: sample.casingPsi, tubingPsi: sample.tubingPsi } }))
+        : activeCases.map((sample) => ({ value: sample.value }))
+      ).map((sample) =>
+        previewGuidedModuleDraft({
+          path: { id },
+          body: { expectedRevision, ...sample, parametersJson: '{}' },
+        }),
       ),
     );
     setEvidence(
@@ -415,7 +421,15 @@ export function GuidedAuthoringPage({
     if (!draft?.id || !draft.revision) return;
     const { data } = await submitGuidedModuleDraft({
       path: { id: draft.id },
-      body: { expectedRevision: draft.revision, ...(pressure ? { pressureReadings } : { readings: [...readings] }) },
+      // Saved cases are the evidence of record; readings are posted only for drafts saved before cases existed.
+      body: {
+        expectedRevision: draft.revision,
+        ...(draft.sampleCases?.length
+          ? {}
+          : pressure
+            ? { pressureReadings: activeCases.map(({ casingPsi, tubingPsi }) => ({ casingPsi, tubingPsi })) }
+            : { readings: activeCases.map(({ value }) => value ?? null) }),
+      },
     });
     if (!data) throw new Error();
     setSubmittedReference(draft.id + '/' + draft.revision);
@@ -679,6 +693,16 @@ export function GuidedAuthoringPage({
               {!inspectOnly && !contractOnly && (
                 <section className="guided-authoring-inspector" aria-label={t('guided.scenarios')}>
                   <PanelHeader title={t('guided.scenarios')} level={3} />
+                  <GuidedSampleCases
+                    cases={activeCases}
+                    pressure={pressure}
+                    outcomeCode={
+                      draft?.definition?.outcomeCode ?? (pressure ? 'PRESSURE_DIFFERENTIAL_HIGH' : 'LOW_FILLAGE')
+                    }
+                    results={dirty ? [] : evidence}
+                    disabled={busy}
+                    onChange={setCases}
+                  />
                   <div className="guided-authoring-actions">
                     <ActionButton
                       label={t('guided.preview')}
@@ -693,7 +717,8 @@ export function GuidedAuthoringPage({
                       <ul>
                         {evidence.map((item, index) => (
                           <li key={index}>
-                            {sampleReading(index, item.differentialPsi)} {' · '} {sampleResult(item)}
+                            {activeCases[index]?.name} {' · '} {sampleReading(index, item.differentialPsi)} {' · '}{' '}
+                            {sampleResult(item)}
                           </li>
                         ))}
                       </ul>

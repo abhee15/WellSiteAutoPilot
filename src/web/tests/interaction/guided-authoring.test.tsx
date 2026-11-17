@@ -75,16 +75,18 @@ it('saves, previews and submits the same guided draft revision', async () => {
 
 it('keeps unknown complex module calculations read-only in the guided editor', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
-    data: [{
-      id: 'complex-draft',
-      revision: 1,
-      manifestJson: JSON.stringify({
-        displayName: 'Surface-card calibration',
-        entryPoint: 'sample.structured-card-calibration.v2',
-        dataRequirements: [{ id: 'cards', quantity: 'SurfaceCards' }],
-      }),
-      definition: { default: 70 },
-    }],
+    data: [
+      {
+        id: 'complex-draft',
+        revision: 1,
+        manifestJson: JSON.stringify({
+          displayName: 'Surface-card calibration',
+          entryPoint: 'sample.structured-card-calibration.v2',
+          dataRequirements: [{ id: 'cards', quantity: 'SurfaceCards' }],
+        }),
+        definition: { default: 70 },
+      },
+    ],
   } as never);
   render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
   await screen.findByRole('option', { name: 'Surface-card calibration' });
@@ -237,6 +239,48 @@ it('preserves unsaved edits until the author confirms a draft switch', async () 
   expect(name.value).toBe('Existing draft');
 });
 
+it('saves authored sample cases and flags an outcome that contradicts the expectation', async () => {
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  vi.mocked(createGuidedModuleDraft).mockImplementation((async (options: { body: { sampleCases: unknown } }) => ({
+    data: {
+      id: 'draft-cases',
+      revision: 1,
+      manifestJson: '{"displayName":"Fillage check","entryPoint":"wsa.declarative.threshold.v1"}',
+      definition: { default: 70, outcomeCode: 'LOW_FILLAGE' },
+      sampleCases: options.body.sampleCases,
+    },
+  })) as never);
+  vi.mocked(previewGuidedModuleDraft)
+    .mockResolvedValueOnce({ data: { outcomeCode: 'THRESHOLD_NOT_MET', observedOutcome: 'NONE' } } as never)
+    .mockResolvedValue({ data: { outcomeCode: 'THRESHOLD_NOT_MET', observedOutcome: 'NONE' } } as never);
+  vi.mocked(submitGuidedModuleDraft).mockResolvedValue({ data: { revision: 1 } } as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Fillage check' } });
+  fireEvent.change(screen.getByLabelText('Case 1 name'), { target: { value: 'Dry tubing' } });
+  fireEvent.change(screen.getByLabelText('Case 1 expected outcome'), { target: { value: 'LOW_FILLAGE' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add case' }));
+  expect(screen.getByLabelText<HTMLInputElement>('Case 4 name').value).toBe('Case 4');
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  expect(createGuidedModuleDraft).toHaveBeenCalledWith({
+    body: expect.objectContaining({
+      sampleCases: expect.arrayContaining([
+        expect.objectContaining({ name: 'Dry tubing', expectedOutcome: 'LOW_FILLAGE' }),
+        expect.objectContaining({ name: 'Case 4', value: null, expectedOutcome: null }),
+      ]),
+    }),
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
+  expect(await screen.findByText('Does not match the expectation. Observed: NONE.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
+  await screen.findByLabelText('Shareable review link');
+  // Saved cases are the evidence of record, so no readings are posted with the submission.
+  expect(submitGuidedModuleDraft).toHaveBeenLastCalledWith({
+    path: { id: 'draft-cases' },
+    body: { expectedRevision: 1 },
+  });
+});
+
 it('authors paired pressure samples and shows the reviewed differential', async () => {
   const manifestJson = '{"displayName":"Pressure check","entryPoint":"wsa.declarative.difference.v1"}';
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
@@ -331,9 +375,14 @@ it('treats no returned input checks as unverified compatibility rather than fail
   vi.mocked(checkGuidedModuleAssetCompatibility).mockResolvedValue({
     data: { inputs: [] },
   } as never);
-  const fetch = vi.fn(async () => new Response(JSON.stringify([
-    { id: 'asset-1', name: 'Sample rod pump', isActive: true, ownerConnectionId: 'source', path: [] },
-  ])));
+  const fetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify([
+          { id: 'asset-1', name: 'Sample rod pump', isActive: true, ownerConnectionId: 'source', path: [] },
+        ]),
+      ),
+  );
   vi.stubGlobal('fetch', fetch);
   try {
     render(<GuidedLivePreview draftId="draft-no-checks" revision={1} inputs={[]} />);
@@ -365,7 +414,8 @@ it('previews a saved revision with an imported well without enabling submission'
       {
         id: 'live-draft',
         revision: 3,
-        manifestJson: '{"displayName":"Live draft","entryPoint":"wsa.declarative.threshold.v1","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
+        manifestJson:
+          '{"displayName":"Live draft","entryPoint":"wsa.declarative.threshold.v1","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
         definition: { default: 70 },
       },
     ],
