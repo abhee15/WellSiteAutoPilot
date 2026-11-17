@@ -346,7 +346,7 @@ jobs:
         working-directory: src/web
         run: npm run test:visual:accessibility
 
-      - name: Upload run-history responsive screenshots
+      - name: Upload responsive browser screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -356,6 +356,7 @@ jobs:
             src/web/artifacts/visual-run-history/*.log
             src/web/artifacts/visual-adapter-operations/*.png
             src/web/artifacts/visual-adapter-operations/*.log
+            src/web/artifacts/visual-accessibility/guided-authoring-*.png
           if-no-files-found: ignore
           retention-days: 7
 

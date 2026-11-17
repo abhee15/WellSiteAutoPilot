@@ -16,6 +16,22 @@
   gap: var(--space-12);
 }
 
+.guided-authoring-view-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-12);
+  border-block-end: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.guided-authoring-view-bar > .tab-bar {
+  border-block-end: 0;
+}
+
+.guided-authoring-view-bar > .guided-authoring-actions {
+  justify-content: flex-end;
+}
+
 .guided-authoring-approval {
   display: grid;
   gap: var(--space-12);
@@ -53,6 +69,11 @@
   min-width: 0;
 }
 
+.guided-authoring-workbench {
+  grid-template-columns: minmax(0, 2fr) minmax(var(--layout-field-min), 1fr);
+  gap: var(--space-16);
+}
+
 .guided-authoring-workbench[data-view='ide'] {
   grid-template-columns: minmax(var(--layout-field-min), 1fr) minmax(0, 3fr) minmax(var(--layout-field-min), 2fr);
 }
@@ -72,9 +93,10 @@
   padding-inline: 0;
 }
 
-.guided-authoring-workbench[data-view='ide'] .guided-authoring-inspector {
+.guided-authoring-inspector,
+.guided-authoring-workbench[data-view='ide'] .guided-authoring-main {
   border-inline-start: var(--border-width-thin) solid var(--color-border-subtle);
-  padding-inline-start: var(--space-12);
+  padding-inline-start: var(--space-16);
 }
 
 @media (width <= 75em) {
@@ -88,16 +110,34 @@
     flex-wrap: wrap;
     align-items: center;
   }
+
+  .guided-authoring-workbench[data-view='ide'] .guided-authoring-main {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+  }
 }
 
 @media (width <= 56em) {
+  .guided-authoring-workbench,
   .guided-authoring-workbench[data-view='ide'] {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .guided-authoring-workbench[data-view='ide'] .guided-authoring-inspector {
+  .guided-authoring-inspector {
     border-inline-start: 0;
     padding-inline-start: 0;
+  }
+}
+
+@media (width <= 48em) {
+  .guided-authoring-view-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+    padding-block-end: var(--space-8);
+  }
+
+  .guided-authoring-view-bar > .guided-authoring-actions {
+    justify-content: flex-start;
   }
 }
 
