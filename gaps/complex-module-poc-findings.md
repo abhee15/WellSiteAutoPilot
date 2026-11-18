@@ -163,3 +163,7 @@ The Quantity source select lists Surveillance, Daily averages, Well trend and We
 ### P33 - Well-specific wording limits the authoring model to wells (user-reported)
 Labels such as Well trend, Well test and 'imported wells' in the live preview notice imply the asset must be a well. Authoring language should be asset-neutral (Current values, History values, Latest test) so modules can later target other asset types (pads, facilities, compressors) without renaming. Provider-specific names stay inside the adapter layer. Extends P32; affects labels in GuidedQuantityDiscovery, GuidedLivePreview and the localization keys guided.* (e.g. the preview support notice 'imported wells').
 
+
+### P34 - Surface cards should be a quantity source, and are RRL-only (user observation, design open)
+Today cards are a separate 'Read stored surface cards' button outside the quantity source model. Idea: make Cards a quantity source so the author can request (a) the latest card, optionally of a given card type, or (b) an array of cards over a date range. Cards apply only to RRL (rod lift) wells, not every well type, so the source and its options must be offered per asset/lift type, and unsupported assets should say why. Design of the authoring screen is deliberately undecided; to be settled together with P31, P32 and P33 (one source model: current values, history values, cards, tests, each with asset-aware availability).
+
