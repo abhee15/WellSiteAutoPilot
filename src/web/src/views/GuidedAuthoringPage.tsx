@@ -127,6 +127,32 @@ function PressureEvidence({
   );
 }
 
+/** A failed request that keeps the server's stable problem code so the page can say what to fix. */
+class GuidedRequestError extends Error {
+  constructor(readonly code: string | null) {
+    super(code ?? 'guided request failed');
+  }
+}
+
+function requestFailure(error: unknown): GuidedRequestError {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return new GuidedRequestError(typeof code === 'string' ? code : null);
+}
+
+/** Codes an author can act on; anything else gets the generic message. */
+const knownErrorCodes: Record<string, Parameters<typeof t>[0]> = {
+  GUIDED_DRAFT_REVISION_CONFLICT: 'guided.errorRevisionConflict',
+  GUIDED_DRAFT_ALREADY_SUBMITTED: 'guided.errorAlreadySubmitted',
+  GUIDED_DRAFT_SUBMITTED: 'guided.errorSubmittedKept',
+  GUIDED_SAMPLE_EXPECTATION_FAILED: 'guided.errorExpectation',
+  GUIDED_SAMPLE_CASES_INVALID: 'guided.errorCases',
+  GUIDED_DRAFT_LOGIC_UNSUPPORTED: 'guided.errorNoLogic',
+  MODULE_DATA_MAX_AGE_INVALID: 'guided.errorMaxAge',
+  MODULE_DATA_REQUIREMENT_DUPLICATE: 'guided.errorDuplicateInput',
+  MODULE_DATA_ROLE_UNKNOWN: 'guided.errorUnknownRole',
+  MODULE_VALUE_SCHEMA_INVALID: 'guided.errorValueSchema',
+};
+
 function displayName(manifestJson: string | null | undefined): string {
   return manifestJson ? (JSON.parse(manifestJson) as { displayName: string }).displayName : '';
 }
@@ -227,6 +253,7 @@ export function GuidedAuthoringPage({
   const [approved, setApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [notice, setNotice] = useState<'guided.saved' | 'guided.submitted' | 'guided.approved' | null>(null);
 
   useEffect(() => {
@@ -286,8 +313,9 @@ export function GuidedAuthoringPage({
     setNotice(null);
     try {
       await action();
-    } catch {
+    } catch (failure) {
       setError(true);
+      setErrorCode(failure instanceof GuidedRequestError ? failure.code : null);
     } finally {
       setBusy(false);
     }
@@ -354,14 +382,14 @@ export function GuidedAuthoringPage({
       // A contract-only draft sends no definition, so the server stores no logic for it.
       const manifest = { ...(parseManifest(contractManifest) ?? {}), displayName: name.trim() };
       const contractBody = { manifestJson: JSON.stringify(manifest) };
-      const { data } =
+      const { data, error: failure } =
         draft?.id && draft.revision
           ? await editGuidedModuleDraft({
               path: { id: draft.id },
               body: { ...contractBody, expectedRevision: draft.revision },
             })
           : await createGuidedModuleDraft({ body: contractBody });
-      if (!data) throw new Error();
+      if (!data) throw requestFailure(failure);
       markSaved();
       select(data, false, activeSection);
       setRefresh((previous) => previous + 1);
@@ -383,11 +411,11 @@ export function GuidedAuthoringPage({
       },
       sampleCases: activeCases,
     };
-    const { data } =
+    const { data, error: failure } =
       draft?.id && draft.revision
         ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
         : await createGuidedModuleDraft({ body });
-    if (!data) throw new Error();
+    if (!data) throw requestFailure(failure);
     markSaved();
     select(data, pressure, activeSection);
     setRefresh((previous) => previous + 1);
@@ -419,7 +447,7 @@ export function GuidedAuthoringPage({
 
   async function submit() {
     if (!draft?.id || !draft.revision) return;
-    const { data } = await submitGuidedModuleDraft({
+    const { data, error: failure } = await submitGuidedModuleDraft({
       path: { id: draft.id },
       // Saved cases are the evidence of record; readings are posted only for drafts saved before cases existed.
       body: {
@@ -431,7 +459,7 @@ export function GuidedAuthoringPage({
             : { readings: activeCases.map(({ value }) => value ?? null) }),
       },
     });
-    if (!data) throw new Error();
+    if (!data) throw requestFailure(failure);
     setSubmittedReference(draft.id + '/' + draft.revision);
     setReviewKey(draft.id + '/' + draft.revision);
     setNotice('guided.submitted');
@@ -464,7 +492,7 @@ export function GuidedAuthoringPage({
   return (
     <section className="panel guided-authoring">
       <PanelHeader title={pageTitle} />
-      {error && <Notice tone="error">{t('guided.error')}</Notice>}
+      {error && <Notice tone="error">{t((errorCode && knownErrorCodes[errorCode]) || 'guided.error')}</Notice>}
       {notice && <Notice tone="success">{t(notice)}</Notice>}
       {canAuthor && (
         <>

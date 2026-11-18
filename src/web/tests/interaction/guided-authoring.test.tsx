@@ -239,6 +239,19 @@ it('preserves unsaved edits until the author confirms a draft switch', async () 
   expect(name.value).toBe('Existing draft');
 });
 
+it('names what to fix when the server refuses a save, and stays generic for unknown codes', async () => {
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  vi.mocked(createGuidedModuleDraft)
+    .mockResolvedValueOnce({ error: { code: 'GUIDED_DRAFT_REVISION_CONFLICT' } } as never)
+    .mockResolvedValueOnce({ error: { code: 'SOMETHING_NEW' } } as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Refused check' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  expect(await screen.findByText(/changed elsewhere/i)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  expect(await screen.findByText(/could not be completed/i)).toBeTruthy();
+});
+
 it('saves authored sample cases and flags an outcome that contradicts the expectation', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
   vi.mocked(createGuidedModuleDraft).mockImplementation((async (options: { body: { sampleCases: unknown } }) => ({
