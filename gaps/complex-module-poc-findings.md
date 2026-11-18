@@ -155,3 +155,7 @@ Visible maximized Edge, Quantity source = Daily averages on "Sri Pump Fillage Te
 ### P31 - Daily averages: no way to read the value of a discovered quantity (user-reported)
 After #647 the Historical quantity list offers every populated daily quantity (e.g. MotorAmps, MeasuredGasVolume), but the read button appears only for TotalFluidRateInferred. Any other choice shows 'The daily series preview supports inferred total fluid rate.' and no button. Cause: GuidedQuantityDiscovery canPreview is hard-coded for DailyAverages, and the production-days preview request/reader (ForeSiteDailyAverageContracts.Quantity) has no quantity parameter. Fix needs a quantity field on GuidedProductionDaysPreviewRequest, the adapter reader and the UI gate. Until then the dropdown offers choices that cannot be previewed.
 
+
+### P32 - Quantity source labels expose provider operation names (user-reported)
+The Quantity source select lists Surveillance, Daily averages, Well trend and Well test (GuidedQuantityDiscovery sources array). These are ForeSite operation names, not author concepts. Proposed direction: present Current values (surveillance) and History values (backed by Well trend), with the quantity list always fetched dynamically for the selected asset and source, so authors never choose by provider capability. Related to P30 (unsorted list) and P31 (daily quantities not readable); the source model needs one consistent read path per quantity.
+
