@@ -87,7 +87,8 @@ internal static class ConfiguredShadowE2e
         if (failed.GetProperty("status").GetString() != "Failed" || string.IsNullOrEmpty(failed.GetProperty("failureCode").GetString()))
             throw new InvalidOperationException("Provider failure was not durably inspectable.");
         Console.WriteLine("Configured Shadow V2 real HTTP/PostgreSQL/JetStream/simulator journey, request recovery, provenance and failure checks passed.");
-        await VerifyGuidedAsync(client, assetId, pressure: false);
+        var foresiteWellId = await ImportForeSiteWellAsync(client);
+        await VerifyGuidedAsync(client, foresiteWellId, pressure: false);
         using var simulator = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5091") };
         using (var reset = await simulator.PostAsJsonAsync("/api/sim/v1/scenarios/reset", new { scenario = "pressure-differential" }))
             reset.EnsureSuccessStatusCode();
@@ -105,6 +106,35 @@ internal static class ConfiguredShadowE2e
         }
     }
 
+    /// <summary>Imports well 101 through a ForeSite connection (the simulator serves a ForeSite-shaped stand-in) and returns its asset.</summary>
+    private static async Task<Guid> ImportForeSiteWellAsync(HttpClient client)
+    {
+        var connection = await Read(await client.PostAsJsonAsync("/api/v1/connections", new
+        {
+            name = "Guided E2E ForeSite " + Guid.NewGuid().ToString("N")[..8], adapterKey = "foresite",
+            settings = new { baseUrl = "http://127.0.0.1:5091/foresite" }
+        }), HttpStatusCode.Created);
+        var connectionId = connection.GetProperty("id").GetGuid();
+        var found = await Read(await client.PostAsync($"/api/v1/connections/{connectionId}/discover", null), HttpStatusCode.OK);
+        if (!found.GetProperty("complete").GetBoolean()) throw new InvalidOperationException("ForeSite discovery was incomplete: " + found);
+        var well = found.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("externalId").GetString() == "101");
+        var request = new
+        {
+            levels = Array.Empty<string>(), snapshotId = found.GetProperty("snapshotId").GetGuid(),
+            objects = new[] { new { kind = well.GetProperty("kind").GetString(), externalId = "101" } }
+        };
+        var plan = await Read(await client.PostAsJsonAsync($"/api/v1/connections/{connectionId}/import/preview", request), HttpStatusCode.OK);
+        await Read(await client.PostAsJsonAsync($"/api/v1/connections/{connectionId}/import", new
+        {
+            request.levels, expectedFingerprint = plan.GetProperty("fingerprint").GetString(), request.snapshotId, request.objects
+        }), HttpStatusCode.OK);
+        var name = well.GetProperty("displayName").GetString();
+        var assets = await Read(await client.GetAsync("/api/v1/assets?limit=500"), HttpStatusCode.OK);
+        return assets.EnumerateArray().Single(asset => asset.GetProperty("name").GetString() == name &&
+            asset.TryGetProperty("ownerConnectionId", out var owner) && owner.ValueKind == JsonValueKind.String &&
+            owner.GetGuid() == connectionId).GetProperty("id").GetGuid();
+    }
+
     private static async Task VerifyGuidedAsync(HttpClient client, Guid assetId, bool pressure)
     {
         client.DefaultRequestHeaders.Remove("X-Correlation-ID");
@@ -119,6 +149,8 @@ internal static class ConfiguredShadowE2e
             version = "1.0.0", displayName = pressure ? "Guided pressure differential" : "Guided pump fillage", publisher = "WellSite AutoPilot",
             runtime = "DotNet", executionProfile = "ScheduledOneShot",
             entryPoint = pressure ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint, minimumSdkVersion = "1.1.0",
+            // The fillage case runs through a real ForeSite connection; the pressure case has no simulated CygNet yet.
+            requiredAdapterKey = pressure ? null : "foresite",
             assetRequirements = new[] { new { role = "well", minimumCount = 1, maximumCount = 1, requiredTraits = Array.Empty<string>() } },
             dataRequirements = inputs.Select(input => new { id = input.Id, assetRole = "well", quantity = input.Quantity, access = "Current",
                 canonicalUnit = pressure ? "psi" : "%", maximumAgeSeconds = pressure ? 120 : 60, allowUncertainQuality = false }),
@@ -167,12 +199,23 @@ internal static class ConfiguredShadowE2e
         var version = approved.GetProperty("version").GetString();
         await AwaitPackagePublication(client, $"/api/v1/logic-modules/{moduleId}/{version}/package-state");
 
+        var approvedManifest = approved.GetProperty("manifestJson").GetString();
+        object dataBindings;
+        if (pressure)
+            dataBindings = inputs.Select(input => new { requirementId = input.Id, assetId, providerId = "simulator",
+                providerAssetExternalId = "WELL-102", providerMappingJson = "{}" }).ToArray();
+        else
+            // A keyed module takes its bindings from the imported asset's own connection, exactly as the web does.
+            dataBindings = await Read(await client.PostAsJsonAsync("/api/v1/configured-logic/resolve-inputs", new
+            {
+                moduleManifestJson = approvedManifest,
+                assetBindings = new[] { new { role = "well", assetId, parameterOverridesJson = "{}" } }
+            }), HttpStatusCode.OK);
         var configuration = await Read(await client.PostAsJsonAsync("/api/v1/configured-logic", new
         {
-            name = "Guided Shadow E2E", moduleManifestJson = approved.GetProperty("manifestJson").GetString(), parametersJson = "{}",
+            name = "Guided Shadow E2E", moduleManifestJson = approvedManifest, parametersJson = "{}",
             assetBindings = new[] { new { role = "well", assetId, parameterOverridesJson = "{}" } },
-            dataBindings = inputs.Select(input => new { requirementId = input.Id, assetId, providerId = "simulator",
-                providerAssetExternalId = pressure ? "WELL-102" : "WELL-101", providerMappingJson = "{}" }), schedule = (object?)null
+            dataBindings, schedule = (object?)null
         }), HttpStatusCode.Created);
         var configurationId = configuration.GetProperty("id").GetGuid();
         var configurationRevision = configuration.GetProperty("revisions")[0].GetProperty("id").GetGuid();
