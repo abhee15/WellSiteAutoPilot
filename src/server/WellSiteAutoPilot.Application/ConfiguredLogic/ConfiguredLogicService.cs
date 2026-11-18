@@ -56,7 +56,9 @@ public sealed class ConfiguredLogicService(
                 var rule = AdapterReadRules.Find(connection.AdapterKey);
                 if (rule is null || rule.ResourceKind != source.ResourceKind ||
                     input.Access.ToString() != "Current" ||
-                    !rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.ValueSchema?.SchemaId))
+                    !rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.ValueSchema?.SchemaId) ||
+                    // The read rule sees only the schema identity, so a scalar declaration must prove its numeric type here.
+                    !GuidedInputSupport.ScalarDeclarationIsNumeric(input))
                     throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_INPUT_UNSUPPORTED", FailureKind.Validation,
                         $"Input '{input.Id}' for asset '{assetId}' is not supported by adapter '{connection.AdapterKey}'.");
                 resolved.Add(new(input.Id, assetId, connection.AdapterKey, source.ExternalId, "{}"));

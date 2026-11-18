@@ -136,21 +136,29 @@ public sealed class ModuleExecutionEngine(
                         binding.MaximumAgeSeconds != declared.Requirement.MaximumAgeSeconds ||
                         binding.AllowUncertainQuality != declared.Requirement.AllowUncertainQuality)
                         throw InputFailure("EXECUTION_INPUT_CONTRACT_MISMATCH");
-                    // The first production capability is an authorized ForeSite card read, never the legacy provider route.
-                    if (binding.Source is null || binding.ProviderId != "foresite" || binding.Quantity != "SurfaceCards" ||
-                        binding.RequiredCapability != "structured.current" || binding.SchemaId != "foresite.surface-cards/v1")
-                        throw InputFailure("EXECUTION_INPUT_CAPABILITY_UNSUPPORTED");
+                    // A scalar current reading is the registry's own engineering.current capability and the adapter's read
+                    // rule decides which quantities it serves. Cards stay a separate, exact-match production capability.
+                    var scalar = ScalarStructuredInput.IsScalar(binding);
+                    var supported = scalar ? ScalarStructuredInput.IsServed(binding)
+                        : binding.Source is not null && binding.ProviderId == "foresite" && binding.Quantity == "SurfaceCards" &&
+                          binding.RequiredCapability == "structured.current" && binding.SchemaId == "foresite.surface-cards/v1";
+                    if (!supported) throw InputFailure("EXECUTION_INPUT_CAPABILITY_UNSUPPORTED");
                     measurement = await gatewayDataClient.GetCurrentAsync(request.ExecutionId, binding, cancellationToken);
-                    if (!WellSiteAutoPilot.Integration.Contracts.Providers.MeasurementPayloadLimits.IsValid(measurement) ||
-                        measurement.StructuredValue is not { } value)
+                    if (!WellSiteAutoPilot.Integration.Contracts.Providers.MeasurementPayloadLimits.IsValid(measurement))
                         throw InputFailure("EXECUTION_INPUT_SHAPE_UNSUPPORTED");
-                    WellSiteAutoPilot.Application.Logic.LogicModuleInputValidation.ValidateObservation(
-                        measurement.Quantity, null, measurement.TimestampUtc, measurement.Quality, declared.Requirement, evaluationTimeUtc);
-                    await WellSiteAutoPilot.Application.Logic.StructuredValueValidation.ValidateAsync(
-                        new(value.SchemaId, value.Data), declared.SchemaId, declared.Schema, cancellationToken);
-                    inputs.Add(new(binding.RequirementId, binding.AssetId, measurement.Quantity,
-                        new(value.SchemaId, value.Data), null, measurement.TimestampUtc, measurement.Quality, measurement.Source)
-                    { RetrievedAtUtc = measurement.RetrievedAtUtc, TimestampKind = measurement.TimestampKind });
+                    if (scalar)
+                        inputs.Add(await ScalarStructuredInput.BuildAsync(binding, declared, measurement, evaluationTimeUtc, cancellationToken));
+                    else
+                    {
+                        if (measurement.StructuredValue is not { } value) throw InputFailure("EXECUTION_INPUT_SHAPE_UNSUPPORTED");
+                        WellSiteAutoPilot.Application.Logic.LogicModuleInputValidation.ValidateObservation(
+                            measurement.Quantity, null, measurement.TimestampUtc, measurement.Quality, declared.Requirement, evaluationTimeUtc);
+                        await WellSiteAutoPilot.Application.Logic.StructuredValueValidation.ValidateAsync(
+                            new(value.SchemaId, value.Data), declared.SchemaId, declared.Schema, cancellationToken);
+                        inputs.Add(new(binding.RequirementId, binding.AssetId, measurement.Quantity,
+                            new(value.SchemaId, value.Data), null, measurement.TimestampUtc, measurement.Quality, measurement.Source)
+                        { RetrievedAtUtc = measurement.RetrievedAtUtc, TimestampKind = measurement.TimestampKind });
+                    }
                     diagnostics.Record(binding, measurement, "ACCEPTED");
                 }
                 catch (Exception error)

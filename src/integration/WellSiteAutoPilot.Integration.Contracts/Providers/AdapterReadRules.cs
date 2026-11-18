@@ -12,10 +12,9 @@ public sealed record AdapterReadRule(
     IReadOnlyList<StructuredCurrentRead>? StructuredCurrentReads = null)
 {
     /// <summary>
-    /// Authoring only. A V2 contract declares a scalar current reading as the registry's own <c>engineering.current</c>
-    /// capability with a number schema, while <see cref="AllowsCurrentRead"/> keeps matching scalar reads only when both are
-    /// absent. This deliberately does not widen <see cref="AllowsCurrentRead"/>: assignment must keep rejecting inputs the
-    /// worker cannot execute yet, so a draft can be checked against a sample Asset without implying it is runnable.
+    /// A V2 contract declares a scalar current reading as the registry's own <c>engineering.current</c> capability with a
+    /// number schema. Authoring uses this type-aware check; <see cref="AllowsCurrentRead"/> (which has only the schema
+    /// identity) accepts the same declaration, so the caller that holds the schema must also require a numeric root.
     /// </summary>
     public bool AllowsScalarCurrentDeclaration(string? quantity, string? requiredCapability, string? schemaType) =>
         quantity is not null && requiredCapability == AdapterReadRules.EngineeringCurrentCapability &&
@@ -25,6 +24,10 @@ public sealed record AdapterReadRule(
     public bool AllowsCurrentRead(string? quantity, string? requiredCapability, string? schemaId) =>
         quantity is not null && (
             requiredCapability is null && schemaId is null && CurrentQuantities.Contains(quantity) ||
+            // A V2 scalar: the registry's own capability with the module's own schema identity. Callers that know the
+            // declared schema must also require a numeric root type (see AllowsScalarCurrentDeclaration).
+            requiredCapability == AdapterReadRules.EngineeringCurrentCapability && schemaId is not null &&
+                CurrentQuantities.Contains(quantity) ||
             StructuredCurrentReads?.Any(read => read.Quantity == quantity && read.RequiredCapability == requiredCapability &&
                                                 read.SchemaId == schemaId) == true);
 }
