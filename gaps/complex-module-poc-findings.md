@@ -179,3 +179,27 @@ Observed in 'Preview with a sample asset':
 - Quantity source, quantity and read actions are stacked with no grouping, so it is unclear which button acts on which selection.
 The panel needs a layout/presentation pass once the source model (P31-P34) is decided; recorded as an observation only.
 
+
+## SME walkthrough of the preview panel (visible Edge, P4 tree with #647; assets RPOC_0413 RRL and AR-ESP2 ESP)
+Observations only, no changes made.
+
+### P36 - Source values are listed but never shown
+Surveillance lists 'AveragePumpFillage (%) - Reading returned' and 'PumpFillage (%) - Reading returned' but not the value, time or quality of the reading. Well test lists Oil, Water, Gas, TotalFluid, StrokePerMinute as 'Reported on this test' with no numbers. An author exploring what a source gives has to guess; the value should be visible next to the name (or on demand).
+
+### P37 - Contradictory availability messages for the same input
+RPOC_0413: the compatibility box says 'PumpFillage - Reading did not meet requirements - An input was too old' while Surveillance says 'PumpFillage - Reading returned'. The quantity list ignores the age/quality requirement the module contract sets, so 'returned' looks like success.
+
+### P38 - Applicability is not asset-type aware
+AR-ESP2 (ESP) is offered PumpFillage and SPM under Well trend ('Provider read unavailable'), the pump-fillage surveillance rows ('Reading missing'), and 'Read stored surface cards' (clicking gives 'The provider returned no stored surface cards'). Rod-lift quantities and cards should not be offered, or should be marked not applicable, for non-RRL lift types (see P34). Conversely the ESP daily list does include ESP-only quantities (MotorAmps, Vibration), so the provider knows the lift type.
+
+### P39 - Developer caveats shown to authors
+Surveillance shows 'Surveillance quantity applicability awaits verification against the installed ForeSite version' and Well test shows 'Eligibility and units are unverified'. These are build-time notes, not guidance an author can act on.
+
+### P40 - Quantity catalogues differ by source with no explanation
+RPOC_0413 Well trend offers only PumpFillage and SPM; Daily averages offers 18 different quantities; Surveillance offers AveragePumpFillage and PumpFillage. The same physical quantity (pump fillage) is not offered under the daily source and names differ between sources. The author cannot tell which source to use for a given need (relates to P32).
+
+### P41 - Surface card result is hard to interpret
+Result is 'CURRENT 1 - 10/16/2022 ...' and 'FULL 2 - 10/16/2022 ...' with 'Position 0-124.5 in - Load 9088-21928 lb - 112 paired points' and 'Quality Unknown'. Card types are shown as raw names with unexplained numbers, the 4-year-old timestamp is not flagged as stale, units/axes are not labelled as a card, and there is no plot, so the author cannot judge whether the card is usable.
+
+### P42 - Placeholder text leaks into asset labels
+Sample asset options read 'Not Mapped / RRL / Unspecified device / RPOC_0413'. 'Not Mapped' and 'Unspecified device' are internal placeholder values, and the format (site / lift / device / name) differs from other runs ('REMDEV / RPOC_00016'). The select also keeps a 'Select an asset' entry when there is only one match.
