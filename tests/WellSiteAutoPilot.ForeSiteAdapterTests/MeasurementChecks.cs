@@ -58,8 +58,9 @@ internal static class MeasurementChecks
         }
         factory.Payload = """{"Value":{"CurrentPumpFillage":80,"LastScanTime":"2026-10-27T05:30:00Z"}}""";
         await RejectAsync(a, "FORESITE_TIMESTAMP_INVALID");
-        // An unsupported/test-derived field never inherits a controller scan timestamp.
-        await RejectAsync(a with { Quantity = "WaterCut" }, "FORESITE_QUANTITY_UNSUPPORTED");
+        // A name that is not a provider field identifier is never read. (An identifier is a daily field and carries the
+        // production-day timestamp, never a controller scan timestamp; see DailyAverageChecks.)
+        await RejectAsync(a with { Quantity = "Water Cut" }, "FORESITE_QUANTITY_UNSUPPORTED");
         async Task RejectAsync(ConnectionMeasurementRequest request, string code)
         {
             try { await pool.ReadAsync(request, CancellationToken.None); }

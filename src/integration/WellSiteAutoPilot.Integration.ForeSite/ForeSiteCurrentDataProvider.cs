@@ -6,9 +6,13 @@ namespace WellSiteAutoPilot.Integration.ForeSite;
 public sealed class ForeSiteCurrentDataProvider(ForeSiteSession session) : ICurrentDataProvider
 {
     public async ValueTask<EngineeringValue> GetCurrentAsync(string assetExternalId, string quantity,
-        CancellationToken cancellationToken = default) => quantity == ForeSiteCards.Quantity
-        ? await ForeSiteCards.ReadAsync(session, assetExternalId, cancellationToken)
-        : await ForeSiteMeasurements.ReadAsync(session, assetExternalId, quantity, cancellationToken);
+        CancellationToken cancellationToken = default) => quantity switch
+        {
+            ForeSiteCards.Quantity => await ForeSiteCards.ReadAsync(session, assetExternalId, cancellationToken),
+            // The two controller-scan quantities keep their own source; any other provider field is a production-day value.
+            "PumpFillage" or "AveragePumpFillage" => await ForeSiteMeasurements.ReadAsync(session, assetExternalId, quantity, cancellationToken),
+            _ => await ForeSiteLatestDailyValue.ReadAsync(session, assetExternalId, quantity, TimeProvider.System, cancellationToken)
+        };
 
     /// <summary>Read the two reviewed controller quantities from one native status document.</summary>
     public Task<IReadOnlyDictionary<string, EngineeringValue>> GetCurrentSnapshotAsync(

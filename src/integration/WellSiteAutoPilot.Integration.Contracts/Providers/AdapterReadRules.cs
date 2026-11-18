@@ -9,7 +9,8 @@ public sealed record AdapterReadRule(
     string AdapterKey,
     string ResourceKind,
     IReadOnlySet<string> CurrentQuantities,
-    IReadOnlyList<StructuredCurrentRead>? StructuredCurrentReads = null)
+    IReadOnlyList<StructuredCurrentRead>? StructuredCurrentReads = null,
+    bool ServesDailyQuantities = false)
 {
     /// <summary>
     /// A V2 contract declares a scalar current reading as the registry's own <c>engineering.current</c> capability with a
@@ -17,8 +18,17 @@ public sealed record AdapterReadRule(
     /// identity) accepts the same declaration, so the caller that holds the schema must also require a numeric root.
     /// </summary>
     public bool AllowsScalarCurrentDeclaration(string? quantity, string? requiredCapability, string? schemaType) =>
-        quantity is not null && requiredCapability == AdapterReadRules.EngineeringCurrentCapability &&
-        schemaType == "number" && CurrentQuantities.Contains(quantity);
+        quantity is not null && schemaType == "number" && (
+            requiredCapability == AdapterReadRules.EngineeringCurrentCapability && CurrentQuantities.Contains(quantity) ||
+            ServesDaily(quantity, requiredCapability));
+
+    /// <summary>
+    /// True when this adapter serves the provider's own daily field (any identifier-shaped name from its daily record)
+    /// as "the latest completed production day". The field list is the provider's, discovered per well, not registered here.
+    /// </summary>
+    public bool ServesDaily(string? quantity, string? requiredCapability) =>
+        ServesDailyQuantities && requiredCapability == AdapterReadRules.EngineeringDailyCapability &&
+        ForeSiteDailyAverageContract.IsObservableQuantityName(quantity);
 
     /// <summary>True when a current read of this quantity, with this capability and schema, is one the adapter serves.</summary>
     public bool AllowsCurrentRead(string? quantity, string? requiredCapability, string? schemaId) =>
@@ -28,6 +38,7 @@ public sealed record AdapterReadRule(
             // declared schema must also require a numeric root type (see AllowsScalarCurrentDeclaration).
             requiredCapability == AdapterReadRules.EngineeringCurrentCapability && schemaId is not null &&
                 CurrentQuantities.Contains(quantity) ||
+            schemaId is not null && ServesDaily(quantity, requiredCapability) ||
             StructuredCurrentReads?.Any(read => read.Quantity == quantity && read.RequiredCapability == requiredCapability &&
                                                 read.SchemaId == schemaId) == true);
 }
@@ -40,6 +51,13 @@ public static class AdapterReadRules
 {
     public const string StructuredCurrentCapability = "structured.current";
     public const string EngineeringCurrentCapability = "engineering.current";
+
+    /// <summary>A number from the provider's latest completed production-day record (for example yesterday's total).</summary>
+    public const string EngineeringDailyCapability = "engineering.daily";
+
+    /// <summary>True for the capabilities that read one scalar number.</summary>
+    public static bool IsScalarCapability(string? capability) =>
+        capability is EngineeringCurrentCapability or EngineeringDailyCapability;
     public const string ForeSiteKey = "foresite";
     public const string CygNetKey = "cygnet";
     public const string CygNetResourceKind = "cygnet.facility";
@@ -53,7 +71,8 @@ public static class AdapterReadRules
     private static readonly AdapterReadRule[] Rules =
     [
         new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal) { "PumpFillage", "AveragePumpFillage" },
-            [new StructuredCurrentRead(ForeSiteSurfaceCard.Quantity, StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId)]),
+            [new StructuredCurrentRead(ForeSiteSurfaceCard.Quantity, StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId)],
+            ServesDailyQuantities: true),
         new(CygNetKey, CygNetResourceKind, CygNetQuantities)
     ];
 

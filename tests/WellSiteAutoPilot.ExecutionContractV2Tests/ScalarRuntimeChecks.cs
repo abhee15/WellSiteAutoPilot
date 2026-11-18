@@ -27,6 +27,26 @@ internal static class ScalarRuntimeChecks
             "A quantity the adapter does not serve was accepted.");
         Assert(!foresite.AllowsCurrentRead("PumpFillage", "other.current", SchemaId), "An unknown capability was accepted.");
 
+        // A daily field is the provider's own name, read as the latest finished production day. Only ForeSite serves them,
+        // only with the daily capability and a schema, and never a name that is not an identifier.
+        var cygnet = AdapterReadRules.Find("cygnet")!;
+        Assert(foresite.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, SchemaId),
+            "A provider daily field was refused assignment.");
+        Assert(!foresite.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringCurrentCapability, SchemaId),
+            "A daily field was accepted as a current reading.");
+        Assert(!foresite.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, null),
+            "A daily declaration without a schema identity was accepted.");
+        Assert(!foresite.AllowsCurrentRead("Cycles Yesterday", AdapterReadRules.EngineeringDailyCapability, SchemaId),
+            "A non-identifier daily name was accepted.");
+        Assert(!cygnet.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, SchemaId),
+            "An adapter with no daily record served a daily field.");
+        Assert(foresite.AllowsScalarCurrentDeclaration("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, "number") &&
+               !foresite.AllowsScalarCurrentDeclaration("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, "string"),
+            "The daily declaration must be numeric.");
+        Assert(AdapterReadRules.IsScalarCapability(AdapterReadRules.EngineeringDailyCapability) &&
+               !AdapterReadRules.IsScalarCapability(AdapterReadRules.StructuredCurrentCapability),
+            "The scalar capabilities are current and daily.");
+
         var schema = Json("{\"type\":\"number\",\"minimum\":0,\"maximum\":100}");
         var requirement = new LogicDataRequirement("fillage", "well", "PumpFillage", "Current", "%", 60, false,
             new(SchemaId, schema), AdapterReadRules.EngineeringCurrentCapability);

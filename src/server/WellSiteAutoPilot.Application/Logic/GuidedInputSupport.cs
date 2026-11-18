@@ -31,7 +31,7 @@ public static class GuidedInputSupport
         // A structured declaration is supported when the provider registers that quantity with this exact capability and schema id.
         if (input.RequiredCapability == AdapterReadRules.StructuredCurrentCapability)
             return rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.ValueSchema.SchemaId) ? null : QuantityUnregistered;
-        if (input.RequiredCapability != AdapterReadRules.EngineeringCurrentCapability) return CapabilityUnsupported;
+        if (!AdapterReadRules.IsScalarCapability(input.RequiredCapability)) return CapabilityUnsupported;
         if (RootType(input.ValueSchema) != "number") return ValueTypeUnsupported;
         return QuantityUnregistered;
     }
@@ -40,7 +40,7 @@ public static class GuidedInputSupport
     public static bool ScalarDeclarationIsNumeric(LogicDataRequirement input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        return input.RequiredCapability != AdapterReadRules.EngineeringCurrentCapability ||
+        return !AdapterReadRules.IsScalarCapability(input.RequiredCapability) ||
             input.ValueSchema is { } schema && RootType(schema) == "number";
     }
 

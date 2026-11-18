@@ -14,7 +14,7 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 public static class ScalarStructuredInput
 {
     public static bool IsScalar(ExecutionInputBindingV2 binding) =>
-        binding.RequiredCapability == AdapterReadRules.EngineeringCurrentCapability;
+        AdapterReadRules.IsScalarCapability(binding.RequiredCapability);
 
     /// <summary>True when the adapter's read rule serves this exact scalar declaration for the binding's provider.</summary>
     public static bool IsServed(ExecutionInputBindingV2 binding) =>
