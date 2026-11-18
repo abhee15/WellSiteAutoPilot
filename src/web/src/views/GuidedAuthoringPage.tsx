@@ -6,6 +6,7 @@ import {
   editGuidedModuleDraft,
   getGuidedModuleSubmission,
   listGuidedModuleDrafts,
+  listGuidedModuleProviders,
   previewGuidedModuleDraft,
   submitGuidedModuleDraft,
 } from '../api/generated/v1/sdk.gen';
@@ -14,6 +15,7 @@ import type {
   GuidedModulePreviewResponse,
   GuidedModuleReviewResponse,
   GuidedPressureReadingRequest,
+  GuidedProviderResponse,
   GuidedSampleCaseRequest,
   GuidedSourceHintRequest,
 } from '../api/generated/v1/types.gen';
@@ -86,7 +88,7 @@ function draftManifest(name: string, pressure: boolean) {
     moduleId: 'guided.' + crypto.randomUUID(),
     version: '1.0.0',
     displayName: name,
-    // Interim until the provider chooser: the pressure starter reads CygNet quantities, the fillage starter ForeSite's.
+    // The pressure starter reads CygNet quantities, the fillage starter ForeSite's.
     requiredAdapterKey: pressure ? 'cygnet' : 'foresite',
     publisher: 'WellSite AutoPilot',
     runtime: 'DotNet',
@@ -247,6 +249,9 @@ export function GuidedAuthoringPage({
   const [refresh, setRefresh] = useState(0);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [pressure, setPressure] = useState(false);
+  // Providers authoring can target, and the one chosen for the next new module (a draft keeps its provider for life).
+  const [providers, setProviders] = useState<GuidedProviderResponse[]>([]);
+  const [starterProvider, setStarterProvider] = useState('');
   // The editable typed contract of a contract-only draft; null for threshold and inspect-only drafts.
   const [contractManifest, setContractManifest] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -283,6 +288,21 @@ export function GuidedAuthoringPage({
       });
     return () => controller.abort();
   }, [canAuthor, offset, refresh]);
+
+  useEffect(() => {
+    if (!canAuthor) return;
+    const controller = new AbortController();
+    void listGuidedModuleProviders({ signal: controller.signal })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return;
+        if (data) setProviders(data);
+        else setError(true);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      });
+    return () => controller.abort();
+  }, [canAuthor]);
 
   useEffect(() => {
     if (!canReview || !initialReviewReference) return;
@@ -348,6 +368,10 @@ export function GuidedAuthoringPage({
   );
   const activeHints = (hints ?? baselineHints).map(normalizeHint).filter((hint) => declaredInputs.has(hint.inputId));
   const contractOnly = contractManifest !== null;
+  const activeProvider = (() => {
+    const key = parseManifest(contractManifest ?? draft?.manifestJson)?.requiredAdapterKey;
+    return typeof key === 'string' ? key.toLowerCase() : null;
+  })();
   const dailyDeclared = (
     Array.isArray(declared) ? (declared as { quantity?: unknown; requiredCapability?: unknown }[]) : []
   )
@@ -427,7 +451,6 @@ export function GuidedAuthoringPage({
     if (contractOnly) {
       // A contract-only draft sends no definition, so the server stores no logic for it.
       const manifest = {
-        requiredAdapterKey: 'foresite',
         ...(parseManifest(contractManifest) ?? {}),
         displayName: name.trim(),
       };
@@ -543,6 +566,16 @@ export function GuidedAuthoringPage({
   return (
     <section className="panel guided-authoring">
       <PanelHeader title={pageTitle} />
+      {canAuthor && (draft || contractOnly) && activeProvider && (
+        <p className="connection-help">
+          {t('guided.providerLabel', {
+            provider: providers.find((item) => item.adapterKey === activeProvider)?.displayName ?? activeProvider,
+          })}
+          {providers.find((item) => item.adapterKey === activeProvider)?.currentValuesOnly
+            ? ' · ' + t('guided.providerCurrentOnly')
+            : ''}
+        </p>
+      )}
       {error && <Notice tone="error">{t((errorCode && knownErrorCodes[errorCode]) || 'guided.error')}</Notice>}
       {notice && <Notice tone="success">{t(notice)}</Notice>}
       {canAuthor && (
@@ -551,10 +584,28 @@ export function GuidedAuthoringPage({
             <div className="guided-authoring-entry">
               <details className="guided-authoring-starters" ref={starterChooser}>
                 <summary className="ui-action-button secondary-button">{t('guided.newModule')}</summary>
+                <SelectField
+                  label={t('guided.chooseProvider')}
+                  value={starterProvider}
+                  disabled={busy}
+                  onChange={(event) => setStarterProvider(event.target.value)}
+                >
+                  <option value="">{t('guided.noProvider')}</option>
+                  {providers.map((item) => (
+                    <option key={item.adapterKey} value={item.adapterKey ?? ''}>
+                      {item.displayName}
+                    </option>
+                  ))}
+                </SelectField>
+                {providers.find((item) => item.adapterKey === starterProvider)?.currentValuesOnly && (
+                  <Notice tone="warning" announce={false}>
+                    {t('guided.providerCurrentOnly')}
+                  </Notice>
+                )}
                 <div className="guided-authoring-actions">
                   <ActionButton
                     label={t('guided.new')}
-                    disabled={busy}
+                    disabled={busy || starterProvider !== 'foresite'}
                     onClick={() => {
                       changeDraft(null);
                       if (starterChooser.current) starterChooser.current.open = false;
@@ -562,18 +613,18 @@ export function GuidedAuthoringPage({
                   />
                   <ActionButton
                     label={t('guided.newContract')}
-                    disabled={busy}
+                    disabled={busy || starterProvider === ''}
                     onClick={() => {
                       requestNavigation(() => {
                         select(null);
-                        setContractManifest(blankContractManifest(''));
+                        setContractManifest(blankContractManifest('', starterProvider));
                       });
                       if (starterChooser.current) starterChooser.current.open = false;
                     }}
                   />
                   <ActionButton
                     label={t('guided.newPressure')}
-                    disabled={busy}
+                    disabled={busy || starterProvider !== 'cygnet'}
                     onClick={() => {
                       changeDraft(null, true);
                       if (starterChooser.current) starterChooser.current.open = false;

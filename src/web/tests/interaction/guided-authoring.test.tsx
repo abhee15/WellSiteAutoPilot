@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
 import { GuidedLivePreview } from '../../src/views/GuidedLivePreview';
 import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
@@ -12,6 +12,7 @@ import {
   deleteGuidedModuleDraft,
   editGuidedModuleDraft,
   listGuidedModuleDrafts,
+  listGuidedModuleProviders,
   listPendingGuidedModuleSubmissions,
   previewGuidedModuleDraft,
   previewGuidedModuleWithLiveInputs,
@@ -32,6 +33,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
+  listGuidedModuleProviders: vi.fn(),
   listPendingGuidedModuleSubmissions: vi.fn(),
   previewGuidedModuleDraft: vi.fn(),
   previewGuidedModuleWithLiveInputs: vi.fn(),
@@ -40,6 +42,15 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   previewGuidedModuleSurfaceCards: vi.fn(),
   submitGuidedModuleDraft: vi.fn(),
 }));
+
+beforeEach(() => {
+  vi.mocked(listGuidedModuleProviders).mockResolvedValue({
+    data: [
+      { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false },
+      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true },
+    ],
+  } as never);
+});
 
 it('saves, previews and submits the same guided draft revision', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
@@ -344,6 +355,8 @@ it('authors paired pressure samples and shows the reviewed differential', async 
   } as never);
   render(<GuidedAuthoringPage canAuthor canReview canApprove={false} onRefresh={async () => {}} />);
   fireEvent.click(screen.getByText('New module', { selector: 'summary' }));
+  await screen.findByRole('option', { name: 'CygNet' });
+  fireEvent.change(screen.getByLabelText('Provider for the new module'), { target: { value: 'cygnet' } });
   fireEvent.click(screen.getByRole('button', { name: 'New pressure differential module' }));
   expect(screen.getByLabelText<HTMLInputElement>('Maximum differential (psi)').value).toBe('150');
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pressure check' } });
