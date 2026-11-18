@@ -117,3 +117,11 @@ Visible maximized Edge. Full vitest: 663/665 first run (guided-authoring and con
 Visible maximized Edge, draft "Sri Pump Fillage Test" (saved case 'Edge below boundary' expects trigger at 250%, observed none).
 - Submit is disabled until "Run sample cases" is run, then enabled. Submit returned 400 guided_sample_expectation_failed and the page showed "A sample case did not produce its expected outcome. Fix the rule or the expectation, save, and run the cases again." P25 confirmed: submit stays enabled with a failing assertion, but the refusal is now clearly explained. Message does not name the failing case (server detail names 'Edge below boundary').
 - Not verified: revision conflict, already submitted, invalid cases, no rule, max age, duplicate input, unknown role, value schema messages.
+
+## CL 1108755 (#643, structured inputs from registered provider schemas) - live check 2026-11-18
+Server Release build, V2 tests, ForeSite adapter tests (live ForeSite check skipped, no FORESITE_BASE_URL), tsc (after client regen), eslint, guided-contract-editor vitest (4/4) and 379 guards passed. Full vitest not run.
+Visible maximized Edge, new contract-only module:
+- One extra button "Add structured input: SurfaceCards" (the only registered structured quantity); port shows "This structured shape is kept as saved. Editing structured shapes is not available yet." Save works.
+- Compatibility: AR-ESP2 -> "Reading missing - Foresite measurement missing"; RPOC_0413 -> Rejected "An input's data quality was not good enough" (EXECUTION_INPUT_QUALITY_REJECTED), even after ticking "Allow uncertain quality" and saving.
+- **P27** Cards on RPOC_0413 (stored cards report quality Unknown) are rejected by quality, and "Allow uncertain quality" does not admit them, so no asset reaches Satisfied for a structured card input in this environment. Unverified whether Unknown quality is meant to be excluded or the checkbox did not persist; needs a follow-up.
+- Not verified: structured input from another provider (only ForeSite registers one), editing structured shapes (intentionally unavailable), a Satisfied structured result.
