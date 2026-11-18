@@ -1,6 +1,6 @@
 # Module authoring: provider-first plan
 
-Status: **revision 3, after independent review rounds 1 and 2. Nothing implemented.** · 2026-11-18 · target: `develop`
+Status: **revision 4: reviewed twice, offline probes run. Nothing implemented.** · 2026-11-18 · target: `develop`
 
 Companion to the walkthrough doc "Module Authoring: Provider-First Design" (screens only). This file is the plan.
 
@@ -131,6 +131,18 @@ exercised on the Postgres job.
 7. Key casing: `ForeSite` is accepted on create and stored as `foresite`; an unknown key is refused.
 8. Save-time check: the fillage and pressure starters, contract-only drafts with record inputs, text inputs and History inputs on ForeSite all still save; daily/cards/history on CygNet and pressure on ForeSite are refused.
 9. The migration deletes in order against a seeded database (submission rows, then drafts) and the model snapshot matches (no pending-model-changes error).
+
+## 8a. Probe results (offline probe run in CI, PR 653, closed unmerged)
+
+| Probe | Result |
+| --- | --- |
+| 1 Read rules per provider | ForeSite: `foresite.well`, current PumpFillage and AveragePumpFillage, one structured read (cards), daily yes. CygNet: `cygnet.facility`, current CasingPressure, MotorAmps, PumpFillage, RodLoad, TubingPressure, no daily, no structured. `simulator` and `petrovisor` have no rule. The rule has **no units and no history flag**, so PR 1 adds both. |
+| 4 Reason precedence | Confirmed. Wrong provider reports `AdapterMismatch` for every current input. Any non-current access reports `AccessUnsupported` first, on every provider (history is not a runtime read for any provider today). |
+| 7 Casing | `Find` ignores case: `ForeSite` and `CYGNET` resolve. So the server must canonicalise on create (store `rule.AdapterKey`). |
+| 8 Save-time hard mismatches | Pressure on ForeSite, daily on CygNet, cards on CygNet and a record input nobody serves all return `QuantityUnregistered`. The rule alone cannot tell "another provider serves it" from "nobody serves it", so the hard-mismatch check must use: (a) a registered current quantity served by a different provider, (b) daily or structured capability on a provider without it, (c) History on a provider whose `ServesHistory` is false. Free-form quantities, text inputs and record inputs stay saveable. |
+| 6 Hints | **Confirmed gap:** a hint naming `cygnet` on a `foresite`-keyed module, and a hint naming an operation that does not exist, are both accepted today. Server enforcement is needed, as planned. |
+
+Not probeable offline, so they move into PR 0 and PR 1 as CI checks: 3 (assignment rules for a keyed module: wrong provider, parent well, manual asset, View), 5 (direct API call refusing mismatched inputs), 9 (migration order and snapshot) and a ForeSite read plan across real processes.
 
 ## 9. Build sequence (small PRs, each green on its own)
 
