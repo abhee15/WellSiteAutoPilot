@@ -111,7 +111,7 @@ function ContractPorts({
   );
 }
 
-function ContractPortDetails({ port }: { port: ContractPort }) {
+function ContractPortDetails({ port, kind }: { port: ContractPort; kind: PortKind }) {
   const shape = port.valueSchema?.schema;
   const properties = shape?.type === 'array' ? shape.items?.properties : shape?.properties;
   const fields = properties ? Object.entries(properties) : [];
@@ -121,6 +121,14 @@ function ContractPortDetails({ port }: { port: ContractPort }) {
       <dl>
         <dt>{t('guided.contractPortId')}</dt>
         <dd>{port.id}</dd>
+        <dt>{t('guided.contractDirection')}</dt>
+        <dd>{t(kind === 'input' ? 'guided.contractDirectionInput' : 'guided.contractDirectionOutput')}</dd>
+        {(port.canonicalUnit || port.unit) && (
+          <>
+            <dt>{t('guided.contractUnit')}</dt>
+            <dd>{port.canonicalUnit || port.unit}</dd>
+          </>
+        )}
         {port.assetRole && (
           <>
             <dt>{t('guided.contractAssetRole')}</dt>
@@ -234,7 +242,12 @@ export function GuidedModuleContract({
           <ContractPorts ports={contract.outputs} kind="output" selected={selection} onSelect={setSelection} />
         </div>
         {showExecutionBoundary && <p className="guided-authoring-execution-note">{t('guided.executionUntraced')}</p>}
-        {(selectedPort ?? firstPort) && <ContractPortDetails port={(selectedPort ?? firstPort)!} />}
+        {(selectedPort ?? firstPort) && (
+          <ContractPortDetails
+            port={(selectedPort ?? firstPort)!}
+            kind={selectedPort ? selection.kind : contract.inputs[0] ? 'input' : 'output'}
+          />
+        )}
       </div>
     </details>
   );

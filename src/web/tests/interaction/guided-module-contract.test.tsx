@@ -30,6 +30,11 @@ it('inspects the real structured-card calibration manifest without inventing cal
   expect(screen.getByText('sample.calibration/v1')).toBeTruthy();
   expect(screen.getByText(/loadScale: number/)).toBeTruthy();
   expect(screen.getByText(/loadOffset: number/)).toBeTruthy();
+  expect(screen.getByText('Input (read by the module)')).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: 'PeakLoad' }));
+  expect(screen.getByText('Output (produced by the module)')).toBeTruthy();
+  expect(screen.queryByText('Input (read by the module)')).toBeNull();
 });
 
 it('distinguishes undeclared outputs from an absence of module recommendations', () => {

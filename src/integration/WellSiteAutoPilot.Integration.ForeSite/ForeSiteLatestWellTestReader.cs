@@ -32,16 +32,27 @@ public sealed class ForeSiteLatestWellTestReader(ForeSiteSession session)
             try { await response.Content.LoadIntoBufferAsync(MaximumSourceBytes, cancellationToken); }
             catch (HttpRequestException) { throw new ForeSiteMeasurementException("FORESITE_WELL_TEST_BODY_INVALID"); }
 
-            try
+            // ForeSite answers an empty 200 for a well that has no reported test; that is "no test", not a bad response.
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (!bytes.AsSpan().IsEmpty && !IsBlank(bytes))
             {
-                await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
-                using var document = await JsonDocument.ParseAsync(body, new JsonDocumentOptions { MaxDepth = 16 }, cancellationToken);
-                test = ReadRecord(document.RootElement, id);
+                try
+                {
+                    using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
+                    test = ReadRecord(document.RootElement, id);
+                }
+                catch (JsonException) { throw InvalidResponse(); }
             }
-            catch (JsonException) { throw InvalidResponse(); }
         }
 
         return new(request.AssetExternalId, test, DateTimeOffset.UtcNow, "foresite:well-tests");
+    }
+
+    private static bool IsBlank(byte[] bytes)
+    {
+        foreach (var value in bytes)
+            if (value is not (0x20 or 0x09 or 0x0A or 0x0D)) return false;
+        return true;
     }
 
     private static WellTestRecord? ReadRecord(JsonElement root, long wellId)

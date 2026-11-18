@@ -28,6 +28,10 @@ internal static class WellTestChecks
         if ((await new ForeSiteLatestWellTestReader(new ForeSiteSession(empty)).ReadAsync(new("101"))).Test is not null)
             throw new InvalidOperationException("Null test response must remain empty.");
 
+        using var noBody = NewClient("");
+        if ((await new ForeSiteLatestWellTestReader(new ForeSiteSession(noBody)).ReadAsync(new("101"))).Test is not null)
+            throw new InvalidOperationException("An empty 200 body means no reported test, not an invalid response.");
+
         await Refuses(RecordedShape.Replace("\"WellId\":101", "\"WellId\":102", StringComparison.Ordinal), "FORESITE_WELL_TEST_IDENTITY_MISMATCH");
         await Refuses(RecordedShape.Replace("\"Id\":7", "\"Id\":7,\"id\":8", StringComparison.Ordinal), "FORESITE_WELL_TEST_RESPONSE_INVALID");
         await Refuses(RecordedShape.Replace("-06:00", "", StringComparison.Ordinal), "FORESITE_WELL_TEST_TIMESTAMP_INVALID");
