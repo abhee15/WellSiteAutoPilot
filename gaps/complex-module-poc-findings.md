@@ -105,3 +105,10 @@ Visible maximized Edge on draft "Sri Pump Fillage Test" (threshold 50). Case edi
 - **P24** Sample-case reading accepts values outside 0-100 for a percentage (250 saved and evaluated).
 - **P25** "Submit for review" is enabled while a case has a failing assertion; refusal happens only server-side. Not exercised (submit not run).
 - Not verified: submission rejection, IDE-tab editing of cases, full vitest suite, contract-only drafts (no case editor expected).
+
+## CL 1108729 (#642, unsupported-input reasons, empty new ports) - live check 2026-11-18
+Visible maximized Edge. Full vitest: 663/665 first run (guided-authoring and connection-inventory timed out under load); both pass alone (24/24 with guided-contract-editor).
+- New input and output ports start with an empty quantity. Save stays disabled until the port is filled.
+- Preview reasons: RPOC_0413 "AveragePumpFillage - Meets requirement"; AR-ESP2 and AEPOC_0001 "Reading missing - Foresite measurement missing" (previously a generic code).
+- **P26** A port whose quantity is not registered (e.g. SPM, NotARegisteredQuantity) gets no capability or unit, and Save stays disabled with no stated reason; other ports are fine. The user cannot tell which port blocks save.
+- Not verified: wrong-capability, wrong-value-type, access-mode and provider-mismatch reasons (only the "reading missing" path was reachable).
