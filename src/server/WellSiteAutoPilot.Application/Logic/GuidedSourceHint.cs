@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using WellSiteAutoPilot.Failures;
 
@@ -34,7 +35,7 @@ public static class GuidedSourceHints
                 throw Invalid("Provider and operation keys are short identifiers.");
             if (hint.ParametersJson is null) continue;
             if (hint.OperationKey is null) throw Invalid("Source parameters need an operation.");
-            if (System.Text.Encoding.UTF8.GetByteCount(hint.ParametersJson) > MaximumParameterBytes)
+            if (Encoding.UTF8.GetByteCount(hint.ParametersJson) > MaximumParameterBytes)
                 throw Invalid("Source parameters are too large.");
             try
             {
