@@ -150,9 +150,12 @@ internal static class GuidedContractDraftChecks
         Assert(Reason(Input("PumpFillage", capability: AdapterReadRules.StructuredCurrentCapability)) == GuidedInputSupport.QuantityUnregistered,
             "A scalar quantity declared as a structured input was accepted.");
         Assert(Reason(Input("PumpFillage", type: "string")) == GuidedInputSupport.ValueTypeUnsupported, "A wrong value type was not named.");
+        Assert(GuidedInputSupport.IsScalarSeries(Input("PumpFillage")), "A numeric input declared with a value schema must still preview as a history series.");
+        Assert(!GuidedInputSupport.IsScalarSeries(Input("PumpFillage", type: "string")), "A text input was offered a numeric history preview.");
         var cards = new LogicDataRequirement("cards", "well", ForeSiteSurfaceCard.Quantity, "Current", null, 60, false,
             new(ForeSiteSurfaceCard.SchemaId, Json(ForeSiteSurfaceCard.JsonSchema)), AdapterReadRules.StructuredCurrentCapability);
         Assert(Reason(cards) is null, "A structured card input the provider registers was reported unsupported.");
+        Assert(!GuidedInputSupport.IsScalarSeries(cards), "A structured card input was offered a numeric history preview.");
         Assert(Reason(cards with { ValueSchema = new("authoring.cards/v1", cards.ValueSchema!.Schema) }) == GuidedInputSupport.QuantityUnregistered,
             "A structured input with a schema id the provider does not register was accepted.");
         Assert(Reason(cards, "cygnet") == GuidedInputSupport.QuantityUnregistered, "Cards were accepted on a connection that does not serve them.");
