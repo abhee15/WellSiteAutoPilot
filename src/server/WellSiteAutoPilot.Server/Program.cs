@@ -1264,6 +1264,11 @@ v1.MapGet("/guided-module-drafts",
     .WithName("ListGuidedModuleDrafts").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleDraftResponse[]>();
 
+v1.MapGet("/guided-module-drafts/providers",
+    () => GuidedProviders.List().Select(item => new GuidedProviderResponse(item.AdapterKey, item.DisplayName, item.CurrentValuesOnly)).ToArray())
+    .WithName("ListGuidedModuleProviders").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedProviderResponse[]>();
+
 v1.MapPost("/guided-module-drafts",
     async (SaveGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>

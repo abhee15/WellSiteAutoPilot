@@ -88,22 +88,7 @@ internal static class ConfiguredShadowE2e
             throw new InvalidOperationException("Provider failure was not durably inspectable.");
         Console.WriteLine("Configured Shadow V2 real HTTP/PostgreSQL/JetStream/simulator journey, request recovery, provenance and failure checks passed.");
         var foresiteWellId = await ImportForeSiteWellAsync(client);
-        await VerifyGuidedAsync(client, foresiteWellId, pressure: false);
-        using var simulator = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5091") };
-        using (var reset = await simulator.PostAsJsonAsync("/api/sim/v1/scenarios/reset", new { scenario = "pressure-differential" }))
-            reset.EnsureSuccessStatusCode();
-        try
-        {
-            await VerifyGuidedAsync(client, assetId, pressure: true);
-            var commands = await Read(await simulator.GetAsync("/api/sim/v1/commands/log"), HttpStatusCode.OK);
-            if (commands.GetProperty("received").GetInt32() != 0)
-                throw new InvalidOperationException("Guided pressure Shadow execution sent a provider command.");
-        }
-        finally
-        {
-            using var reset = await simulator.PostAsJsonAsync("/api/sim/v1/scenarios/reset", new { scenario = "rod-pump-normal" });
-            reset.EnsureSuccessStatusCode();
-        }
+        await VerifyGuidedAsync(client, foresiteWellId);
     }
 
     /// <summary>Imports well 101 through a ForeSite connection (the simulator serves a ForeSite-shaped stand-in) and returns its asset.</summary>
@@ -135,62 +120,42 @@ internal static class ConfiguredShadowE2e
             owner.GetGuid() == connectionId).GetProperty("id").GetGuid();
     }
 
-    private static async Task VerifyGuidedAsync(HttpClient client, Guid assetId, bool pressure)
+    private static async Task VerifyGuidedAsync(HttpClient client, Guid assetId)
     {
         client.DefaultRequestHeaders.Remove("X-Correlation-ID");
         client.DefaultRequestHeaders.Add("X-Correlation-ID", "ci-guided-shadow-e2e");
-        var inputs = pressure
-            ? new[] { (Id: "casing-pressure", Quantity: "CasingPressure"), (Id: "tubing-pressure", Quantity: "TubingPressure") }
-            : new[] { (Id: "fillage", Quantity: "PumpFillage") };
+        var inputs = new[] { (Id: "fillage", Quantity: "PumpFillage") };
         var manifestJson = JsonSerializer.Serialize(new
         {
             manifestVersion = 1,
             moduleId = "ci.guided-" + Guid.NewGuid().ToString("N"),
-            version = "1.0.0", displayName = pressure ? "Guided pressure differential" : "Guided pump fillage", publisher = "WellSite AutoPilot",
+            version = "1.0.0", displayName = "Guided pump fillage", publisher = "WellSite AutoPilot",
             runtime = "DotNet", executionProfile = "ScheduledOneShot",
-            entryPoint = pressure ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint, minimumSdkVersion = "1.1.0",
-            // The fillage case runs through a real ForeSite connection; the pressure case has no simulated CygNet yet.
-            requiredAdapterKey = pressure ? null : "foresite",
+            entryPoint = DeclarativeThresholdModule.EntryPoint, minimumSdkVersion = "1.1.0",
+            // Authoring is provider-first. A pressure-differential case returns when the simulator can stand in for CygNet.
+            requiredAdapterKey = "foresite",
             assetRequirements = new[] { new { role = "well", minimumCount = 1, maximumCount = 1, requiredTraits = Array.Empty<string>() } },
             dataRequirements = inputs.Select(input => new { id = input.Id, assetRole = "well", quantity = input.Quantity, access = "Current",
-                canonicalUnit = pressure ? "psi" : "%", maximumAgeSeconds = pressure ? 120 : 60, allowUncertainQuality = false }),
+                canonicalUnit = "%", maximumAgeSeconds = 60, allowUncertainQuality = false }),
             commandRequirements = Array.Empty<object>(),
             parameterSchema = new { type = "object", properties = new { threshold = new { type = "number", minimum = 0,
-                maximum = pressure ? 10000 : 100 } }, additionalProperties = false }
+                maximum = 100 } }, additionalProperties = false }
         });
         var draft = await Read(await client.PostAsJsonAsync("/api/v1/guided-module-drafts", new
         {
             manifestJson,
-            definition = new { parameter = "threshold", @default = pressure ? 150 : 90, outcomeCode = pressure ? "PRESSURE_DIFFERENTIAL_HIGH" : "LOW_FILLAGE",
-                title = pressure ? "High pressure differential" : "Low pump fillage", detail = "Review the simulator reading." }
+            definition = new { parameter = "threshold", @default = 90, outcomeCode = "LOW_FILLAGE",
+                title = "Low pump fillage", detail = "Review the simulator reading." }
         }), HttpStatusCode.OK);
         var draftPath = "/api/v1/guided-module-drafts/" + draft.GetProperty("id").GetGuid();
         var revision = draft.GetProperty("revision").GetInt32();
-        object previewRequest = pressure
-            ? new { expectedRevision = revision, pressure = new { casingPsi = 400, tubingPsi = 120 }, parametersJson = "{}" }
-            : new { expectedRevision = revision, value = 82, parametersJson = "{}" };
+        var previewRequest = new { expectedRevision = revision, value = 82, parametersJson = "{}" };
         var preview = await Read(await client.PostAsJsonAsync(draftPath + "/preview", previewRequest), HttpStatusCode.OK);
-        object submissionRequest = pressure
-            ? new { expectedRevision = revision, pressureReadings = new[] { new { casingPsi = (int?)400, tubingPsi = 120 },
-                new { casingPsi = (int?)270, tubingPsi = 120 }, new { casingPsi = (int?)null, tubingPsi = 120 } } }
-            : new { expectedRevision = revision, readings = new int?[] { 82, 90, null } };
+        var submissionRequest = new { expectedRevision = revision, readings = new int?[] { 82, 90, null } };
         var submission = await Read(await client.PostAsJsonAsync(draftPath + "/submit", submissionRequest), HttpStatusCode.OK);
         var packageSha256 = submission.GetProperty("packageSha256").GetString();
         if (preview.GetProperty("packageSha256").GetString() != packageSha256)
             throw new InvalidOperationException("The preview and submission refer to different packages.");
-        if (pressure)
-        {
-            var review = await Read(await client.GetAsync($"{draftPath}/submissions/{revision}"), HttpStatusCode.OK);
-            var cases = review.GetProperty("cases");
-            if (preview.GetProperty("differentialPsi").GetDecimal() != 280 ||
-                cases[0].GetProperty("pressure").GetProperty("casingPsi").GetInt32() != 400 ||
-                cases[0].GetProperty("pressure").GetProperty("tubingPsi").GetInt32() != 120 ||
-                cases[0].GetProperty("differentialPsi").GetDecimal() != 280 ||
-                cases[1].GetProperty("differentialPsi").GetDecimal() != 150 ||
-                cases[1].GetProperty("outcomeCode").GetString() != "THRESHOLD_NOT_MET" ||
-                cases[2].GetProperty("failureCode").GetString() != "MODULE_DECLARATIVE_INPUT_UNAVAILABLE")
-                throw new InvalidOperationException("Pressure review lost its evidence or threshold behavior: " + review);
-        }
         var approved = await Read(await client.PostAsJsonAsync($"{draftPath}/submissions/{revision}/approve",
             new { packageSha256, reason = "Simulator threshold evidence reviewed" }), HttpStatusCode.OK);
         if (!approved.GetProperty("isEnabled").GetBoolean() || approved.GetProperty("packageSha256").GetString() != packageSha256)
@@ -200,17 +165,12 @@ internal static class ConfiguredShadowE2e
         await AwaitPackagePublication(client, $"/api/v1/logic-modules/{moduleId}/{version}/package-state");
 
         var approvedManifest = approved.GetProperty("manifestJson").GetString();
-        object dataBindings;
-        if (pressure)
-            dataBindings = inputs.Select(input => new { requirementId = input.Id, assetId, providerId = "simulator",
-                providerAssetExternalId = "WELL-102", providerMappingJson = "{}" }).ToArray();
-        else
-            // A keyed module takes its bindings from the imported asset's own connection, exactly as the web does.
-            dataBindings = await Read(await client.PostAsJsonAsync("/api/v1/configured-logic/resolve-inputs", new
-            {
-                moduleManifestJson = approvedManifest,
-                assetBindings = new[] { new { role = "well", assetId, parameterOverridesJson = "{}" } }
-            }), HttpStatusCode.OK);
+        // A keyed module takes its bindings from the imported asset's own connection, exactly as the web does.
+        var dataBindings = await Read(await client.PostAsJsonAsync("/api/v1/configured-logic/resolve-inputs", new
+        {
+            moduleManifestJson = approvedManifest,
+            assetBindings = new[] { new { role = "well", assetId, parameterOverridesJson = "{}" } }
+        }), HttpStatusCode.OK);
         var configuration = await Read(await client.PostAsJsonAsync("/api/v1/configured-logic", new
         {
             name = "Guided Shadow E2E", moduleManifestJson = approvedManifest, parametersJson = "{}",
@@ -230,26 +190,12 @@ internal static class ConfiguredShadowE2e
             throw new InvalidOperationException("The configured worker execution diverged from the guided preview: " + result);
         using var output = JsonDocument.Parse(result.GetProperty("outputJson").GetString()!);
         var observations = output.RootElement.GetProperty("inputObservations").EnumerateArray().ToArray();
-        decimal[] expected = pressure ? [120, 400] : [82];
+        decimal[] expected = [82];
         if (observations.Any(item => item.GetProperty("assetId").GetGuid() != assetId) ||
             !observations.Select(item => item.GetProperty("value").GetDecimal()).Order().SequenceEqual(expected) ||
             output.RootElement.GetProperty("controlIntents").GetArrayLength() != 0)
             throw new InvalidOperationException("The guided run lost input provenance or emitted a control intent.");
-        if (pressure && output.RootElement.GetProperty("engineeringResults")[0].GetProperty("value").GetDecimal() != 280)
-            throw new InvalidOperationException("Pressure differential diverged from preview.");
-        if (pressure)
-        {
-            using var simulator = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5091") };
-            using var changed = await simulator.PutAsJsonAsync("/api/sim/v1/assets/WELL-102/current/CasingPressure",
-                new { value = 400, unit = "psi", quality = "Bad" });
-            changed.EnsureSuccessStatusCode();
-            var badReceipt = await Send(client, path + "/shadow", Guid.NewGuid());
-            var badRun = await AwaitTerminal(client, badReceipt.GetProperty("executionId").GetGuid());
-            if (badRun.GetProperty("status").GetString() != "Failed" ||
-                badRun.GetProperty("failureCode").GetString() != "EXECUTION_INPUT_QUALITY_REJECTED")
-                throw new InvalidOperationException("The worker accepted a bad pressure reading: " + badRun);
-        }
-        Console.WriteLine($"Guided draft, preview, approval and configured Shadow execution passed for {(pressure ? "pressure differential" : "pump fillage")}.");
+        Console.WriteLine($"Guided draft, preview, approval and configured Shadow execution passed for pump fillage through ForeSite.");
     }
 
     private static async Task AwaitPackagePublication(HttpClient client, string path)

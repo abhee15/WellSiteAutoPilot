@@ -1,6 +1,7 @@
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Domain.Logic;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.ModuleSdk;
 
 namespace WellSiteAutoPilot.Application.Logic;
@@ -20,6 +21,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     public async Task<GuidedModuleDraft> CreateAsync(GuidedModuleDraftContent content, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
+        content = GuidedProviders.Canonicalize(content);
         await ValidateContentAsync(content, cancellationToken);
         var draft = new GuidedModuleDraft(Guid.NewGuid(), subject.UserId, 1, content);
         await drafts.AddOwnedAsync(draft, subject, actor, cancellationToken);
@@ -142,6 +144,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
         var draft = await GetAsync(id, subject, cancellationToken);
+        content = GuidedProviders.Canonicalize(content);
         var edited = draft.Edit(expectedRevision, content);
         await ValidateContentAsync(content, cancellationToken);
         await drafts.UpdateOwnedAsync(edited, expectedRevision, subject, actor, cancellationToken);

@@ -16,6 +16,7 @@ import sys
 # The two authenticated-only endpoints inherit the authenticated route group.
 EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/guided-module-drafts"): ("ListGuidedModuleDrafts", "GuidedDraftManage"),
+    ("GET", "/guided-module-drafts/providers"): ("ListGuidedModuleProviders", "GuidedDraftManage"),
     ("POST", "/guided-module-drafts"): ("CreateGuidedModuleDraft", "GuidedDraftManage"),
     ("GET", "/guided-module-drafts/{id:guid}"): ("GetGuidedModuleDraft", "GuidedDraftManage"),
     ("PUT", "/guided-module-drafts/{id:guid}"): ("EditGuidedModuleDraft", "GuidedDraftManage"),

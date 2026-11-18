@@ -17,6 +17,8 @@ public sealed record GuidedSampleCaseRequest(string Name, decimal? Value, decima
 public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest? Definition,
     IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null, IReadOnlyList<GuidedSourceHintRequest>? SourceHints = null);
 
+public sealed record GuidedProviderResponse(string AdapterKey, string DisplayName, bool CurrentValuesOnly);
+
 public sealed record GuidedPressureReadingRequest(decimal? CasingPsi, decimal? TubingPsi);
 
 public sealed record PreviewGuidedModuleDraftRequest(int ExpectedRevision, decimal? Value, string ParametersJson, GuidedPressureReadingRequest? Pressure = null);
