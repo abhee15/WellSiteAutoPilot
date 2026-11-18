@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
 import { loadAdapterOperations } from '../../src/views/adapterOperations';
+import { addDailyInput, blankContractManifest } from '../../src/views/GuidedContractEditor';
 import {
   createGuidedModuleDraft,
   editGuidedModuleDraft,
@@ -323,4 +324,25 @@ it('lets an author choose where an input is read from, and saves it beside the c
   ]);
   // The hint is not part of the portable manifest.
   expect(body.manifestJson).not.toContain('current.pump-fillage');
+});
+
+it('adds a discovered production-day field as an uncertain-quality daily input, once', () => {
+  const blank = blankContractManifest('Daily check');
+  const added = addDailyInput(blank, 'CyclesYesterday', 'count');
+  const input = (JSON.parse(added) as { dataRequirements: Record<string, unknown>[] }).dataRequirements.at(0);
+  expect(input).toMatchObject({
+    quantity: 'CyclesYesterday',
+    canonicalUnit: 'count',
+    access: 'Current',
+    allowUncertainQuality: true,
+    requiredCapability: 'engineering.daily',
+    maximumAgeSeconds: 172800,
+  });
+  expect((input?.valueSchema as { schema: { type: string } }).schema.type).toBe('number');
+  // A field already declared as a daily input is not duplicated, and a name that is not an identifier is refused.
+  expect(addDailyInput(added, 'CyclesYesterday', 'count')).toBe(added);
+  expect(addDailyInput(added, 'Cycles Yesterday', 'count')).toBe(added);
+  expect(
+    (JSON.parse(addDailyInput(added, 'RunTime', 'h')) as { dataRequirements: unknown[] }).dataRequirements,
+  ).toHaveLength(2);
 });
