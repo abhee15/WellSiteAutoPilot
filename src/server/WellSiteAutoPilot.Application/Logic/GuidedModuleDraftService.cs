@@ -129,6 +129,14 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         await drafts.FindOwnedAsync(id, subject, cancellationToken) ??
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_NOT_FOUND", FailureKind.NotFound, "The guided draft was not found.");
 
+    public async Task DeleteAsync(Guid id, int expectedRevision, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        var draft = await GetAsync(id, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        await drafts.DeleteOwnedAsync(draft, expectedRevision, subject, actor, cancellationToken);
+    }
+
     public async Task<GuidedModuleDraft> EditAsync(Guid id, int expectedRevision, GuidedModuleDraftContent content,
         AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
     {

@@ -52,6 +52,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   checkGuidedModuleAssetCompatibility: vi.fn(),
   discoverGuidedModuleQuantities: vi.fn(),
   createGuidedModuleDraft: vi.fn(),
+  deleteGuidedModuleDraft: vi.fn(),
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),

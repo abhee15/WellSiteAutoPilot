@@ -156,6 +156,17 @@ receipt = request("POST", guided_url + "/submit", OPERATOR, submit)
 assert receipt["draftId"] == guided["id"] and receipt["revision"] == 2 and len(receipt["packageSha256"]) == 64
 assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, expectedRevision=2))["packageSha256"] == receipt["packageSha256"]
 request("POST", guided_url + "/submit", OPERATOR, submit, expected=409)
+# A submitted draft is review evidence and cannot be deleted; an unsubmitted one can, by its owner at its current revision.
+request("DELETE", guided_url + "?expectedRevision=2", OPERATOR, expected=409)
+doomed = request("POST", "/guided-module-drafts", OPERATOR, guided_content)
+doomed_url = "/guided-module-drafts/" + doomed["id"]
+request("DELETE", doomed_url + "?expectedRevision=1", GROUP_ONLY, expected=403)
+request("DELETE", doomed_url + "?expectedRevision=1", OTHER, expected=404)
+request("DELETE", doomed_url, OPERATOR, expected=409)
+request("DELETE", doomed_url + "?expectedRevision=2", OPERATOR, expected=409)
+request("DELETE", doomed_url + "?expectedRevision=1", OPERATOR, expected=204)
+request("GET", doomed_url, OPERATOR, expected=404)
+request("DELETE", doomed_url + "?expectedRevision=1", OPERATOR, expected=404)
 review_url = guided_url + "/submissions/2"
 queue_url = "/guided-module-submissions"
 request("GET", queue_url, OPERATOR, expected=403)

@@ -9,6 +9,7 @@ import {
   discoverGuidedModuleQuantities,
   getGuidedModuleSubmission,
   createGuidedModuleDraft,
+  deleteGuidedModuleDraft,
   editGuidedModuleDraft,
   listGuidedModuleDrafts,
   listPendingGuidedModuleSubmissions,
@@ -27,6 +28,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   checkGuidedModuleAssetCompatibility: vi.fn(),
   discoverGuidedModuleQuantities: vi.fn(),
   createGuidedModuleDraft: vi.fn(),
+  deleteGuidedModuleDraft: vi.fn(),
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
@@ -237,6 +239,28 @@ it('preserves unsaved edits until the author confirms a draft switch', async () 
   fireEvent.change(existing, { target: { value: 'draft-3' } });
   fireEvent.click(screen.getByRole('button', { name: /leave/i }));
   expect(name.value).toBe('Existing draft');
+});
+
+it('deletes an unsubmitted draft only after confirmation', async () => {
+  const saved = {
+    id: 'draft-del',
+    revision: 1,
+    manifestJson: '{"displayName":"Scratch check","entryPoint":"wsa.declarative.threshold.v1"}',
+    definition: { default: 70, outcomeCode: 'LOW_FILLAGE' },
+  };
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [saved] } as never);
+  vi.mocked(deleteGuidedModuleDraft).mockResolvedValue({ response: { ok: true } } as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  fireEvent.change(await screen.findByLabelText('Open draft'), { target: { value: 'draft-del' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+  expect(deleteGuidedModuleDraft).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Yes, delete' }));
+  await screen.findByText('Draft deleted.');
+  expect(deleteGuidedModuleDraft).toHaveBeenCalledWith({ path: { id: 'draft-del' }, query: { expectedRevision: 1 } });
+  expect(screen.queryByRole('option', { name: 'Scratch check' })).toBeNull();
 });
 
 it('names what to fix when the server refuses a save, and stays generic for unknown codes', async () => {

@@ -9,6 +9,9 @@ public interface IGuidedModuleDraftRepository
     Task AddOwnedAsync(GuidedModuleDraft draft, AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default);
     Task UpdateOwnedAsync(GuidedModuleDraft draft, int expectedRevision, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
+    /// <summary>Removes an owned draft that was never submitted. Submitted drafts are review evidence and are kept.</summary>
+    Task DeleteOwnedAsync(GuidedModuleDraft draft, int expectedRevision, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GuidedModuleReviewItem>> ListPendingSubmissionsAsync(AccessSubject subject, int offset, int limit,
         CancellationToken cancellationToken = default);
     Task<GuidedModuleReviewSnapshot?> FindSubmissionAsync(Guid id, int revision, AccessSubject subject, CancellationToken cancellationToken = default);

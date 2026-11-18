@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import {
   approveGuidedModuleSubmission,
   createGuidedModuleDraft,
+  deleteGuidedModuleDraft,
   editGuidedModuleDraft,
   getGuidedModuleSubmission,
   listGuidedModuleDrafts,
@@ -31,7 +32,7 @@ import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { GuidedSampleCases, defaultSampleCases } from './GuidedSampleCases';
-import { NumberField, SelectField, TextField } from '../components/FormFields';
+import { ConfirmPanel, FormActions, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
 import { t } from '../localization';
@@ -246,6 +247,7 @@ export function GuidedAuthoringPage({
   const [evidence, setEvidence] = useState<GuidedModulePreviewResponse[]>([]);
   // Authored sample cases; null means the draft's saved cases (or the starting cases for a new draft) are unchanged.
   const [cases, setCases] = useState<GuidedSampleCaseRequest[] | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [reviewKey, setReviewKey] = useState(initialReviewReference);
   const [submittedReference, setSubmittedReference] = useState('');
   const [review, setReview] = useState<GuidedModuleReviewResponse | null>(null);
@@ -254,7 +256,9 @@ export function GuidedAuthoringPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [notice, setNotice] = useState<'guided.saved' | 'guided.submitted' | 'guided.approved' | null>(null);
+  const [notice, setNotice] = useState<
+    'guided.saved' | 'guided.submitted' | 'guided.approved' | 'guided.deleted' | null
+  >(null);
 
   useEffect(() => {
     if (!canAuthor) return;
@@ -374,7 +378,22 @@ export function GuidedAuthoringPage({
   }
 
   function changeDraft(next: GuidedModuleDraftResponse | null, nextPressure?: boolean) {
+    setConfirmDelete(false);
     requestNavigation(() => select(next, nextPressure));
+  }
+
+  async function deleteDraft() {
+    if (!draft?.id || !draft.revision) return;
+    const { error, response } = await deleteGuidedModuleDraft({
+      path: { id: draft.id },
+      query: { expectedRevision: draft.revision },
+    });
+    if (error || !response?.ok) throw new Error();
+    const removed = draft.id;
+    setDrafts((items) => items.filter((item) => item.id !== removed));
+    setConfirmDelete(false);
+    select(null);
+    setNotice('guided.deleted');
   }
 
   async function save() {
@@ -596,7 +615,23 @@ export function GuidedAuthoringPage({
                       onClick={() => void run(submit)}
                     />
                   )}
+                  {draft?.id && !submittedReference && !confirmDelete && (
+                    <ActionButton label={t('guided.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />
+                  )}
                 </div>
+              )}
+              {confirmDelete && draft?.id && (
+                <ConfirmPanel title={t('guided.deleteTitle')} level={3} focusOnOpen>
+                  <p>{t('guided.deleteConfirm', { name: displayName(draft.manifestJson) })}</p>
+                  <FormActions>
+                    <ActionButton
+                      label={t('guided.deleteNo')}
+                      disabled={busy}
+                      onClick={() => setConfirmDelete(false)}
+                    />
+                    <ActionButton label={t('guided.deleteYes')} disabled={busy} onClick={() => void run(deleteDraft)} />
+                  </FormActions>
+                </ConfirmPanel>
               )}
             </div>
             <div

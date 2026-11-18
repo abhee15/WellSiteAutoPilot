@@ -1285,6 +1285,16 @@ v1.MapPut("/guided-module-drafts/{id:guid}",
     .WithName("EditGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleDraftResponse>();
 
+v1.MapDelete("/guided-module-drafts/{id:guid}",
+    async (Guid id, int? expectedRevision, GuidedModuleDraftService drafts, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await drafts.DeleteAsync(id, expectedRevision ?? 0, access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.NoContent();
+    })
+    .WithName("DeleteGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces(StatusCodes.Status204NoContent);
+
 v1.MapGet("/guided-module-submissions",
     async (int? offset, int? limit, GuidedModuleDraftService drafts, RequestAccessContext access,
         CancellationToken cancellationToken) =>

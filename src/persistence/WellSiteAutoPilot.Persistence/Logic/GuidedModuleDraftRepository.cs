@@ -68,6 +68,21 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             if (changed != 1) throw Conflict();
         }, cancellationToken);
 
+    public Task DeleteOwnedAsync(GuidedModuleDraft draft, int expectedRevision, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default) =>
+        WriteAsync(draft, subject, actor, "guided-draft.deleted", async () =>
+        {
+            if (expectedRevision < 1 || draft.Revision != expectedRevision) throw Conflict();
+            // A submission is what a reviewer approved; the draft behind it stays so that evidence keeps its origin.
+            if (await db.GuidedModuleSubmissions.AsNoTracking().AnyAsync(item => item.DraftId == draft.Id, cancellationToken))
+                throw new WellSiteAutoPilotException("GUIDED_DRAFT_SUBMITTED", FailureKind.Conflict,
+                    "A submitted draft is kept as review evidence and cannot be deleted.");
+            var deleted = await db.GuidedModuleDrafts
+                .Where(item => item.Id == draft.Id && item.OwnerUserId == subject.UserId && item.Revision == expectedRevision)
+                .ExecuteDeleteAsync(cancellationToken);
+            if (deleted != 1) throw Conflict();
+        }, cancellationToken);
+
     public async Task<IReadOnlyList<GuidedModuleReviewItem>> ListPendingSubmissionsAsync(AccessSubject subject, int offset, int limit,
         CancellationToken cancellationToken = default)
     {
