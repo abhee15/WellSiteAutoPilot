@@ -112,3 +112,8 @@ Visible maximized Edge. Full vitest: 663/665 first run (guided-authoring and con
 - Preview reasons: RPOC_0413 "AveragePumpFillage - Meets requirement"; AR-ESP2 and AEPOC_0001 "Reading missing - Foresite measurement missing" (previously a generic code).
 - **P26** A port whose quantity is not registered (e.g. SPM, NotARegisteredQuantity) gets no capability or unit, and Save stays disabled with no stated reason; other ports are fine. The user cannot tell which port blocks save.
 - Not verified: wrong-capability, wrong-value-type, access-mode and provider-mismatch reasons (only the "reading missing" path was reachable).
+
+## CL 1108751 (#645, actionable save/submit refusal messages) - live check 2026-11-18
+Visible maximized Edge, draft "Sri Pump Fillage Test" (saved case 'Edge below boundary' expects trigger at 250%, observed none).
+- Submit is disabled until "Run sample cases" is run, then enabled. Submit returned 400 guided_sample_expectation_failed and the page showed "A sample case did not produce its expected outcome. Fix the rule or the expectation, save, and run the cases again." P25 confirmed: submit stays enabled with a failing assertion, but the refusal is now clearly explained. Message does not name the failing case (server detail names 'Edge below boundary').
+- Not verified: revision conflict, already submitted, invalid cases, no rule, max age, duplicate input, unknown role, value schema messages.
