@@ -151,3 +151,7 @@ Visible maximized Edge, Quantity source = Daily averages on "Sri Pump Fillage Te
 - AEPOC_0001: same 18 as RPOC_0413.
 - **P30** Order is not sorted: TotalFluidRateInferred is first, then the rest alphabetical, so the list looks inconsistent. Minor.
 - Not verified: the 128 cap (no well near it), quantities with no unit being omitted, behaviour with an empty Units map.
+
+### P31 - Daily averages: no way to read the value of a discovered quantity (user-reported)
+After #647 the Historical quantity list offers every populated daily quantity (e.g. MotorAmps, MeasuredGasVolume), but the read button appears only for TotalFluidRateInferred. Any other choice shows 'The daily series preview supports inferred total fluid rate.' and no button. Cause: GuidedQuantityDiscovery canPreview is hard-coded for DailyAverages, and the production-days preview request/reader (ForeSiteDailyAverageContracts.Quantity) has no quantity parameter. Fix needs a quantity field on GuidedProductionDaysPreviewRequest, the adapter reader and the UI gate. Until then the dropdown offers choices that cannot be previewed.
+
