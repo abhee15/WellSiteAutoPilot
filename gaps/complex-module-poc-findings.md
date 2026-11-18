@@ -134,3 +134,11 @@ API: stale revision -> 409 GUIDED_DRAFT_REVISION_CONFLICT (draft intact); missin
 - P6 and P23 (no delete) are addressed for the UI. P23's search/duplicate-name part is NOT addressed: the picker still lists duplicate names unsorted; deletion is one at a time.
 - **P28** Missing expectedRevision returns 409 conflict, not a validation error (minor).
 - Not verified: refusal for a submitted draft, non-owner refusal, audit record.
+
+## CL 1108757 (#646, empty well test = no test; contract panel direction/unit) - live check 2026-11-18
+Checks: server Release build, ForeSite adapter tests (live ForeSite check skipped), tsc, eslint, guided-module-contract vitest (6/6), 379 guards. Full vitest not run.
+Visible maximized Edge:
+- C2: rule drafts show "Direction: Input (read by the module)" and Unit (PumpFillage %; CasingPressure psi; TubingPressure psi) for each selected input. Output direction wording not seen (no rule draft has outputs; contract-only drafts have no panel).
+- A2: Well test source on RPOC_0413 returns evidenceStatus NoTest and the UI says "ForeSite returned no latest well test for this well." AR-ESP2 and AEPOC_0001 return reported tests with quantity lists.
+- **P29** Well-test panel shows raw values: ISO timestamps with +00:00 offsets, a bare "Test status 2103" code, and every reported quantity has unit null ("Eligibility and units are unverified").
+- Not verified: the empty-response path against a real empty ForeSite payload (adapter unit test only); RPOC_0413's NoTest is whatever ForeSite returned today.
