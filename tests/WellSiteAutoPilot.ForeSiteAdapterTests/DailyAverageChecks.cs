@@ -45,6 +45,29 @@ internal static class DailyAverageChecks
             wellObserved[0] is not { Quantity: "CHP", Unit: "psi" } || wellObserved[1] is not { Quantity: "THP", Unit: "psi" })
             throw new InvalidOperationException("Discovery must offer every populated field the provider gives a unit for, in a stable order, and nothing else.");
 
+        // The latest finished production day supplies any populated provider field ("yesterday"), with its own unit.
+        const string day2 = """
+            {"Id":8,"WellId":101,"StartDateTime":"2026-11-02T06:00:00Z","EndDateTime":"2026-11-03T05:59:59Z","TotalFluidRateInferred":430,"CyclesYesterday":0,"RunTime":23.5}
+            """;
+        const string dayUnits = """
+            {"TotalFluidRateInferred":{"UnitKey":"STB/d"},"CyclesYesterday":{"UnitKey":"count"},"RunTime":{"UnitKey":"h"}}
+            """;
+        result = await ReadAsync(Envelope(Row.Replace("420}", "420,\"CyclesYesterday\":9}", StringComparison.Ordinal) + "," + day2, dayUnits), Request2);
+        var after = DateTimeOffset.Parse("2026-11-03T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+        var cycles = ForeSiteLatestDailyValue.Select(result, "CyclesYesterday", after);
+        var runTime = ForeSiteLatestDailyValue.Select(result, "RunTime", after);
+        if (cycles is not { Value: 0, Unit: "count", Quality: "Uncertain" } || cycles.TimestampUtc != DateTimeOffset.Parse("2026-11-03T05:59:59Z", System.Globalization.CultureInfo.InvariantCulture) ||
+            cycles.TimestampKind != ForeSiteLatestDailyValue.TimestampKind || runTime is not { Value: 23.5m, Unit: "h" })
+            throw new InvalidOperationException("The latest finished day must supply the field, its unit and the production-day end time; zero is a value.");
+        // A day still in progress is never used, and a field the finished days do not report is missing, not stale.
+        var during = DateTimeOffset.Parse("2026-11-03T01:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+        if (ForeSiteLatestDailyValue.Select(result, "CyclesYesterday", during).Value != 9)
+            throw new InvalidOperationException("An unfinished production day must not be read; the previous finished day is used.");
+        try { ForeSiteLatestDailyValue.Select(result, "RunTime", during); throw new InvalidOperationException("A field missing from every finished day must fail."); }
+        catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_MEASUREMENT_MISSING") { }
+        try { ForeSiteLatestDailyValue.Select(result with { UnitsByQuantity = new Dictionary<string, string>() }, "RunTime", after); throw new InvalidOperationException("A field with no unit must fail."); }
+        catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_DAILY_UNIT_MISSING") { }
+
         await Reject(Envelope(Row + "," + Row), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row + "," + Row.Replace("\"Id\":7", "\"Id\":8", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row.Replace("05:00:00Z", "05:00:00", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");
@@ -64,10 +87,12 @@ internal static class DailyAverageChecks
         throw new InvalidOperationException("Expected " + code);
     }
 
-    private static async Task<ForeSiteDailyAverageResult> ReadAsync(string json)
+    private static readonly ForeSiteDailyAverageRequest Request2 = new("101", "2026-11-01T00:00:00Z", "2026-11-04T00:00:00Z");
+
+    private static async Task<ForeSiteDailyAverageResult> ReadAsync(string json, ForeSiteDailyAverageRequest? request = null)
     {
         using var client = new HttpClient(new Source(json)) { BaseAddress = new Uri("http://foresite.test/prefix/") };
-        return await new ForeSiteDailyAverageReader(new(client)).ReadAsync(Request, CancellationToken.None);
+        return await new ForeSiteDailyAverageReader(new(client)).ReadAsync(request ?? Request, CancellationToken.None);
     }
 
     private sealed class Source(string json) : HttpMessageHandler
@@ -78,7 +103,8 @@ internal static class DailyAverageChecks
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
                 "/prefix/TokenService/CreateToken" => new HttpResponseMessage(HttpStatusCode.OK),
-                "/prefix/Surveillance/Well/DailyAverage/101/2026-11-01T00:00:00Z/2026-11-03T00:00:00Z" =>
+                "/prefix/Surveillance/Well/DailyAverage/101/2026-11-01T00:00:00Z/2026-11-03T00:00:00Z" or
+                "/prefix/Surveillance/Well/DailyAverage/101/2026-11-01T00:00:00Z/2026-11-04T00:00:00Z" =>
                     new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") },
                 _ => throw new InvalidOperationException("Unexpected ForeSite route.")
             });

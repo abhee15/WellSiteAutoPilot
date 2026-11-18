@@ -100,12 +100,16 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
                 if (field.ValueKind != JsonValueKind.Number || !field.TryGetDecimal(out var number)) throw InvalidResponse();
                 value = number;
             }
-            days.Add(new(id.ToString(CultureInfo.InvariantCulture), start, end, value));
+            var populated = new Dictionary<string, decimal>(StringComparer.Ordinal);
+            foreach (var property in row.EnumerateObject())
+                if (ForeSiteDailyAverageContract.IsObservableQuantityName(property.Name) &&
+                    property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetDecimal(out var populatedValue) &&
+                    populated.Count < ForeSiteDailyAverageContract.MaximumObservedQuantities)
+                    populated[property.Name] = populatedValue;
+            days.Add(new(id.ToString(CultureInfo.InvariantCulture), start, end, value) { Values = populated });
             if (start >= from && start < to)
-                foreach (var property in row.EnumerateObject())
-                    if (ForeSiteDailyAverageContract.IsObservableQuantityName(property.Name) && property.Name != Quantity &&
-                        property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetDecimal(out _))
-                        observed.Add(property.Name);
+                foreach (var name in populated.Keys)
+                    if (name != Quantity) observed.Add(name);
         }
         days.Sort((left, right) => left.Start.CompareTo(right.Start));
         for (var i = 1; i < days.Count; i++)
@@ -117,7 +121,8 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
             throw new ForeSiteMeasurementException("FORESITE_DAILY_UNIT_MISSING");
         return new(externalId, Quantity, unit, from.ToUniversalTime(), to.ToUniversalTime(), selected, DateTimeOffset.UtcNow, Source)
         {
-            ObservedQuantities = ReadObservedQuantities(root, observed)
+            ObservedQuantities = ReadObservedQuantities(root, observed),
+            UnitsByQuantity = ReadFieldUnits(root, selected)
         };
     }
 
@@ -143,6 +148,19 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
                     unit.TryGetProperty("UnitKey", out var key) && UnitText(key) is { } text)
                     quantities.Add(new(name, text));
         return quantities;
+    }
+
+    private static Dictionary<string, string> ReadFieldUnits(JsonElement root, IEnumerable<ForeSiteDailyAverageRecord> days)
+    {
+        // Lenient by design: a field with no usable unit is simply absent, and a read of that field fails on its own.
+        var units = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!root.TryGetProperty("Units", out var all) || all.ValueKind != JsonValueKind.Object) return units;
+        foreach (var name in days.SelectMany(day => day.Values?.Keys ?? []).Distinct(StringComparer.Ordinal))
+            if (all.TryGetProperty(name, out var unit) && unit.ValueKind == JsonValueKind.Object &&
+                unit.EnumerateObject().Count(field => field.Name.Equals("UnitKey", StringComparison.OrdinalIgnoreCase)) == 1 &&
+                unit.TryGetProperty("UnitKey", out var key) && UnitText(key) is { } text)
+                units[name] = text;
+        return units;
     }
 
     private static string? UnitText(JsonElement key) =>

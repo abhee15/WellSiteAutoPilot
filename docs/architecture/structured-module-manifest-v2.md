@@ -61,3 +61,19 @@ the value through the same authorized read plan as any current read, checks quan
 unit, quality, age and the declared schema, and hands the module a typed value with
 its unit. Cards keep their exact-match capability. Scalar history, daily-average and
 well-test reads are not yet runtime capabilities.
+
+## Scalar daily inputs
+
+A V2 input can read one number from a provider's production-day record, such as yesterday's cycles or run time. It
+declares `access: Current`, the provider's own field name as `quantity`, the capability `engineering.daily` and a number
+schema. There is no registry list of these names: the provider's daily record decides which fields a well has, and
+authoring offers the ones discovered for the selected asset.
+
+- **Which day:** the latest production day that has finished, using the provider's own start and end. A day in progress
+  is never read. The reading's timestamp is that day's end and its kind is `ProductionDayEnd`, so `maximumAgeSeconds`
+  measures from the end of the day.
+- **Quality:** the daily record carries no verified quality, so the reading is `Uncertain`. The input must set
+  `allowUncertainQuality: true`.
+- **Unit:** the provider's own unit for that field. A field with no unit fails the read.
+- **Missing:** a field absent from the latest finished day fails with `FORESITE_MEASUREMENT_MISSING`. Zero is a value.
+- **Scope:** ForeSite only. Other adapters refuse `engineering.daily`. Setpoints and well-test values are not covered yet.
