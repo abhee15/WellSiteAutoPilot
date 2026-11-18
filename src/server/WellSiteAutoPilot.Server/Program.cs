@@ -1258,9 +1258,9 @@ v1.MapGet(
         "application/problem+json");
 
 v1.MapGet("/guided-module-drafts",
-    async (int? offset, int? limit, GuidedModuleDraftService drafts, RequestAccessContext access,
+    async (int? offset, int? limit, string? adapterKey, GuidedModuleDraftService drafts, RequestAccessContext access,
         CancellationToken cancellationToken) =>
-        (await drafts.ListAsync(access.Subject, offset ?? 0, limit ?? 25, cancellationToken)).Select(ToGuidedDraft).ToArray())
+        (await drafts.ListAsync(access.Subject, offset ?? 0, limit ?? 25, adapterKey, cancellationToken)).Select(ToGuidedDraft).ToArray())
     .WithName("ListGuidedModuleDrafts").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleDraftResponse[]>();
 

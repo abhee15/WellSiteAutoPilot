@@ -10,12 +10,17 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     LogicModulePackageService packages, LogicModuleApprovalService approvals)
 {
     public Task<IReadOnlyList<GuidedModuleDraft>> ListAsync(AccessSubject subject, int offset, int limit,
-        CancellationToken cancellationToken = default)
+        string? adapterKey = null, CancellationToken cancellationToken = default)
     {
         if (offset < 0 || limit is < 1 or > 100)
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_PAGE_INVALID", FailureKind.Validation,
                 "Provide a nonnegative offset and a page size from 1 to 100.");
-        return drafts.ListOwnedAsync(subject, offset, limit, cancellationToken);
+        string? provider = null;
+        if (!string.IsNullOrWhiteSpace(adapterKey))
+            provider = GuidedProviders.List().FirstOrDefault(item => string.Equals(item.AdapterKey, adapterKey, StringComparison.OrdinalIgnoreCase))?.AdapterKey ??
+                throw new WellSiteAutoPilotException("GUIDED_DRAFT_PROVIDER_UNKNOWN", FailureKind.Validation,
+                    "That provider is not supported for module authoring.");
+        return drafts.ListOwnedAsync(subject, offset, limit, provider, cancellationToken);
     }
 
     public async Task<GuidedModuleDraft> CreateAsync(GuidedModuleDraftContent content, AccessSubject subject, SecurityActorContext actor,

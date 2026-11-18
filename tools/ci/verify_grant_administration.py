@@ -146,6 +146,14 @@ for bad_key in (None, "nonesuch"):
 guided = request("POST", "/guided-module-drafts", OPERATOR, guided_content)
 guided_url = "/guided-module-drafts/" + guided["id"]
 request("GET", guided_url, OTHER, expected=404)
+cygnet_draft = request("POST", "/guided-module-drafts", OPERATOR, dict(guided_content,
+    manifestJson=json.dumps(dict(guided_manifest, moduleId="ci.cygnet-" + uuid.uuid4().hex, requiredAdapterKey="CygNet"))))
+assert json.loads(cygnet_draft["manifestJson"])["requiredAdapterKey"] == "cygnet", cygnet_draft
+assert [item["id"] for item in request("GET", "/guided-module-drafts?adapterKey=cygnet", OPERATOR)] == [cygnet_draft["id"]]
+assert guided["id"] in [item["id"] for item in request("GET", "/guided-module-drafts?adapterKey=FORESITE", OPERATOR)]
+assert cygnet_draft["id"] not in [item["id"] for item in request("GET", "/guided-module-drafts?adapterKey=foresite", OPERATOR)]
+request("GET", "/guided-module-drafts?adapterKey=nonesuch", OPERATOR, expected=400)
+request("DELETE", "/guided-module-drafts/" + cygnet_draft["id"] + "?expectedRevision=1", OPERATOR, expected=204)
 listed = request("GET", "/guided-module-drafts?limit=1", OPERATOR)
 assert [(item["id"], item["revision"]) for item in listed] == [(guided["id"], guided["revision"])], listed
 assert listed[0]["definition"] == guided["definition"]
