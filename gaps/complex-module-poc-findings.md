@@ -125,3 +125,12 @@ Visible maximized Edge, new contract-only module:
 - Compatibility: AR-ESP2 -> "Reading missing - Foresite measurement missing"; RPOC_0413 -> Rejected "An input's data quality was not good enough" (EXECUTION_INPUT_QUALITY_REJECTED), even after ticking "Allow uncertain quality" and saving.
 - **P27** Cards on RPOC_0413 (stored cards report quality Unknown) are rejected by quality, and "Allow uncertain quality" does not admit them, so no asset reaches Satisfied for a structured card input in this environment. Unverified whether Unknown quality is meant to be excluded or the checkbox did not persist; needs a follow-up.
 - Not verified: structured input from another provider (only ForeSite registers one), editing structured shapes (intentionally unavailable), a Satisfied structured result.
+
+## CL 1108756 (#644, delete unsubmitted drafts) - live check 2026-11-18
+Skipped (diverged in P4): tools/ci/check_api_authorization.py, tools/ci/verify_grant_administration.py, tests/ci/test_check_api_authorization.py (so the API-surface guard and grant-administration e2e changes are NOT mirrored/verified here). Program.cs MERGED, no conflict markers.
+Checks: server Release build, V2 tests, tsc (after client regen), eslint, guided-authoring and guided-contract-editor vitest (16/16), 379 guards. Full vitest not run.
+Visible maximized Edge: "Delete draft" shows "Delete this draft? ... cannot be undone. Submitted drafts are kept as review evidence"; Keep leaves 26 drafts; "Yes, delete" sends DELETE ...?expectedRevision=1 -> 204, list drops to 25, "Draft deleted.", editor resets to Untitled module.
+API: stale revision -> 409 GUIDED_DRAFT_REVISION_CONFLICT (draft intact); missing expectedRevision -> 409 (not 400); unknown id -> 404 guided_draft_not_found.
+- P6 and P23 (no delete) are addressed for the UI. P23's search/duplicate-name part is NOT addressed: the picker still lists duplicate names unsorted; deletion is one at a time.
+- **P28** Missing expectedRevision returns 409 conflict, not a validation error (minor).
+- Not verified: refusal for a submitted draft, non-owner refusal, audit record.
