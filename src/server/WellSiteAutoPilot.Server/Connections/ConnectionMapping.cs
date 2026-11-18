@@ -24,7 +24,8 @@ internal static class ConnectionMapping
             operation.Quantity, operation.ResourceKind, operation.Unit, operation.StructuredSchemaId,
             operation.StructuredResponse is null ? null : ToSchema(operation.StructuredResponse),
             operation.Documentation is not { } docs ? null : new(docs.Invocation, docs.ExecutionBoundary,
-                docs.RequestExampleJson, docs.ResponseExampleJson, docs.ProviderReference))).ToArray(),
+                docs.RequestExampleJson, docs.ResponseExampleJson, docs.ProviderReference),
+            operation.StructuredJsonSchema)).ToArray(),
         adapter.ReadCapabilityGroups().Select(group => new AdapterCapabilityGroupResponse(group.Key, group.DisplayName,
             group.Description, group.ContractVersion, group.OperationKeys,
             group.Workflows?.Select(workflow => new AdapterWorkflowGuideResponse(

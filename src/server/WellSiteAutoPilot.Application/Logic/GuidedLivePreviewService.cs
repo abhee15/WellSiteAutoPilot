@@ -99,9 +99,10 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         try
         {
             var value = await ReadCurrentAsync(source, input.Quantity, cancellationToken);
-            if (value.StructuredValue is not null)
+            var structuredInput = input.RequiredCapability == AdapterReadRules.StructuredCurrentCapability;
+            if ((value.StructuredValue is not null) != structuredInput)
                 return new(input.Id, input.Quantity, "Rejected", "EXECUTION_INPUT_SHAPE_UNSUPPORTED");
-            if (value.Value is null)
+            if (!structuredInput && value.Value is null)
                 return new(input.Id, input.Quantity, "Missing", "MODULE_DECLARATIVE_INPUT_UNAVAILABLE");
             if (value.TimestampKind == "UnverifiedScan")
                 return new(input.Id, input.Quantity, "Rejected", "EXECUTION_INPUT_TIMESTAMP_UNVERIFIED");

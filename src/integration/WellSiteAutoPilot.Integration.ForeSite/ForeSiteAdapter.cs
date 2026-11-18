@@ -67,6 +67,7 @@ public static class ForeSiteAdapter
                 "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
             {
                 Documentation = ForeSiteReference.Cards(),
+                StructuredJsonSchema = ForeSiteSurfaceCard.JsonSchema,
                 StructuredResponse = new("foresite.surface-cards/v1", [
                     new("[].id", "string", true, "Stable card identity within this response."),
                     new("[].kind", "string", true, "CURRENT or FULL stored library card."),

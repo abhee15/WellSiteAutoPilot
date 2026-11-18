@@ -18,7 +18,8 @@ public sealed record AdapterOperationDescriptor(
     string? Unit = null,
     string? StructuredSchemaId = null,
     AdapterOperationSchema? StructuredResponse = null,
-    AdapterOperationDocumentation? Documentation = null);
+    AdapterOperationDocumentation? Documentation = null,
+    string? StructuredJsonSchema = null);
 
 public sealed record AdapterOperationSchema(string Id, IReadOnlyList<AdapterOperationField> Fields, string DataType = "object");
 public sealed record AdapterOperationField(string Name, string DataType, bool Required, string Description);

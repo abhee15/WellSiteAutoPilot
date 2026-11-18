@@ -9,7 +9,8 @@ public sealed record AdapterOperationLimitsResponse(int MaximumQuantities, int M
 public sealed record AdapterOperationResponse(string Key, string DisplayName, string Description, string Capability,
     string CapabilityId, string ContractVersion, string Effect, AdapterOperationSchemaResponse Request,
     AdapterOperationSchemaResponse Response, string TimestampSemantics, string QualitySemantics,
-    AdapterOperationLimitsResponse Limits, string? Quantity, string? ResourceKind, string? Unit, string? StructuredSchemaId, AdapterOperationSchemaResponse? StructuredResponse, AdapterOperationDocumentationResponse? Documentation);
+    AdapterOperationLimitsResponse Limits, string? Quantity, string? ResourceKind, string? Unit, string? StructuredSchemaId, AdapterOperationSchemaResponse? StructuredResponse, AdapterOperationDocumentationResponse? Documentation,
+    string? StructuredJsonSchema = null);
 
 /// <summary>Connection readiness only. It does not authorize asset reads or assert that an individual point exists.</summary>
 public sealed record ConnectionOperationsResponse(Guid ConnectionId, int ConnectionRevision, string AdapterKey,
