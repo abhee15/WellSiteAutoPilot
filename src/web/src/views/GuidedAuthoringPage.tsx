@@ -592,7 +592,7 @@ export function GuidedAuthoringPage({
                 >
                   <option value="">{t('guided.noProvider')}</option>
                   {providers.map((item) => (
-                    <option key={item.adapterKey} value={item.adapterKey}>
+                    <option key={item.adapterKey} value={item.adapterKey ?? ''}>
                       {item.displayName}
                     </option>
                   ))}
