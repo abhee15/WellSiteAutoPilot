@@ -73,10 +73,12 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable);
 
+string[] SimulatedFacilities = ["WELL-101", "WELL-102", "WELL-103", "WELL-104"];
+
 // A CygNet stand-in for current values, read by the Gateway's SimulatedCygNetClient. A facility is a simulated asset.
 app.MapGet("/cygnet/sim/facilities",
     (SimulatorState state) => state.ProviderAvailable
-        ? Results.Ok(new[] { "WELL-101", "WELL-102", "WELL-103", "WELL-104" })
+        ? Results.Ok(SimulatedFacilities)
         : Results.StatusCode(StatusCodes.Status503ServiceUnavailable))
     .WithName("ListSimulatedCygNetFacilities");
 
