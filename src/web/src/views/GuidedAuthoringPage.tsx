@@ -644,7 +644,7 @@ export function GuidedAuthoringPage({
                   />
                 </div>
               </details>
-              <div className="guided-authoring-draft-picker">
+              <div className="guided-authoring-draft-filter">
                 <SelectField
                   label={t('guided.filterProvider')}
                   value={providerFilter}
@@ -661,6 +661,8 @@ export function GuidedAuthoringPage({
                     </option>
                   ))}
                 </SelectField>
+              </div>
+              <div className="guided-authoring-draft-picker">
                 <SelectField
                   label={t('guided.openDraft')}
                   value={draft?.id ?? ''}

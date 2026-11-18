@@ -25,6 +25,11 @@
   gap: var(--space-12);
 }
 
+.guided-authoring-draft-filter {
+  flex: 0 1 var(--layout-field-min);
+  min-width: 0;
+}
+
 .guided-authoring-draft-picker {
   flex: 1 1 var(--layout-field-min);
   min-width: 0;
@@ -53,6 +58,7 @@
 }
 
 @media (width <= 56em) {
+  .guided-authoring-draft-filter,
   .guided-authoring-draft-picker {
     max-width: none;
   }
