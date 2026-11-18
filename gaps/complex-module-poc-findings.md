@@ -159,3 +159,7 @@ After #647 the Historical quantity list offers every populated daily quantity (e
 ### P32 - Quantity source labels expose provider operation names (user-reported)
 The Quantity source select lists Surveillance, Daily averages, Well trend and Well test (GuidedQuantityDiscovery sources array). These are ForeSite operation names, not author concepts. Proposed direction: present Current values (surveillance) and History values (backed by Well trend), with the quantity list always fetched dynamically for the selected asset and source, so authors never choose by provider capability. Related to P30 (unsorted list) and P31 (daily quantities not readable); the source model needs one consistent read path per quantity.
 
+
+### P33 - Well-specific wording limits the authoring model to wells (user-reported)
+Labels such as Well trend, Well test and 'imported wells' in the live preview notice imply the asset must be a well. Authoring language should be asset-neutral (Current values, History values, Latest test) so modules can later target other asset types (pads, facilities, compressors) without renaming. Provider-specific names stay inside the adapter layer. Extends P32; affects labels in GuidedQuantityDiscovery, GuidedLivePreview and the localization keys guided.* (e.g. the preview support notice 'imported wells').
+
