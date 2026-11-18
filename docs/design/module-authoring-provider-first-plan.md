@@ -175,3 +175,13 @@ Not probeable offline, so they move into PR 0 and PR 1 as CI checks: 3 (assignme
 - Does the revised 4.1/4.2 hold together, and is anything in PR 0 or PR 1 still missing?
 - Are the three new columns (`AdapterKey`, `DisplayName`, `UpdatedAtUtc`) the right call versus jsonb queries?
 - Anything in 4.3 that 4.1 or 4.2 would make harder?
+
+## 12. Provider simulator track (added after PR 1)
+
+CI cannot reach real ForeSite or CygNet, so each provider-first capability needs a simulator stand-in to be tested end to end:
+
+1. A CygNet-shaped stand-in for current values (brings back the guided pressure-differential e2e case dropped in PR 1).
+2. A richer ForeSite stand-in: daily fields, setpoints, later model-file data for WAMI.
+3. Fault switches: bad quality, timeouts, missing points.
+
+Built as its own PR series, one layer at a time, after the web chooser (PR 2).
