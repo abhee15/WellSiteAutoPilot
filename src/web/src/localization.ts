@@ -1358,6 +1358,9 @@ export const englishMessages = {
   'guided.portQuantityPrompt': 'Choose a registered quantity, or type one.',
   'guided.portIdentifierInvalid': 'Use letters, digits, dot, dash or underscore, starting with a letter or digit.',
   'guided.portAvailableFrom': 'Registered by: {adapters}',
+  'guided.portDailyField':
+    'A provider production-day field, read as the latest finished day. It carries no verified quality, so uncertain data is allowed.',
+  'guided.useDailyField': 'Use as input (latest finished day)',
   'guided.portNoSource': 'No registered source provides this quantity yet. Choose a registered quantity to save this input.',
   'guided.portCapabilityHelper': 'Set from the registered source for this quantity.',
   'guided.sourceProvider': 'Read from provider',

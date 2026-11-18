@@ -51,7 +51,11 @@ export function GuidedLivePreview({
   revision,
   inputs = [],
   canRun = true,
+  onUseDailyField,
+  declaredDaily,
 }: {
+  onUseDailyField?: (quantity: string, unit: string | null) => void;
+  declaredDaily?: readonly string[];
   /** False for a draft with no logic: inspection and compatibility stay available, running does not. */
   canRun?: boolean;
   draftId: string;
@@ -381,7 +385,7 @@ export function GuidedLivePreview({
         {assetId && (
           <GuidedQuantityDiscovery
             key={`${draftId}:${revision}:${assetId}`}
-            {...{ draftId, revision, assetId, inputs, busy }}
+            {...{ draftId, revision, assetId, inputs, busy, onUseDailyField, declaredDaily }}
             onHistory={(inputId, bounds) => void previewHistory(inputId, bounds)}
             onDaily={(window) => void previewProductionDays(window)}
             onChange={() => {

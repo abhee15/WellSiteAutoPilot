@@ -23,8 +23,10 @@ import { PageTabNav } from '../components/PageTabNav';
 import { SectionTabs } from '../components/SectionTabs';
 import { CodeBlock } from '../components/CodeBlock';
 import {
+  addDailyInput,
   blankContractManifest,
   contractIsComplete,
+  dailyCapability,
   GuidedContractEditor,
   isContractOnlyManifest,
   parseManifest,
@@ -344,6 +346,11 @@ export function GuidedAuthoringPage({
   );
   const activeHints = (hints ?? baselineHints).map(normalizeHint).filter((hint) => declaredInputs.has(hint.inputId));
   const contractOnly = contractManifest !== null;
+  const dailyDeclared = (
+    Array.isArray(declared) ? (declared as { quantity?: unknown; requiredCapability?: unknown }[]) : []
+  )
+    .filter((input) => input.requiredCapability === dailyCapability && typeof input.quantity === 'string')
+    .map((input) => input.quantity as string);
   const inspectOnly = Boolean(draft && !contractOnly && !supportsGuidedRule(draft.manifestJson));
   const valid = contractOnly
     ? name.trim().length > 0 && contractIsComplete(contractManifest)
@@ -761,6 +768,12 @@ export function GuidedAuthoringPage({
                       draftId={draft.id}
                       revision={draft.revision}
                       canRun={!contractOnly}
+                      onUseDailyField={
+                        contractOnly && contractManifest
+                          ? (quantity, unit) => setContractManifest(addDailyInput(contractManifest, quantity, unit))
+                          : undefined
+                      }
+                      declaredDaily={dailyDeclared}
                       inputs={
                         draft.manifestJson
                           ? (

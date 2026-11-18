@@ -19,6 +19,10 @@ const maximumPorts = 64;
 const identifier = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 // Scalar current readings are served under this registered capability; see AdapterOperationDescriptor.
 const scalarCurrentCapability = 'engineering.current';
+/** A provider's own production-day field, read as the latest finished day; see AdapterReadRules. */
+export const dailyCapability = 'engineering.daily';
+// A finished production day closes within a day and the record can post late, so two days is the default bound.
+const dailyMaximumAgeSeconds = 172800;
 type ScalarType = 'number' | 'string';
 
 /** A scalar current reading that at least one registered adapter operation declares it can serve. */
@@ -223,6 +227,30 @@ function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
   };
 }
 
+/** Adds a discovered provider daily field as an input. A field already declared as a daily input is left alone. */
+export function addDailyInput(manifestJson: string, quantity: string, unit: string | null): string {
+  const manifest = parseManifest(manifestJson);
+  if (!manifest || !identifier.test(quantity)) return manifestJson;
+  const ports = portsOf(manifest, 'input');
+  if (ports.some((port) => port.quantity === quantity && port.requiredCapability === dailyCapability))
+    return manifestJson;
+  const id = nextId(ports, 'input');
+  const roles = Array.isArray(manifest.assetRequirements) ? manifest.assetRequirements.filter(isObject) : [];
+  const port: Json = {
+    id,
+    assetRole: typeof roles[0]?.role === 'string' ? roles[0].role : 'asset',
+    quantity,
+    access: 'Current',
+    canonicalUnit: unit,
+    maximumAgeSeconds: dailyMaximumAgeSeconds,
+    // The daily record carries no verified quality, so a module reading it must accept uncertain data.
+    allowUncertainQuality: true,
+    valueSchema: scalarSchema(id, 'number'),
+    requiredCapability: dailyCapability,
+  };
+  return JSON.stringify(withPorts(manifest, 'input', [...ports, port]));
+}
+
 export function GuidedContractEditor({
   manifestJson,
   disabled,
@@ -319,9 +347,11 @@ export function GuidedContractEditor({
 
   function changeQuantity(value: string) {
     const option = options.find((candidate) => candidate.quantity === value);
+    // A daily field is the provider's own name, so it keeps its capability unless a registered quantity is chosen.
+    const daily = port?.requiredCapability === dailyCapability && !option;
     update({
       quantity: value,
-      ...(registryInput ? { requiredCapability: option?.capabilityId ?? '' } : {}),
+      ...(registryInput && !daily ? { requiredCapability: option?.capabilityId ?? '' } : {}),
       // The registered unit is authoritative; a stale unit from a previous quantity is never kept.
       ...(registryInput && option?.unit ? { [unitKey]: option.unit } : {}),
     });
@@ -332,6 +362,7 @@ export function GuidedContractEditor({
     if (textValue(port.quantity) === '') return { helper: t('guided.portQuantityPrompt') };
     if (!identifier.test(textValue(port.quantity))) return { error: t('guided.portIdentifierInvalid') };
     if (!registryInput) return {};
+    if (port.requiredCapability === dailyCapability) return { helper: t('guided.portDailyField') };
     if (matched) return { helper: t('guided.portAvailableFrom', { adapters: matched.adapters.join(', ') }) };
     return catalog.status === 'ready' ? { error: t('guided.portNoSource') } : {};
   }
