@@ -141,8 +141,9 @@ function scalarTypeOf(port: Json): ScalarType | null {
 }
 
 /** A blank, valid-to-save contract: one neutral asset role and no ports yet. */
-export function blankContractManifest(name: string): string {
+export function blankContractManifest(name: string, adapterKey?: string): string {
   return JSON.stringify({
+    ...(adapterKey ? { requiredAdapterKey: adapterKey } : {}),
     manifestVersion: 2,
     moduleId: 'authoring.' + crypto.randomUUID(),
     version: '1.0.0',
@@ -339,8 +340,15 @@ export function GuidedContractEditor({
 
   const unitKey = kind === 'input' ? 'canonicalUnit' : 'unit';
   const scalar = port ? scalarTypeOf(port) : null;
-  const options = catalog.status === 'ready' ? catalog.options : [];
-  const structuredOptions = catalog.status === 'ready' ? catalog.structured : [];
+  // A provider-first module only offers what its own provider serves.
+  const providerKey =
+    typeof manifest.requiredAdapterKey === 'string' ? manifest.requiredAdapterKey.toLowerCase() : null;
+  const providerAdapters =
+    catalog.status === 'ready'
+      ? catalog.adapters.filter((adapter) => !providerKey || adapter.adapterKey?.toLowerCase() === providerKey)
+      : [];
+  const options = catalog.status === 'ready' ? sourceOptionsFrom(providerAdapters) : [];
+  const structuredOptions = catalog.status === 'ready' ? structuredOptionsFrom(providerAdapters) : [];
   const matched = port ? options.find((option) => option.quantity === textValue(port.quantity)) : undefined;
   // Only scalar inputs take their capability from the registry; structured inputs keep what was saved.
   const registryInput = kind === 'input' && scalar !== null;
@@ -498,7 +506,7 @@ export function GuidedContractEditor({
                     <GuidedSourceHintFields
                       inputId={textValue(port.id)}
                       quantity={textValue(port.quantity)}
-                      adapters={catalog.adapters}
+                      adapters={providerAdapters}
                       hint={hints.find((item) => item.inputId === textValue(port.id))}
                       disabled={disabled}
                       onChange={(next) => changeHint(textValue(port.id), next)}

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
 import { loadAdapterOperations } from '../../src/views/adapterOperations';
 import { addDailyInput, blankContractManifest } from '../../src/views/GuidedContractEditor';
@@ -7,10 +7,12 @@ import {
   createGuidedModuleDraft,
   editGuidedModuleDraft,
   listGuidedModuleDrafts,
+  listGuidedModuleProviders,
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
 afterEach(cleanup);
+beforeEach(() => registerProviders());
 
 vi.mock('../../src/views/adapterOperations', () => ({ loadAdapterOperations: vi.fn() }));
 
@@ -57,6 +59,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
+  listGuidedModuleProviders: vi.fn(),
   listPendingGuidedModuleSubmissions: vi.fn(),
   previewGuidedModuleDraft: vi.fn(),
   previewGuidedModuleWithLiveInputs: vi.fn(),
@@ -66,8 +69,20 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   submitGuidedModuleDraft: vi.fn(),
 }));
 
-function startContract() {
+function registerProviders() {
+  vi.mocked(listGuidedModuleProviders).mockResolvedValue({
+    data: [
+      { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false },
+      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true },
+    ],
+  } as never);
+}
+
+async function startContract(provider = 'foresite') {
   fireEvent.click(screen.getByText('New module'));
+  const chooser = await screen.findByLabelText('Provider for the new module');
+  await screen.findByRole('option', { name: 'ForeSite' });
+  fireEvent.change(chooser, { target: { value: provider } });
   fireEvent.click(screen.getByRole('button', { name: 'New contract-only module' }));
 }
 
@@ -80,7 +95,7 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   render(
     <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
   );
-  startContract();
+  await startContract();
 
   // No logic exists, so no preview, sample-case or submit affordance is offered.
   expect(screen.getByText(/inputs and outputs only/i)).toBeTruthy();
@@ -105,13 +120,11 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'SurfaceLoad' }));
 
-  // A registered quantity supplies its capability and unit, and names every provider that registers it.
-  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'CasingPressure' } });
-  expect((screen.getByLabelText('Provider capability') as HTMLInputElement).value).toBe('engineering.current');
-  expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('psi');
-  expect(screen.getByText('Registered by: CygNet')).toBeTruthy();
+  // A registered quantity supplies its capability and unit, and names only the module's own provider.
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PumpFillage' } });
-  expect(screen.getByText('Registered by: ForeSite, CygNet')).toBeTruthy();
+  expect((screen.getByLabelText('Provider capability') as HTMLInputElement).value).toBe('engineering.current');
+  expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('%');
+  expect(screen.getByText('Registered by: ForeSite')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Maximum age (seconds)'), { target: { value: '90' } });
 
   // Workflow and IDE edit the same unsaved contract.
@@ -180,7 +193,7 @@ it("adds a structured input whose schema is the provider's own, not one built by
     data: { id: 'contract-cards', revision: 1, manifestJson: body.manifestJson },
   })) as never);
   render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  startContract();
+  await startContract();
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Card check' } });
   fireEvent.click(await screen.findByRole('button', { name: 'Add structured input: SurfaceCards' }));
 
@@ -202,7 +215,7 @@ it('says when the source catalog is unavailable instead of inventing capabilitie
   vi.mocked(loadAdapterOperations).mockRejectedValue(new Error('denied'));
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
   render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  startContract();
+  await startContract();
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Offline catalog' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
   expect(await screen.findByText(/source catalog could not be loaded/i)).toBeTruthy();
@@ -286,7 +299,7 @@ it('lets an author choose where an input is read from, and saves it beside the c
   render(
     <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
   );
-  startContract();
+  await startContract();
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pinned fillage' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
   // The registry supplies the capability, so wait for it before choosing the quantity.
@@ -345,4 +358,31 @@ it('adds a discovered production-day field as an uncertain-quality daily input, 
   expect(
     (JSON.parse(addDailyInput(added, 'RunTime', 'h')) as { dataRequirements: unknown[] }).dataRequirements,
   ).toHaveLength(2);
+});
+
+it('offers only the chosen provider\'s starters and quantities, and says when a provider is current-values-only', async () => {
+  registerCatalog();
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
+    data: { id: 'cygnet-contract', revision: 1, manifestJson: body.manifestJson },
+  })) as never);
+  render(
+    <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
+  );
+  await startContract('cygnet');
+  expect(screen.getAllByText(/Current values only/).length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
+  await waitFor(() => expect(document.querySelectorAll('datalist option').length).toBeGreaterThan(0));
+  // Only CygNet's own readings are offered; ForeSite's surface cards are not.
+  const offered = [...document.querySelectorAll<HTMLOptionElement>('datalist option')].map((item) => item.value);
+  expect(offered.sort()).toEqual(['CasingPressure', 'PumpFillage']);
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'CasingPressure' } });
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Casing watch' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add output' }));
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'Result' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  const body = vi.mocked(createGuidedModuleDraft).mock.calls.at(-1)![0].body as unknown as { manifestJson: string };
+  expect((JSON.parse(body.manifestJson) as { requiredAdapterKey: string }).requiredAdapterKey).toBe('cygnet');
+  expect(screen.getByText(/Provider: CygNet/)).toBeTruthy();
 });
