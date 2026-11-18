@@ -65,7 +65,7 @@ export function GuidedSourceHintFields({
       >
         <option value="">{t('guided.sourceAnyProvider')}</option>
         {adapters.map((candidate) => (
-          <option key={candidate.adapterKey} value={candidate.adapterKey}>
+          <option key={candidate.adapterKey} value={candidate.adapterKey ?? ''}>
             {candidate.displayName ?? candidate.adapterKey}
           </option>
         ))}
@@ -78,7 +78,7 @@ export function GuidedSourceHintFields({
       >
         <option value="">{t('guided.sourceAnyOperation')}</option>
         {operations.map((operation) => (
-          <option key={operation.key} value={operation.key}>
+          <option key={operation.key} value={operation.key ?? ''}>
             {operation.displayName ?? operation.key}
           </option>
         ))}
