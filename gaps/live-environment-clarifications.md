@@ -76,6 +76,24 @@ only for now. WAMI is a later source role whose model file comes from the ForeSi
   other quantities do you want as ForeSite history, and are they all available through that endpoint?
 - Answer:
 
+**F10. What does quality "Unknown" mean on history samples and stored cards?** (Open, P1)
+- Findings P27 and P44: stored surface cards and trend samples report quality Unknown, and the runtime rejects them
+  (EXECUTION_INPUT_QUALITY_REJECTED) even when a module allows uncertain quality. Does ForeSite's Unknown mean "not assessed" (fine
+  to use) or "do not trust"? Is there another field that says whether a card or sample is valid? Should a module be able to accept
+  Unknown explicitly?
+- Answer:
+
+**F11. How does the live system tell the lift type of a well?** (Open, P2)
+- Findings P34 and P38: rod-lift quantities and cards are offered for ESP wells where they are meaningless. Which ForeSite field
+  or call gives the lift type or device type reliably (for example RRL vs ESP vs gas lift), and is it always populated?
+- Answer:
+
+**F12. Which quantities exist for "current" and for "history" per lift type?** (Open, P2)
+- Findings P31, P32 and P40: the same physical quantity (pump fillage) appears under different names and sources. For each lift
+  type used by the three modules, please list the current, history and daily name of each quantity the modules need, so authoring
+  can show one list per asset instead of one per provider operation.
+- Answer:
+
 ## C. CygNet
 
 **C1. Point (UDC) and unit for each quantity the modules read.** (Open, P1)
