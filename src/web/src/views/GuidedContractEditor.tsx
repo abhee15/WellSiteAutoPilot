@@ -160,6 +160,23 @@ export function blankContractManifest(name: string, adapterKey?: string): string
   });
 }
 
+/**
+ * The contract of a saved draft for another provider: a new module identity, the same roles, inputs, outputs and
+ * parameters. Source hints are provider-specific and sample cases are a separate feature, so neither is carried over.
+ * Inputs the new provider does not serve stay and are flagged by the editor, not silently dropped.
+ */
+export function copyContractManifest(source: string, adapterKey: string, copySuffix: string): string | null {
+  const manifest = parseManifest(source);
+  if (!manifest) return null;
+  const name = typeof manifest.displayName === 'string' ? manifest.displayName : '';
+  return JSON.stringify({
+    ...manifest,
+    moduleId: 'authoring.' + crypto.randomUUID(),
+    displayName: (name + ' ' + copySuffix).trim(),
+    requiredAdapterKey: adapterKey,
+  });
+}
+
 export function isContractOnlyManifest(source: string | null | undefined): boolean {
   return parseManifest(source)?.entryPoint === 'contract.unset';
 }
