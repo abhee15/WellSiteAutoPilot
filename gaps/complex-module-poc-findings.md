@@ -142,3 +142,12 @@ Visible maximized Edge:
 - A2: Well test source on RPOC_0413 returns evidenceStatus NoTest and the UI says "ForeSite returned no latest well test for this well." AR-ESP2 and AEPOC_0001 return reported tests with quantity lists.
 - **P29** Well-test panel shows raw values: ISO timestamps with +00:00 offsets, a bare "Test status 2103" code, and every reported quantity has unit null ("Eligibility and units are unverified").
 - Not verified: the empty-response path against a real empty ForeSite payload (adapter unit test only); RPOC_0413's NoTest is whatever ForeSite returned today.
+
+## CL 1108758 (#647, offer every populated daily quantity with a provider unit) - live check 2026-11-18
+Checks: server Release build, ForeSite adapter tests (live ForeSite check skipped), V2 tests. No web files in this PR. Description follows the type(scope) convention, no gap IDs.
+Visible maximized Edge, Quantity source = Daily averages on "Sri Pump Fillage Test":
+- RPOC_0413: 18 quantities, each with a unit (e.g. TotalFluidRateInferred STB/d, AllocatedGasVolume Mscf, FBHP psia, THT F).
+- AR-ESP2 (ESP): 35, including MotorAmps (A), MotorFrequency (Hz), MotorTemperature (F), MotorVolts (V), PIP/PDP (psia), Vibration (g), ChokeDiameter (1/64in) -- device-specific, so the list now follows the well rather than a fixed oil/gas/water set.
+- AEPOC_0001: same 18 as RPOC_0413.
+- **P30** Order is not sorted: TotalFluidRateInferred is first, then the rest alphabetical, so the list looks inconsistent. Minor.
+- Not verified: the 128 cap (no well near it), quantities with no unit being omitted, behaviour with an empty Units map.
