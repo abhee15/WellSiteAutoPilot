@@ -167,3 +167,15 @@ Labels such as Well trend, Well test and 'imported wells' in the live preview no
 ### P34 - Surface cards should be a quantity source, and are RRL-only (user observation, design open)
 Today cards are a separate 'Read stored surface cards' button outside the quantity source model. Idea: make Cards a quantity source so the author can request (a) the latest card, optionally of a given card type, or (b) an array of cards over a date range. Cards apply only to RRL (rod lift) wells, not every well type, so the source and its options must be offered per asset/lift type, and unsupported assets should say why. Design of the authoring screen is deliberately undecided; to be settled together with P31, P32 and P33 (one source model: current values, history values, cards, tests, each with asset-aware availability).
 
+
+### P35 - Live preview panel layout, button sizing and data presentation (user-reported, screenshot)
+Observed in 'Preview with a sample asset':
+- Find assets is a large bordered box stretched to the height of the label+input row and centred, much bigger than the field it serves; it is not aligned with the input baseline.
+- Button sizing is inconsistent: Find assets is a big block, Run live preview is full width, Read stored surface cards is a small left-aligned button. No clear primary/secondary action hierarchy.
+- Panel content is indented relative to the rest of the form, and the two intro paragraphs have large vertical gaps between them and overlap in meaning (live readings are preview only / live preview supports imported wells).
+- The asset name input shows a tinted autofill-style background while other fields are plain.
+- Compatibility result is a terse info box with a bullet 'PumpFillage - Reading missing - Cygnet point not found'; internal provider wording, no per-input status layout, no next step.
+- Sample asset option text differs between runs ('REMDEV / RPOC_00016' vs 'AR-Test / RRL / Unspecified device / RPOC_00016+9077'), so the same asset is described inconsistently.
+- Quantity source, quantity and read actions are stacked with no grouping, so it is unclear which button acts on which selection.
+The panel needs a layout/presentation pass once the source model (P31-P34) is decided; recorded as an observation only.
+
