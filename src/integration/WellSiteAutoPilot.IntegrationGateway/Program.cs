@@ -17,10 +17,13 @@ builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddSingleton<ForeSiteConnectionMeasurements>();
 builder.Services.AddSingleton<CygNetConnectionMeasurements>();
-// CygNet connections reach real CygNet systems, one per connection like ForeSite; there is no simulated CygNet. The Gateway uses the
-// CygNet API already installed on its server; a server without CygNet reports that on each CygNet connection.
+// CygNet connections reach real CygNet systems, one per connection like ForeSite. The Gateway uses the CygNet API already
+// installed on its server; a server without CygNet reports that on each CygNet connection. Development and CI, which have no
+// CygNet, set "CygNet:Simulator:BaseUrl" (or CygNet__Simulator__BaseUrl) to read the provider simulator's CygNet stand-in instead.
 builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.Adapter.ICygNetClient>(_ =>
 {
+    if (builder.Configuration["CygNet:Simulator:BaseUrl"] is { Length: > 0 } simulatorUrl)
+        return new SimulatedCygNetClient(new HttpClient { BaseAddress = new Uri(simulatorUrl), Timeout = TimeSpan.FromSeconds(10) });
     // Optional override when CygNet is installed somewhere unusual: "CygNet:LibraryPath" in appsettings or CygNet__LibraryPath.
     WellSiteAutoPilot.Integration.CygNet.CygNetInstallLocator.ConfiguredFolder = builder.Configuration["CygNet:LibraryPath"];
     return OperatingSystem.IsWindows()
