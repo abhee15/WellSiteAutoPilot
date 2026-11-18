@@ -156,7 +156,7 @@ cards = {"connectionId": registered["connectionId"], "connectionRevision": regis
 call("foresite", cards, caller=None, status=401, operation="current")
 call("foresite", cards, caller="worker", status=403, operation="current")
 card_value = call("foresite", cards, operation="current")
-assert card_value["value"] is None and card_value["quality"] == "Unknown", card_value
+assert card_value["value"] is None and card_value["quality"] == "Uncertain", card_value
 assert card_value["timestampKind"] == "CardCapture" and card_value["retrievedAtUtc"], card_value
 assert card_value["structuredValue"]["schemaId"] == "foresite.surface-cards/v1", card_value
 surface_cards = card_value["structuredValue"]["data"]
