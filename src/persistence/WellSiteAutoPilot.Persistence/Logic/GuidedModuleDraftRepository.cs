@@ -26,9 +26,14 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
     }
 
     public async Task<IReadOnlyList<GuidedModuleDraft>> ListOwnedAsync(AccessSubject subject, int offset, int limit,
-        CancellationToken cancellationToken = default)
+        string? adapterKey = null, CancellationToken cancellationToken = default)
     {
-        var entities = await OwnedDrafts(subject).OrderBy(item => item.Id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
+        var drafts = OwnedDrafts(subject);
+        // The provider lives in the manifest; the filter runs before paging so every page holds only that provider's drafts.
+        if (adapterKey is not null)
+            drafts = drafts.Where(item => EF.Functions.JsonContains(item.ContentJson,
+                JsonSerializer.Serialize(new { manifest = new { requiredAdapterKey = adapterKey } })));
+        var entities = await drafts.OrderBy(item => item.Id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
         return entities.Select(ToDraft).ToArray();
     }
 

@@ -355,7 +355,7 @@ it('authors paired pressure samples and shows the reviewed differential', async 
   } as never);
   render(<GuidedAuthoringPage canAuthor canReview canApprove={false} onRefresh={async () => {}} />);
   fireEvent.click(screen.getByText('New module', { selector: 'summary' }));
-  await screen.findByRole('option', { name: 'CygNet' });
+  await screen.findAllByRole('option', { name: 'CygNet' });
   fireEvent.change(screen.getByLabelText('Provider for the new module'), { target: { value: 'cygnet' } });
   fireEvent.click(screen.getByRole('button', { name: 'New pressure differential module' }));
   expect(screen.getByLabelText<HTMLInputElement>('Maximum differential (psi)').value).toBe('150');

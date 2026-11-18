@@ -1333,6 +1333,8 @@ export const englishMessages = {
   'guided.staleScenarios': 'Save the draft and rerun the sample cases to check the edited rule.',
   'guided.fillageRule': 'Recommend a review when pump fillage is below the threshold.',
   'guided.newModule': 'New module',
+  'guided.filterProvider': 'Show drafts for provider',
+  'guided.allProviders': 'All providers',
   'guided.chooseProvider': 'Provider for the new module',
   'guided.noProvider': 'Choose a provider first',
   'guided.providerLabel': 'Provider: {provider}',

@@ -81,7 +81,7 @@ function registerProviders() {
 async function startContract(provider = 'foresite') {
   fireEvent.click(screen.getByText('New module'));
   const chooser = await screen.findByLabelText('Provider for the new module');
-  await screen.findByRole('option', { name: 'ForeSite' });
+  await screen.findAllByRole('option', { name: 'ForeSite' });
   fireEvent.change(chooser, { target: { value: provider } });
   fireEvent.click(screen.getByRole('button', { name: 'New contract-only module' }));
 }
@@ -385,4 +385,27 @@ it('offers only the chosen provider\'s starters and quantities, and says when a 
   const body = vi.mocked(createGuidedModuleDraft).mock.calls.at(-1)![0].body as unknown as { manifestJson: string };
   expect((JSON.parse(body.manifestJson) as { requiredAdapterKey: string }).requiredAdapterKey).toBe('cygnet');
   expect(screen.getByText(/Provider: CygNet/)).toBeTruthy();
+});
+
+it('filters the draft list by provider on the server and labels each draft with its provider', async () => {
+  const draftFor = (id: string, name: string, adapterKey: string) => ({
+    id,
+    revision: 1,
+    manifestJson: blankContractManifest(name, adapterKey),
+  });
+  vi.mocked(listGuidedModuleDrafts).mockImplementation((async ({ query }: { query: { adapterKey?: string } }) => ({
+    data: [draftFor('a', 'Fillage watch', 'foresite'), draftFor('b', 'Casing watch', 'cygnet')].filter(
+      (item) => !query.adapterKey || item.manifestJson.includes(`"requiredAdapterKey":"${query.adapterKey}"`),
+    ),
+  })) as never);
+  render(
+    <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
+  );
+  expect(await screen.findByRole('option', { name: 'Fillage watch · ForeSite' })).toBeTruthy();
+  expect(screen.getByRole('option', { name: 'Casing watch · CygNet' })).toBeTruthy();
+  await screen.findAllByRole('option', { name: 'CygNet' });
+  fireEvent.change(screen.getByLabelText('Show drafts for provider'), { target: { value: 'cygnet' } });
+  await waitFor(() => expect(screen.queryByRole('option', { name: 'Fillage watch · ForeSite' })).toBeNull());
+  expect(vi.mocked(listGuidedModuleDrafts).mock.calls.at(-1)![0]).toMatchObject({ query: { adapterKey: 'cygnet' } });
+  expect(screen.getByRole('option', { name: 'Casing watch · CygNet' })).toBeTruthy();
 });

@@ -163,6 +163,11 @@ const knownErrorCodes: Record<string, Parameters<typeof t>[0]> = {
   MODULE_VALUE_SCHEMA_INVALID: 'guided.errorValueSchema',
 };
 
+function providerKey(manifestJson: string | null | undefined): string {
+  const key = parseManifest(manifestJson)?.requiredAdapterKey;
+  return typeof key === 'string' ? key : '';
+}
+
 function displayName(manifestJson: string | null | undefined): string {
   return manifestJson ? (JSON.parse(manifestJson) as { displayName: string }).displayName : '';
 }
@@ -246,6 +251,8 @@ export function GuidedAuthoringPage({
   const liveSectionId = useId();
   const [drafts, setDrafts] = useState<GuidedModuleDraftResponse[]>([]);
   const [offset, setOffset] = useState(0);
+  // Which provider's drafts the list shows; '' is all of them. The server filters before paging.
+  const [providerFilter, setProviderFilter] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [pressure, setPressure] = useState(false);
@@ -277,7 +284,10 @@ export function GuidedAuthoringPage({
   useEffect(() => {
     if (!canAuthor) return;
     const controller = new AbortController();
-    void listGuidedModuleDrafts({ query: { offset, limit: pageSize }, signal: controller.signal })
+    void listGuidedModuleDrafts({
+      query: { offset, limit: pageSize, adapterKey: providerFilter || undefined },
+      signal: controller.signal,
+    })
       .then(({ data }) => {
         if (controller.signal.aborted) return;
         if (data) setDrafts(data);
@@ -287,7 +297,7 @@ export function GuidedAuthoringPage({
         if (!controller.signal.aborted) setError(true);
       });
     return () => controller.abort();
-  }, [canAuthor, offset, refresh]);
+  }, [canAuthor, offset, refresh, providerFilter]);
 
   useEffect(() => {
     if (!canAuthor) return;
@@ -368,6 +378,8 @@ export function GuidedAuthoringPage({
   );
   const activeHints = (hints ?? baselineHints).map(normalizeHint).filter((hint) => declaredInputs.has(hint.inputId));
   const contractOnly = contractManifest !== null;
+  const providerName = (manifestJson: string | null | undefined) =>
+    providers.find((item) => item.adapterKey === providerKey(manifestJson))?.displayName ?? providerKey(manifestJson);
   const activeProvider = (() => {
     const key = parseManifest(contractManifest ?? draft?.manifestJson)?.requiredAdapterKey;
     return typeof key === 'string' ? key.toLowerCase() : null;
@@ -632,6 +644,24 @@ export function GuidedAuthoringPage({
                   />
                 </div>
               </details>
+              <div className="guided-authoring-draft-filter">
+                <SelectField
+                  label={t('guided.filterProvider')}
+                  value={providerFilter}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setProviderFilter(event.target.value);
+                    setOffset(0);
+                  }}
+                >
+                  <option value="">{t('guided.allProviders')}</option>
+                  {providers.map((item) => (
+                    <option key={item.adapterKey} value={item.adapterKey ?? ''}>
+                      {item.displayName}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
               <div className="guided-authoring-draft-picker">
                 <SelectField
                   label={t('guided.openDraft')}
@@ -649,6 +679,7 @@ export function GuidedAuthoringPage({
                   {drafts.map((item) => (
                     <option key={item.id} value={item.id}>
                       {displayName(item.manifestJson)}
+                      {providerName(item.manifestJson) && ' · ' + providerName(item.manifestJson)}
                     </option>
                   ))}
                 </SelectField>
