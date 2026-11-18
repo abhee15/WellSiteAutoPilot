@@ -9,7 +9,7 @@ namespace WellSiteAutoPilot.Application.Logic;
 /// it can be saved, reopened and inspected, but never previewed or submitted.
 /// </summary>
 public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, ThresholdDefinition? Definition = null,
-    IReadOnlyList<GuidedSampleCase>? SampleCases = null)
+    IReadOnlyList<GuidedSampleCase>? SampleCases = null, IReadOnlyList<GuidedSourceHint>? SourceHints = null)
 {
     public bool IsContractOnly => Definition is null;
 }

@@ -164,6 +164,37 @@ internal static class GuidedContractDraftChecks
         Assert(GuidedInputSupport.UnsupportedReason("cygnet", "foresite", AdapterReadRules.Find("foresite")!.ResourceKind, Input("PumpFillage")) == GuidedInputSupport.AdapterMismatch,
             "A module pinned to another adapter was not named.");
 
+        // Source hints sit beside the contract: validated against the declared inputs, a preference unless required.
+        GuidedModuleDraftContent WithHints(params GuidedSourceHint[] hints) => new(manifest, SourceHints: hints);
+        GuidedSourceHints.Validate(WithHints());
+        GuidedSourceHints.Validate(WithHints(new GuidedSourceHint("cards", "foresite", "surface-cards", true),
+            new GuidedSourceHint("calibration", null, "calibration", false, "{\"scale\":2}")));
+        foreach (var bad in new[]
+        {
+            WithHints(new GuidedSourceHint("missing", "foresite", null, false)),
+            WithHints(new GuidedSourceHint("cards", null, null, false)),
+            WithHints(new GuidedSourceHint("cards", "foresite", null, false), new GuidedSourceHint("cards", "cygnet", null, false)),
+            WithHints(new GuidedSourceHint("cards", "bad key!", null, false)),
+            WithHints(new GuidedSourceHint("cards", "foresite", null, false, "{}")),
+            WithHints(new GuidedSourceHint("cards", "foresite", "op", false, "[1]")),
+            WithHints(new GuidedSourceHint("cards", "foresite", "op", false, "{not json")),
+            WithHints(new GuidedSourceHint("cards", "foresite", "op", false, "{\"v\":\"" + new string('x', 5000) + "\"}"))
+        })
+            Assert(Throws(() => GuidedSourceHints.Validate(bad), "GUIDED_SOURCE_HINT_INVALID"), "An invalid source hint was accepted.");
+        Assert(Throws(() => GuidedSourceHints.Validate(WithHints(Enumerable.Range(0, 65)
+            .Select(i => new GuidedSourceHint("cards", "foresite", null, false)).ToArray())), "GUIDED_SOURCE_HINT_INVALID"),
+            "More source hints than the bound were accepted.");
+        string[] operations = ["surface-cards", "history.pump-fillage"];
+        Assert(GuidedSourceHints.UnmetReason(null, "foresite", operations) is null, "No hint blocked an input.");
+        Assert(GuidedSourceHints.UnmetReason(new("cards", "cygnet", "nope", false), "foresite", operations) is null,
+            "A preference blocked an input.");
+        Assert(GuidedSourceHints.UnmetReason(new("cards", "foresite", "surface-cards", true), "foresite", operations) is null,
+            "A satisfied required hint blocked an input.");
+        Assert(GuidedSourceHints.UnmetReason(new("cards", "cygnet", null, true), "foresite", operations) == GuidedInputSupport.AdapterMismatch,
+            "A required provider on another connection was not named.");
+        Assert(GuidedSourceHints.UnmetReason(new("cards", null, "nope", true), "foresite", operations) == GuidedSourceHints.OperationUnavailable,
+            "A required operation the connection lacks was not named.");
+
         Console.WriteLine("Contract-only guided drafts passed typed round trip, validation, fencing and unsupported-execution checks.");
     }
 
@@ -173,6 +204,13 @@ internal static class GuidedContractDraftChecks
         catch (WellSiteAutoPilotException error) when (error.Code == code) { return; }
         catch (WellSiteAutoPilotException error) { throw new InvalidOperationException($"Expected {code} but got {error.Code}: {error.Message}"); }
         throw new InvalidOperationException("Expected rejection: " + code);
+    }
+
+    private static bool Throws(Action action, string code)
+    {
+        try { action(); }
+        catch (WellSiteAutoPilotException error) when (error.Code == code) { return true; }
+        return false;
     }
 
     private static void Assert(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

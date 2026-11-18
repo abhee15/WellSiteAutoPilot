@@ -1,10 +1,11 @@
 import { useEffect, useId, useState } from 'react';
-import type { AdapterOperationsResponse } from '../api/generated/v1/types.gen';
+import type { AdapterOperationsResponse, GuidedSourceHintRequest } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
+import { GuidedSourceHintFields } from './GuidedSourceHintFields';
 
 /**
  * Edits the portable typed contract (roles are preserved, inputs and outputs are edited) as the same saved V2
@@ -102,7 +103,7 @@ export function structuredOptionsFrom(adapters: readonly AdapterOperationsRespon
 type Catalog =
   | { status: 'loading' }
   | { status: 'unavailable' }
-  | { status: 'ready'; options: SourceOption[]; structured: StructuredOption[] };
+  | { status: 'ready'; options: SourceOption[]; structured: StructuredOption[]; adapters: AdapterOperationsResponse[] };
 
 function isObject(value: unknown): value is Json {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -226,10 +227,14 @@ export function GuidedContractEditor({
   manifestJson,
   disabled,
   onChange,
+  hints = [],
+  onHintsChange,
 }: {
   manifestJson: string;
   disabled: boolean;
   onChange: (manifestJson: string) => void;
+  hints?: GuidedSourceHintRequest[];
+  onHintsChange?: (hints: GuidedSourceHintRequest[]) => void;
 }) {
   const [selection, setSelection] = useState<{ kind: PortKind; index: number }>({ kind: 'input', index: 0 });
   const [catalog, setCatalog] = useState<Catalog>({ status: 'loading' });
@@ -243,6 +248,7 @@ export function GuidedContractEditor({
             status: 'ready',
             options: sourceOptionsFrom(adapters),
             structured: structuredOptionsFrom(adapters),
+            adapters,
           });
       })
       .catch(() => {
@@ -293,6 +299,10 @@ export function GuidedContractEditor({
       ),
     );
     setSelection({ kind, index: Math.max(0, index - 1) });
+  }
+
+  function changeHint(inputId: string, next: GuidedSourceHintRequest | null) {
+    onHintsChange?.([...hints.filter((item) => item.inputId !== inputId), ...(next ? [next] : [])]);
   }
 
   function textValue(value: unknown) {
@@ -453,6 +463,16 @@ export function GuidedContractEditor({
                     readOnly
                     helper={t('guided.portCapabilityHelper')}
                   />
+                  {onHintsChange && catalog.status === 'ready' && (
+                    <GuidedSourceHintFields
+                      inputId={textValue(port.id)}
+                      quantity={textValue(port.quantity)}
+                      adapters={catalog.adapters}
+                      hint={hints.find((item) => item.inputId === textValue(port.id))}
+                      disabled={disabled}
+                      onChange={(next) => changeHint(textValue(port.id), next)}
+                    />
+                  )}
                 </>
               )}
             </div>

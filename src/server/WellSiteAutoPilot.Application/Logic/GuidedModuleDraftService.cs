@@ -120,6 +120,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     {
         ArgumentNullException.ThrowIfNull(content);
         GuidedSampleCases.Validate(content);
+        GuidedSourceHints.Validate(content);
         return content.Definition is { } definition
             ? DeclarativeThresholdPackageBuilder.BuildAsync(content.Manifest, definition, cancellationToken)
             : GuidedContractDraft.ValidateAsync(content.Manifest, cancellationToken);
