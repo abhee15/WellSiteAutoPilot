@@ -16,6 +16,8 @@ Companion to the walkthrough doc "Module Authoring: Provider-First Design" (scre
 6. **No legacy data to protect.** Drafts can be discarded, APIs can break, the schema can be reset.
 7. The module list screen may be redesigned (provider filter, provider badge).
 8. Process: plan, one or two stronger-model reviews, probes, then implementation in small PRs.
+9. **No "unspecified" bucket.** Approved modules without a provider are removed by a one-off SQL reset script (keeps users, roles, grants of
+   non-asset scope), run per environment and not committed. The migration therefore only clears drafts and submissions.
 
 Vocabulary (to avoid three meanings of "provider"): **provider** = the adapter key a module is written for (`foresite`, `cygnet`);
 **Connection** = a configured server of a provider (the existing entity); **data origin** = where the provider got a value (ForeSite can front
@@ -103,7 +105,7 @@ Reject-at-load (earlier option 6b) is wrong: delete loads the draft first, the l
 deleted through the API, so old drafts would be stuck and pending legacy submissions could still be approved into provider-less modules.
 
 **Chosen:** one EF migration that deletes all submission rows and then all draft rows, and adds the `AdapterKey` column. No default-provider code.
-Approved modules already in the catalog are untouched; they show under "unspecified". The CI database starts empty, so the migration is
+Approved provider-less modules are removed by the one-off reset script, not by the migration, so the list needs no "unspecified" bucket. The CI database starts empty, so the migration is
 exercised on the Postgres job.
 
 ## 7. Risks
