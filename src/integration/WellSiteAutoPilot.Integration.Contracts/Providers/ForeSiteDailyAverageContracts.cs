@@ -24,8 +24,12 @@ public static class ForeSiteDailyAverageContract
     public const string Version = "1.0";
     public const string Quantity = "TotalFluidRateInferred";
 
-    public static IReadOnlyList<string> InferredPhaseRates { get; } = Array.AsReadOnly(new[]
-    {
-        "OilRateInferred", "GasRateInferred", "WaterRateInferred"
-    });
+    /// <summary>Most additional quantities one well's daily record may report as observed.</summary>
+    public const int MaximumObservedQuantities = 128;
+
+    /// <summary>Provider field names are identifiers; anything else is not a quantity and is never offered.</summary>
+    public static bool IsObservableQuantityName(string? name) =>
+        name is { Length: > 0 and <= 64 } && char.IsAsciiLetter(name[0]) &&
+        name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_') &&
+        name is not ("Id" or "WellId");
 }

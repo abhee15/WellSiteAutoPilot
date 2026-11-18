@@ -32,6 +32,19 @@ internal static class DailyAverageChecks
             observed[0] is not { Quantity: "OilRateInferred", Unit: "STB/d" } || result.Days[0].Value != 420)
             throw new InvalidOperationException("Discovery must retain zero with source units and exclude malformed, missing or metadata fields.");
 
+        // Any populated numeric field the provider gives a unit for is offered, not only a fixed list.
+        const string wellUnits = """
+            {"TotalFluidRateInferred":{"UnitKey":"STB/d"},"THP":{"UnitKey":"psi"},"CHP":{"UnitKey":"psi"},
+             "Bad-Name":{"UnitKey":"x"},"NoValue":{"UnitKey":"psi"}}
+            """;
+        const string wellFields = """
+            420,"THP":85.5,"CHP":0,"Bad-Name":1,"NoValue":null,"Unitless":3}
+            """;
+        result = await ReadAsync(Envelope(Row.Replace("420}", wellFields, StringComparison.Ordinal), wellUnits));
+        if (result.ObservedQuantities is not { Count: 2 } wellObserved ||
+            wellObserved[0] is not { Quantity: "CHP", Unit: "psi" } || wellObserved[1] is not { Quantity: "THP", Unit: "psi" })
+            throw new InvalidOperationException("Discovery must offer every populated field the provider gives a unit for, in a stable order, and nothing else.");
+
         await Reject(Envelope(Row + "," + Row), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row + "," + Row.Replace("\"Id\":7", "\"Id\":8", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row.Replace("05:00:00Z", "05:00:00", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");

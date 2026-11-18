@@ -300,9 +300,10 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                     var daily = await ReadDailyOperationAsync(initial, operation, startUtc, endUtc,
                         operation.Limits.MaximumSamples!.Value, cancellationToken);
                     var observed = daily.ObservedQuantities ?? [];
-                    if (observed.Count > ForeSiteDailyAverageContract.InferredPhaseRates.Count ||
+                    if (observed.Count > ForeSiteDailyAverageContract.MaximumObservedQuantities ||
                         observed.Any(item => item is null ||
-                            !ForeSiteDailyAverageContract.InferredPhaseRates.Contains(item.Quantity, StringComparer.Ordinal) ||
+                            !ForeSiteDailyAverageContract.IsObservableQuantityName(item.Quantity) ||
+                            item.Quantity == ForeSiteDailyAverageContract.Quantity ||
                             string.IsNullOrWhiteSpace(item.Unit) || item.Unit.Length > 32 || item.Unit.Any(char.IsControl)) ||
                         observed.Select(item => item.Quantity).Distinct(StringComparer.Ordinal).Count() != observed.Count)
                         throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID",

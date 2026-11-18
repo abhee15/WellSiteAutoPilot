@@ -102,9 +102,10 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
             }
             days.Add(new(id.ToString(CultureInfo.InvariantCulture), start, end, value));
             if (start >= from && start < to)
-                foreach (var quantity in ForeSiteDailyAverageContract.InferredPhaseRates)
-                    if (row.TryGetProperty(quantity, out var phase) && phase.ValueKind == JsonValueKind.Number && phase.TryGetDecimal(out _))
-                        observed.Add(quantity);
+                foreach (var property in row.EnumerateObject())
+                    if (ForeSiteDailyAverageContract.IsObservableQuantityName(property.Name) && property.Name != Quantity &&
+                        property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetDecimal(out _))
+                        observed.Add(property.Name);
         }
         days.Sort((left, right) => left.Start.CompareTo(right.Start));
         for (var i = 1; i < days.Count; i++)
@@ -135,8 +136,9 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
         // ReadUnit has already checked the Units object. Malformed optional phase units cannot invalidate the total rate.
         var quantities = new List<ForeSiteDailyObservedQuantity>(observed.Count);
         if (root.TryGetProperty("Units", out var units) && units.ValueKind == JsonValueKind.Object)
-            foreach (var name in ForeSiteDailyAverageContract.InferredPhaseRates)
-                if (observed.Contains(name) && units.TryGetProperty(name, out var unit) && unit.ValueKind == JsonValueKind.Object &&
+            foreach (var name in observed.Order(StringComparer.Ordinal))
+                if (quantities.Count < ForeSiteDailyAverageContract.MaximumObservedQuantities &&
+                    units.TryGetProperty(name, out var unit) && unit.ValueKind == JsonValueKind.Object &&
                     unit.EnumerateObject().Count(field => field.Name.Equals("UnitKey", StringComparison.OrdinalIgnoreCase)) == 1 &&
                     unit.TryGetProperty("UnitKey", out var key) && UnitText(key) is { } text)
                     quantities.Add(new(name, text));
