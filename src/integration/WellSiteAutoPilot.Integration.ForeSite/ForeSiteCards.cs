@@ -79,8 +79,9 @@ public static class ForeSiteCards
         var data = JsonSerializer.SerializeToElement(cards, JsonSerializerOptions.Web);
         if (System.Text.Encoding.UTF8.GetByteCount(data.GetRawText()) > MeasurementPayloadLimits.MaximumValueBytes)
             throw Failure("FORESITE_PAYLOAD_TOO_LARGE");
-        // Library availability supplies no quality code. The host's existing policy rejects Unknown.
-        return new(Quantity, null, "", oldest.Value, "Unknown", "foresite:dynacard-library",
+        // The card library supplies no quality code, so the reading says it is unverified: Uncertain, like a daily value. The
+        // host rejects Unknown outright, which made every stored card unusable; a module now opts in with allowUncertainQuality.
+        return new(Quantity, null, "", oldest.Value, "Uncertain", "foresite:dynacard-library",
             DateTimeOffset.UtcNow, "CardCapture") { StructuredValue = new(SchemaId, data) };
     }
 

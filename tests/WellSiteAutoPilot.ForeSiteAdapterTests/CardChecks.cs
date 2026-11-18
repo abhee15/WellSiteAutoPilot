@@ -12,7 +12,7 @@ internal static class CardChecks
         var handler = new Handler(Valid);
         using var client = new HttpClient(handler) { BaseAddress = new Uri("http://fixture/prefix/") };
         var result = await ForeSiteCards.ReadAsync(new(client), "42", CancellationToken.None);
-        if (result.Value is not null || result.Quality != "Unknown" || result.TimestampKind != "CardCapture" ||
+        if (result.Value is not null || result.Quality != "Uncertain" || result.TimestampKind != "CardCapture" ||
             result.TimestampUtc.Year != 2022 || result.StructuredValue?.SchemaId != ForeSiteCards.SchemaId || !MeasurementPayloadLimits.IsValid(result))
             throw new InvalidOperationException("Stored cards invented scalar data, freshness or quality.");
         var cards = result.StructuredValue.Data;
