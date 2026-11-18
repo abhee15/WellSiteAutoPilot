@@ -203,3 +203,19 @@ Result is 'CURRENT 1 - 10/16/2022 ...' and 'FULL 2 - 10/16/2022 ...' with 'Posit
 
 ### P42 - Placeholder text leaks into asset labels
 Sample asset options read 'Not Mapped / RRL / Unspecified device / RPOC_0413'. 'Not Mapped' and 'Unspecified device' are internal placeholder values, and the format (site / lift / device / name) differs from other runs ('REMDEV / RPOC_00016'). The select also keeps a 'Select an asset' entry when there is only one match.
+
+## CL 1108759 (#648: history preview for numeric inputs, no-source message) - live verification
+Visible Edge on 'Sri Pump Fillage Test' (P4 tree with #648, stack restarted after server change).
+- P20 addressed: choosing Analytics_Wells (an asset with no single active source) returns 404 guided_live_source_unavailable and the panel says 'This asset has no single active imported source, so it cannot be checked. Choose an asset that comes from an enabled connection.' No Retry button is shown. The Run live preview button is still offered for that asset though (see P43).
+- P18 addressed: RPOC_0413, Well trend, PumpFillage (%), 'Load history' returns 8 half-hourly samples (99.6 %, quality Unknown), shown in local time.
+
+### P43 - Run live preview and source pickers stay enabled for an asset that cannot be checked
+After the no-source message the Run live preview button, the quantity source select and Read stored surface cards remain available; every one will fail. They should be disabled (or hidden) once the asset is known to be unusable.
+
+### P44 - History result contradicts the compatibility result
+For RPOC_0413 the compatibility check says PumpFillage 'Rejected / EXECUTION_INPUT_STALE' ('An input was too old') while Load history shows readings up to 3:21 PM, two minutes before the check, all with quality 'Unknown'. The author is not told what 'too old' is measured against (module max age vs the 30-minute sample interval) or that quality Unknown is what is being rejected. Related to P37.
+
+### P45 - History button label and placement
+The read action is called 'Load history' for Well trend but 'Read last 7 days of production' for Daily averages, and appears between the selectors and the 'Search window' line. Naming and position are inconsistent (relates to P32/P35).
+
+Not verified: history for a numeric input declared with a schema other than a plain number (rejected by design), site-local time anchor on this CL, and the no-source message for an inactive or unauthorised asset (only the no-source case was reached).
