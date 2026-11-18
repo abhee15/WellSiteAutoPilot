@@ -180,6 +180,7 @@ StructuredTraceTransportChecks.Run();
 await WellSiteAutoPilot.ExecutionContractV2Tests.PackageHostChecks.RunAsync();
 await WellSiteAutoPilot.ExecutionContractV2Tests.DeclarativePackageChecks.RunAsync(request, now);
 await WellSiteAutoPilot.ExecutionContractV2Tests.GuidedContractDraftChecks.RunAsync();
+await WellSiteAutoPilot.ExecutionContractV2Tests.ScalarRuntimeChecks.RunAsync();
 ServiceCredentialPrecedenceChecks.Run();
 if (observed.InputObservations.Count != 2 || observed.InputObservations.Any(input =>
     input.Quality != "Good" || input.TimestampUtc != now || string.IsNullOrWhiteSpace(input.Source)))

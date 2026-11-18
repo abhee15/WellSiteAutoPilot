@@ -134,8 +134,10 @@ internal static class GuidedContractDraftChecks
             !foresite.AllowsScalarCurrentDeclaration("SurfaceCards", "engineering.current", "number") &&
             !foresite.AllowsScalarCurrentDeclaration(null, "engineering.current", "number"),
             "An unregistered, wrong-capability, wrong-type or structured quantity was accepted for authoring.");
-        Assert(!foresite.AllowsCurrentRead("PumpFillage", "engineering.current", "authoring.input-1.number/v1"),
-            "Assignment-time read rules must not accept V2 scalar declarations before the worker can run them.");
+        Assert(foresite.AllowsCurrentRead("PumpFillage", "engineering.current", "authoring.input-1.number/v1"),
+            "Assignment-time read rules must accept a registered V2 scalar declaration the worker can run.");
+        Assert(!foresite.AllowsCurrentRead("Quantity1", "engineering.current", "authoring.input-1.number/v1"),
+            "Assignment-time read rules accepted an unregistered V2 scalar quantity.");
 
         // Unsupported inputs say why, so the author knows whether to change the quantity, the access mode or the type.
         LogicDataRequirement Input(string quantity, string access = "Current", string? capability = "engineering.current", string type = "number") =>

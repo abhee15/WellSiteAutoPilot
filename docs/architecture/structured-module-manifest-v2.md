@@ -49,3 +49,15 @@ currently fails closed, pending a reviewed quality policy. Python, downhole card
 large-payload indirection and other structured provider capabilities remain future
 work. The offline authoring host continues to support synthetic arbitrary shapes;
 its validation is reused by the production worker.
+
+## Scalar current inputs
+
+A V2 input may declare a scalar current reading with the registry's own
+`engineering.current` capability and a schema whose root type is `number`. The schema
+identity is the module's own (`authoring.<input>.number/v1` for authored drafts), so it
+does not name a provider. Assignment accepts it when the connection's read rule serves
+that quantity and the declaration's root type is a number. At run time the worker reads
+the value through the same authorized read plan as any current read, checks quantity,
+unit, quality, age and the declared schema, and hands the module a typed value with
+its unit. Cards keep their exact-match capability. Scalar history, daily-average and
+well-test reads are not yet runtime capabilities.

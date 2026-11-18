@@ -36,6 +36,14 @@ public static class GuidedInputSupport
         return QuantityUnregistered;
     }
 
+    /// <summary>True unless the input is a V2 scalar current reading whose schema is not a plain number.</summary>
+    public static bool ScalarDeclarationIsNumeric(LogicDataRequirement input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return input.RequiredCapability != AdapterReadRules.EngineeringCurrentCapability ||
+            input.ValueSchema is { } schema && RootType(schema) == "number";
+    }
+
     /// <summary>A history preview reads a numeric series, so the input is either schema-less or declared as a plain number.</summary>
     public static bool IsScalarSeries(LogicDataRequirement input)
     {
