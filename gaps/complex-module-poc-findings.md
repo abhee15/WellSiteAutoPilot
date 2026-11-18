@@ -97,3 +97,11 @@ Not seen: the panel does not render on contract-only drafts (the contract editor
 
 New observations:
 - P23: the draft picker now lists 30+ drafts with duplicate names (several "CL638 sample check", "Live check pressure differential"). With no delete (P6) and no search, the list becomes unusable. The extra drafts here came from the breadth tests.
+
+## CL 1108717 (#641, named sample cases) - live check 2026-11-18
+Visible maximized Edge on draft "Sri Pump Fillage Test" (threshold 50). Case editor lists 3 default cases (42, 50, blank) plus a 4th added case.
+- Add case, name, reading and expected outcome (Rule triggers) work. Run is disabled until the draft is saved; after save, 10% gives "Low pump fillage" and 250% gives "No recommendation" with "Does not match the expectation. Observed: NONE."
+- Blank reading shows "Required reading unavailable". The number input refuses text.
+- **P24** Sample-case reading accepts values outside 0-100 for a percentage (250 saved and evaluated).
+- **P25** "Submit for review" is enabled while a case has a failing assertion; refusal happens only server-side. Not exercised (submit not run).
+- Not verified: submission rejection, IDE-tab editing of cases, full vitest suite, contract-only drafts (no case editor expected).
