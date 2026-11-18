@@ -28,6 +28,7 @@ import {
   addDailyInput,
   blankContractManifest,
   contractIsComplete,
+  copyContractManifest,
   dailyCapability,
   GuidedContractEditor,
   isContractOnlyManifest,
@@ -259,6 +260,7 @@ export function GuidedAuthoringPage({
   // Providers authoring can target, and the one chosen for the next new module (a draft keeps its provider for life).
   const [providers, setProviders] = useState<GuidedProviderResponse[]>([]);
   const [starterProvider, setStarterProvider] = useState('');
+  const [copyTarget, setCopyTarget] = useState('');
   // The editable typed contract of a contract-only draft; null for threshold and inspect-only drafts.
   const [contractManifest, setContractManifest] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -384,6 +386,7 @@ export function GuidedAuthoringPage({
     const key = parseManifest(contractManifest ?? draft?.manifestJson)?.requiredAdapterKey;
     return typeof key === 'string' ? key.toLowerCase() : null;
   })();
+  const otherProviders = providers.filter((item) => item.adapterKey !== activeProvider);
   const dailyDeclared = (
     Array.isArray(declared) ? (declared as { quantity?: unknown; requiredCapability?: unknown }[]) : []
   )
@@ -457,6 +460,18 @@ export function GuidedAuthoringPage({
     setConfirmDelete(false);
     select(null);
     setNotice('guided.deleted');
+  }
+
+  async function copyContract(targetProvider: string) {
+    const copied = draft?.manifestJson
+      ? copyContractManifest(draft.manifestJson, targetProvider, t('guided.copySuffix'))
+      : null;
+    if (!copied) return;
+    const { data, error: failure } = await createGuidedModuleDraft({ body: { manifestJson: copied } });
+    if (!data) throw requestFailure(failure);
+    select(data, false, activeSection);
+    setRefresh((previous) => previous + 1);
+    setNotice('guided.saved');
   }
 
   async function save() {
@@ -732,6 +747,27 @@ export function GuidedAuthoringPage({
                   {draft?.id && !submittedReference && !confirmDelete && (
                     <ActionButton label={t('guided.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />
                   )}
+                </div>
+              )}
+              {draft?.id && contractOnly && !dirty && !submittedReference && !confirmDelete && (
+                <div className="guided-authoring-actions">
+                  <SelectField
+                    label={t('guided.copyProvider')}
+                    value={copyTarget || otherProviders[0]?.adapterKey || ''}
+                    disabled={busy || otherProviders.length === 0}
+                    onChange={(event) => setCopyTarget(event.target.value)}
+                  >
+                    {otherProviders.map((item) => (
+                      <option key={item.adapterKey} value={item.adapterKey ?? ''}>
+                        {item.displayName}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <ActionButton
+                    label={t('guided.copyContract')}
+                    disabled={busy || otherProviders.length === 0}
+                    onClick={() => void run(() => copyContract(copyTarget || otherProviders[0]?.adapterKey || ''))}
+                  />
                 </div>
               )}
               {confirmDelete && draft?.id && (

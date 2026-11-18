@@ -409,3 +409,35 @@ it('filters the draft list by provider on the server and labels each draft with 
   expect(vi.mocked(listGuidedModuleDrafts).mock.calls.at(-1)![0]).toMatchObject({ query: { adapterKey: 'cygnet' } });
   expect(screen.getByRole('option', { name: 'Casing watch · CygNet' })).toBeTruthy();
 });
+
+it('copies a saved contract to a new draft for the other provider, without hints or a shared identity', async () => {
+  const source = JSON.parse(blankContractManifest('Fillage watch', 'foresite')) as Record<string, unknown>;
+  source.moduleId = 'authoring.source';
+  source.dataRequirements = [
+    { id: 'fillage', assetRole: 'asset', quantity: 'PumpFillage', access: 'Current', canonicalUnit: '%', maximumAgeSeconds: 60 },
+  ];
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
+    data: [{ id: 'src', revision: 3, manifestJson: JSON.stringify(source), sourceHints: [{ inputId: 'fillage', adapterKey: 'foresite' }] }],
+  } as never);
+  vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
+    data: { id: 'copy', revision: 1, manifestJson: body.manifestJson },
+  })) as never);
+  render(
+    <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
+  );
+  const option = await screen.findByRole('option', { name: 'Fillage watch · ForeSite' });
+  fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: (option as HTMLOptionElement).value } });
+  expect(await screen.findByLabelText<HTMLSelectElement>('Copy to provider')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Copy contract to a new draft' }));
+  await screen.findByText('Draft saved.');
+  const body = vi.mocked(createGuidedModuleDraft).mock.calls.at(-1)![0].body as unknown as {
+    manifestJson: string;
+    sourceHints?: unknown;
+  };
+  const copy = JSON.parse(body.manifestJson) as Record<string, unknown>;
+  expect(copy).toMatchObject({ requiredAdapterKey: 'cygnet', displayName: 'Fillage watch (copy)' });
+  expect(copy.moduleId).not.toBe('authoring.source');
+  expect(copy.dataRequirements).toEqual(source.dataRequirements);
+  expect(body.sourceHints).toBeUndefined();
+  expect(screen.getByText(/Provider: CygNet/)).toBeTruthy();
+});
