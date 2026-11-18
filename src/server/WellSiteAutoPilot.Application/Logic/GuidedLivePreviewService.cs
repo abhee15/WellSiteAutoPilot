@@ -144,7 +144,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
         draft.RequireRevision(expectedRevision);
         var input = draft.Content.Manifest.DataRequirements.SingleOrDefault(item => item.Id == inputId);
-        if (input is null || input.ValueSchema is not null)
+        // Authoring declares every input with a value schema, so a plain numeric schema is still a scalar series.
+        if (input is null || !GuidedInputSupport.IsScalarSeries(input))
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_INPUT_UNSUPPORTED", FailureKind.Validation,
                 "Choose a declared scalar input.");
         var (startUtc, endUtc) = GuidedSiteHistoryWindow.Resolve(start, end, siteWindow);

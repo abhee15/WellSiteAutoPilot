@@ -445,6 +445,31 @@ it('treats no returned input checks as unverified compatibility rather than fail
   }
 });
 
+it('says an asset without one active source cannot be checked, instead of a generic failure', async () => {
+  vi.mocked(checkGuidedModuleAssetCompatibility).mockResolvedValue({
+    error: { code: 'GUIDED_LIVE_SOURCE_UNAVAILABLE' },
+  } as never);
+  const fetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify([{ id: 'asset-9', name: 'Demo well', isActive: true, ownerConnectionId: 'source', path: [] }]),
+      ),
+  );
+  vi.stubGlobal('fetch', fetch);
+  try {
+    render(<GuidedLivePreview draftId="draft-no-source" revision={1} inputs={[]} />);
+    fireEvent.click(screen.getByText('Preview with a sample asset'));
+    fireEvent.change(screen.getByLabelText('Asset name or ID'), { target: { value: 'demo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find assets' }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Sample asset' }), { target: { value: 'asset-9' } });
+    expect(await screen.findByText(/no single active imported source/i)).toBeTruthy();
+    expect(screen.queryByText('Could not check this asset.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it('previews a saved revision with an imported well without enabling submission', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [

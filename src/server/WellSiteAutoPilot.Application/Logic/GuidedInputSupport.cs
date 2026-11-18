@@ -36,7 +36,15 @@ public static class GuidedInputSupport
         return QuantityUnregistered;
     }
 
-    private static string? RootType(LogicValueSchema schema) =>
+    /// <summary>A history preview reads a numeric series, so the input is either schema-less or declared as a plain number.</summary>
+    public static bool IsScalarSeries(LogicDataRequirement input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return input.ValueSchema is not { } schema || RootType(schema) == "number";
+    }
+
+    /// <summary>The root JSON Schema type of a declared value, or null when it does not name one.</summary>
+    public static string? RootType(LogicValueSchema schema) =>
         schema.Schema.ValueKind == JsonValueKind.Object &&
         schema.Schema.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
             ? type.GetString() : null;

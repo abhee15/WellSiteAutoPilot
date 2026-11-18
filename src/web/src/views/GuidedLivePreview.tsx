@@ -35,6 +35,7 @@ type Compatibility =
   | { kind: 'checking' }
   | { kind: 'result'; inputs: NonNullable<GuidedAssetCompatibilityResponse['inputs']> }
   | { kind: 'error' }
+  | { kind: 'sourceUnavailable' }
   | { kind: 'noInputChecks' };
 
 const compatibilityLabels = {
@@ -88,12 +89,17 @@ export function GuidedLivePreview({
     compatibilityRequest.current = controller;
     setCompatibility({ kind: 'checking' });
     try {
-      const { data } = await checkGuidedModuleAssetCompatibility({
+      const { data, error } = await checkGuidedModuleAssetCompatibility({
         path: { id: draftId },
         body: { expectedRevision: revision, assetId: selectedAssetId },
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
+      // An asset without exactly one active imported source is not a provider failure and will not recover on retry.
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'GUIDED_LIVE_SOURCE_UNAVAILABLE') {
+        setCompatibility({ kind: 'sourceUnavailable' });
+        return;
+      }
       // An empty checked-input set is neither a provider failure nor proof of compatibility.
       setCompatibility(
         data?.inputs
@@ -335,6 +341,9 @@ export function GuidedLivePreview({
         )}
         {compatibility?.kind === 'checking' && <Notice>{t('guided.assetCompatibilityChecking')}</Notice>}
         {compatibility?.kind === 'error' && <Notice tone="warning">{t('guided.assetCompatibilityFailed')}</Notice>}
+        {compatibility?.kind === 'sourceUnavailable' && (
+          <Notice tone="warning">{t('guided.assetSourceUnavailable')}</Notice>
+        )}
         {compatibility?.kind === 'noInputChecks' && <Notice>{t('guided.assetNoInputChecks')}</Notice>}
         {compatibility?.kind === 'result' && (
           <Notice>

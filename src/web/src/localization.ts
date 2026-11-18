@@ -1494,6 +1494,8 @@ export const englishMessages = {
   'guided.assetNoInputChecks': 'No input checks were returned for this asset. Compatibility has not been established.',
   'guided.assetCompatibilityChecking': 'Checking this asset against the draft’s declared inputs…',
   'guided.assetCompatibilityFailed': 'Could not check this asset.',
+  'guided.assetSourceUnavailable':
+    'This asset has no single active imported source, so it cannot be checked. Choose an asset that comes from an enabled connection.',
   'guided.assetCompatible': 'This asset satisfies all checked input requirements. Other capabilities may still need verification.',
   'guided.assetCompatibilityIncomplete': 'The check could not confirm every required input for this asset.',
   'guided.assetInputSatisfied': 'Meets requirement',
