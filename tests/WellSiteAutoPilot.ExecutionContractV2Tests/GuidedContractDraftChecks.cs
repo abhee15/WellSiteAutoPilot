@@ -146,7 +146,9 @@ internal static class GuidedContractDraftChecks
         Assert(Reason(Input("PumpFillage")) is null, "A registered scalar input was reported unsupported.");
         Assert(Reason(Input("Quantity1")) == GuidedInputSupport.QuantityUnregistered, "An unregistered quantity was not named.");
         Assert(Reason(Input("PumpFillage", "History")) == GuidedInputSupport.AccessUnsupported, "A non-current access mode was not named.");
-        Assert(Reason(Input("PumpFillage", capability: "structured.current")) == GuidedInputSupport.CapabilityUnsupported, "A wrong capability was not named.");
+        Assert(Reason(Input("PumpFillage", capability: "other.current")) == GuidedInputSupport.CapabilityUnsupported, "A wrong capability was not named.");
+        Assert(Reason(Input("PumpFillage", capability: AdapterReadRules.StructuredCurrentCapability)) == GuidedInputSupport.QuantityUnregistered,
+            "A scalar quantity declared as a structured input was accepted.");
         Assert(Reason(Input("PumpFillage", type: "string")) == GuidedInputSupport.ValueTypeUnsupported, "A wrong value type was not named.");
         var cards = new LogicDataRequirement("cards", "well", ForeSiteSurfaceCard.Quantity, "Current", null, 60, false,
             new(ForeSiteSurfaceCard.SchemaId, Json(ForeSiteSurfaceCard.JsonSchema)), AdapterReadRules.StructuredCurrentCapability);
