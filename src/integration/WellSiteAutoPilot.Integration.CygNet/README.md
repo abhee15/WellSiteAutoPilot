@@ -58,3 +58,10 @@ See [the host validation guide](../../../docs/implementation/cygnet-history-phas
 the native project locally. Sri owns this local validation; no licensed SDK installation is expected in hosted CI.
 Native SDK compatibility and live source semantics remain unverified until the local checks pass. This does not block
 merging the candidate and probe, but history capability activation still requires verified native behavior.
+
+## Simulated CygNet (development and CI)
+
+A machine without CygNet can set `CygNet:Simulator:BaseUrl` (`CygNet__Simulator__BaseUrl`) on the Gateway to the provider
+simulator's address. The Gateway then uses `SimulatedCygNetClient`, which reads the simulator's `/cygnet/sim` facilities and
+current values through the same `ICygNetClient` seam, so settings, discovery, read rules and quality handling run unchanged.
+It serves current values only. Leave the setting unset in any deployment that has real CygNet.

@@ -1653,7 +1653,7 @@ jobs:
           dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
           echo $! > simulator.pid
 
-          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          Providers__Simulator__BaseUrl=http://127.0.0.1:5091 CygNet__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
           echo $! > gateway.pid
 
           Security__ServiceKey="$WORKER_KEY" Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &

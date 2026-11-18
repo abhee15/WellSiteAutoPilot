@@ -73,6 +73,27 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable);
 
+// A CygNet stand-in for current values, read by the Gateway's SimulatedCygNetClient. A facility is a simulated asset.
+app.MapGet("/cygnet/sim/facilities",
+    (SimulatorState state) => state.ProviderAvailable
+        ? Results.Ok(new[] { "WELL-101", "WELL-102", "WELL-103", "WELL-104" })
+        : Results.StatusCode(StatusCodes.Status503ServiceUnavailable))
+    .WithName("ListSimulatedCygNetFacilities");
+
+app.MapGet("/cygnet/sim/facilities/{facilityId}/current/{quantity}",
+    (string facilityId, string quantity, SimulatorState state) =>
+    {
+        try
+        {
+            return state.TryGetConfigured(facilityId, quantity) is { } value ? Results.Ok(value) : Results.NotFound();
+        }
+        catch (SimulatorProviderUnavailableException)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    })
+    .WithName("GetSimulatedCygNetCurrentValue");
+
 // Synthetic managed-CAS records for the Gateway adapter's offline integration checks.
 app.MapGet("/cygnet/fixtures/facilities/{facilityId}/points/{udc}/alarms",
     (string facilityId, string udc, SimulatorState state) =>

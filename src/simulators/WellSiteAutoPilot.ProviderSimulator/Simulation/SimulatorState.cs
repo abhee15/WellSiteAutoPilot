@@ -19,6 +19,10 @@ public sealed class SimulatorState
 
     public bool ProviderAvailable { get; private set; } = true;
 
+    /// <summary>The value a scenario configured for this asset and quantity, or null when it has none (a point that does not exist).</summary>
+    public EngineeringValue? TryGetConfigured(string assetId, string quantity) =>
+        _values.ContainsKey((assetId, quantity)) ? GetCurrent(assetId, quantity) : null;
+
     public EngineeringValue GetCurrent(string assetId, string quantity)
     {
         if (!ProviderAvailable || _blockedReadback.Contains(quantity))
