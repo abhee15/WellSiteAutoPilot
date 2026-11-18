@@ -261,3 +261,66 @@ it('saves edits to a reopened contract against its revision and keeps structured
   });
   await screen.findByText('Draft saved.');
 });
+
+it('lets an author choose where an input is read from, and saves it beside the contract', async () => {
+  vi.mocked(loadAdapterOperations).mockResolvedValue([
+    {
+      adapterKey: 'foresite',
+      displayName: 'ForeSite',
+      operations: [
+        { key: 'current.pump-fillage', displayName: 'Current pump fillage', ...operation('engineering.current', 'PumpFillage', '%') },
+        { key: 'history.stroke-rate', displayName: 'Stroke rate trend', ...operation('engineering.history', 'SPM', 'SPM') },
+      ],
+    },
+    {
+      adapterKey: 'cygnet',
+      displayName: 'CygNet',
+      operations: [{ key: 'current.pump-fillage', displayName: 'CygNet fillage', ...operation('engineering.current', 'PumpFillage', '%') }],
+    },
+  ] as never);
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
+    data: { id: 'contract-hints', revision: 1, manifestJson: body.manifestJson },
+  })) as never);
+  render(
+    <GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />,
+  );
+  startContract();
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pinned fillage' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
+  // The registry supplies the capability, so wait for it before choosing the quantity.
+  await screen.findByLabelText('Read from provider');
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PumpFillage' } });
+
+  // No choice means any provider that serves the quantity, so nothing is saved for the input.
+  expect(screen.getByLabelText<HTMLSelectElement>('Read from provider').value).toBe('');
+  expect(screen.getByLabelText('Only run with this source').hasAttribute('disabled')).toBe(true);
+  fireEvent.change(screen.getByLabelText('Read from provider'), { target: { value: 'foresite' } });
+  fireEvent.change(screen.getByLabelText('Read with operation'), { target: { value: 'current.pump-fillage' } });
+  // Only operations that serve this quantity are offered.
+  expect(screen.getByRole('option', { name: 'Current pump fillage' })).toBeTruthy();
+  expect(screen.queryByRole('option', { name: 'Stroke rate trend' })).toBeNull();
+  fireEvent.click(screen.getByLabelText('Only run with this source'));
+  expect(screen.getByText(/limits which assets this module/i)).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add output' }));
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'Result' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  const body = vi.mocked(createGuidedModuleDraft).mock.calls.at(-1)![0].body as unknown as {
+    sourceHints: { inputId: string; adapterKey: string; operationKey: string; required: boolean }[];
+    manifestJson: string;
+  };
+  const manifest = JSON.parse(body.manifestJson) as { dataRequirements: { id: string }[] };
+  expect(body.sourceHints).toEqual([
+    {
+      inputId: manifest.dataRequirements[0]!.id,
+      adapterKey: 'foresite',
+      operationKey: 'current.pump-fillage',
+      required: true,
+      parametersJson: null,
+    },
+  ]);
+  // The hint is not part of the portable manifest.
+  expect(body.manifestJson).not.toContain('current.pump-fillage');
+});

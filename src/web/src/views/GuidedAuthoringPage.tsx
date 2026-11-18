@@ -15,6 +15,7 @@ import type {
   GuidedModuleReviewResponse,
   GuidedPressureReadingRequest,
   GuidedSampleCaseRequest,
+  GuidedSourceHintRequest,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
@@ -32,6 +33,7 @@ import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { GuidedSampleCases, defaultSampleCases } from './GuidedSampleCases';
+import { normalizeHint } from './GuidedSourceHintFields';
 import { ConfirmPanel, FormActions, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
@@ -148,6 +150,7 @@ const knownErrorCodes: Record<string, Parameters<typeof t>[0]> = {
   GUIDED_SAMPLE_EXPECTATION_FAILED: 'guided.errorExpectation',
   GUIDED_SAMPLE_CASES_INVALID: 'guided.errorCases',
   GUIDED_DRAFT_LOGIC_UNSUPPORTED: 'guided.errorNoLogic',
+  GUIDED_SOURCE_HINT_INVALID: 'guided.errorSourceHint',
   MODULE_DATA_MAX_AGE_INVALID: 'guided.errorMaxAge',
   MODULE_DATA_REQUIREMENT_DUPLICATE: 'guided.errorDuplicateInput',
   MODULE_DATA_ROLE_UNKNOWN: 'guided.errorUnknownRole',
@@ -247,6 +250,8 @@ export function GuidedAuthoringPage({
   const [evidence, setEvidence] = useState<GuidedModulePreviewResponse[]>([]);
   // Authored sample cases; null means the draft's saved cases (or the starting cases for a new draft) are unchanged.
   const [cases, setCases] = useState<GuidedSampleCaseRequest[] | null>(null);
+  // Authored source choices; null means the draft's saved choices are unchanged.
+  const [hints, setHints] = useState<GuidedSourceHintRequest[] | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reviewKey, setReviewKey] = useState(initialReviewReference);
   const [submittedReference, setSubmittedReference] = useState('');
@@ -304,6 +309,7 @@ export function GuidedAuthoringPage({
     setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
     setCases(null);
+    setHints(null);
     setScenario(0);
     setEditorSection(section);
     setSubmittedReference('');
@@ -330,6 +336,13 @@ export function GuidedAuthoringPage({
   const baselineCases = draft?.sampleCases ?? defaultSampleCases(pressure, boundary);
   const activeCases = cases ?? baselineCases;
   const sampleCount = activeCases.length;
+  const baselineHints = (draft?.sourceHints ?? []).map(normalizeHint);
+  // A hint for an input that was removed from the contract is dropped, never saved.
+  const declared = parseManifest(contractManifest ?? draft?.manifestJson)?.dataRequirements;
+  const declaredInputs = new Set(
+    Array.isArray(declared) ? (declared as { id?: unknown }[]).map((input) => input.id) : [],
+  );
+  const activeHints = (hints ?? baselineHints).map(normalizeHint).filter((hint) => declaredInputs.has(hint.inputId));
   const contractOnly = contractManifest !== null;
   const inspectOnly = Boolean(draft && !contractOnly && !supportsGuidedRule(draft.manifestJson));
   const valid = contractOnly
@@ -344,8 +357,13 @@ export function GuidedAuthoringPage({
     Boolean(draft) &&
     JSON.stringify(parseManifest(contractManifest)) !== JSON.stringify(parseManifest(draft?.manifestJson));
   const casesChanged = cases !== null && JSON.stringify(cases) !== JSON.stringify(baselineCases);
+  const hintsChanged = hints !== null && JSON.stringify(activeHints) !== JSON.stringify(baselineHints);
   const dirty =
-    name !== displayName(draft?.manifestJson) || threshold !== String(boundary) || contractChanged || casesChanged;
+    name !== displayName(draft?.manifestJson) ||
+    threshold !== String(boundary) ||
+    contractChanged ||
+    casesChanged ||
+    hintsChanged;
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
   const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
@@ -400,7 +418,7 @@ export function GuidedAuthoringPage({
     if (contractOnly) {
       // A contract-only draft sends no definition, so the server stores no logic for it.
       const manifest = { ...(parseManifest(contractManifest) ?? {}), displayName: name.trim() };
-      const contractBody = { manifestJson: JSON.stringify(manifest) };
+      const contractBody = { manifestJson: JSON.stringify(manifest), sourceHints: activeHints };
       const { data, error: failure } =
         draft?.id && draft.revision
           ? await editGuidedModuleDraft({
@@ -429,6 +447,7 @@ export function GuidedAuthoringPage({
         default: Number(threshold),
       },
       sampleCases: activeCases,
+      sourceHints: activeHints,
     };
     const { data, error: failure } =
       draft?.id && draft.revision
@@ -700,6 +719,8 @@ export function GuidedAuthoringPage({
                         manifestJson={contractManifest}
                         disabled={busy}
                         onChange={setContractManifest}
+                        hints={activeHints}
+                        onHintsChange={setHints}
                       />
                       {view === 'ide' && draft?.manifestJson && (
                         <CodeBlock label={t('guided.contractSource')}>

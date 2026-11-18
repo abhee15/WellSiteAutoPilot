@@ -2093,22 +2093,27 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
     }
     if (request.Definition is not { } definition)
         // Contract-only: the server owns the placeholder entry point so no client can claim runnable code.
-        return new(manifest with { EntryPoint = GuidedContractDraft.UnsetEntryPoint });
+        return new(manifest with { EntryPoint = GuidedContractDraft.UnsetEntryPoint }, SourceHints: ToSourceHints(request.SourceHints));
     return new(manifest with
     {
         EntryPoint = manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
             ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint
     },
         new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
-        request.SampleCases?.Select(item => new GuidedSampleCase(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray());
+        request.SampleCases?.Select(item => new GuidedSampleCase(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray(),
+        ToSourceHints(request.SourceHints));
 }
+
+static GuidedSourceHint[]? ToSourceHints(IReadOnlyList<GuidedSourceHintRequest>? hints) =>
+    hints?.Select(item => new GuidedSourceHint(item.InputId, item.AdapterKey, item.OperationKey, item.Required, item.ParametersJson)).ToArray();
 
 static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
 {
     var definition = draft.Content.Definition;
     return new(draft.Id, draft.Revision, GuidedDraftManifestJson.Serialize(draft.Content.Manifest),
         definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
-        draft.Content.SampleCases?.Select(item => new GuidedSampleCaseRequest(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray());
+        draft.Content.SampleCases?.Select(item => new GuidedSampleCaseRequest(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray(),
+        draft.Content.SourceHints?.Select(item => new GuidedSourceHintRequest(item.InputId, item.AdapterKey, item.OperationKey, item.Required, item.ParametersJson)).ToArray());
 }
 
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
