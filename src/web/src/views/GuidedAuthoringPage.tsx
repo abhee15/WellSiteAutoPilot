@@ -86,6 +86,8 @@ function draftManifest(name: string, pressure: boolean) {
     moduleId: 'guided.' + crypto.randomUUID(),
     version: '1.0.0',
     displayName: name,
+    // Interim until the provider chooser: the pressure starter reads CygNet quantities, the fillage starter ForeSite's.
+    requiredAdapterKey: pressure ? 'cygnet' : 'foresite',
     publisher: 'WellSite AutoPilot',
     runtime: 'DotNet',
     executionProfile: 'ScheduledOneShot',
@@ -424,7 +426,11 @@ export function GuidedAuthoringPage({
   async function save() {
     if (contractOnly) {
       // A contract-only draft sends no definition, so the server stores no logic for it.
-      const manifest = { ...(parseManifest(contractManifest) ?? {}), displayName: name.trim() };
+      const manifest = {
+        requiredAdapterKey: 'foresite',
+        ...(parseManifest(contractManifest) ?? {}),
+        displayName: name.trim(),
+      };
       const contractBody = { manifestJson: JSON.stringify(manifest), sourceHints: activeHints };
       const { data, error: failure } =
         draft?.id && draft.revision

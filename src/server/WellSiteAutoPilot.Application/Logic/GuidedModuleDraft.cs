@@ -25,6 +25,9 @@ public sealed record GuidedModuleDraft(
         if (Content.IsContractOnly != content.IsContractOnly)
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_KIND_IMMUTABLE", FailureKind.Validation,
                 "A guided draft cannot switch between a contract-only draft and a threshold rule.");
+        if (!string.Equals(Content.Manifest.RequiredAdapterKey, content.Manifest.RequiredAdapterKey, StringComparison.Ordinal))
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_PROVIDER_IMMUTABLE", FailureKind.Validation,
+                "A guided draft keeps the provider it was created for. Copy the contract into a new draft to target another provider.");
         if (!string.Equals(Content.Manifest.ModuleId, content.Manifest.ModuleId, StringComparison.Ordinal) ||
             !string.Equals(Content.Manifest.Version, content.Manifest.Version, StringComparison.Ordinal) ||
             Content.Manifest.EntryPoint != content.Manifest.EntryPoint)

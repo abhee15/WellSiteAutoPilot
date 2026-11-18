@@ -127,6 +127,7 @@ guided_manifest = json.loads((Path(__file__).resolve().parents[2] / "modules/aut
 guided_manifest.update(moduleId="ci.guided-" + uuid.uuid4().hex, commandRequirements=[], dataRequirements=[
     {"id":"fillage","assetRole":guided_manifest["assetRequirements"][0]["role"],"quantity":"PumpFillage",
      "access":"Current","canonicalUnit":"%","maximumAgeSeconds":60,"allowUncertainQuality":False}])
+guided_manifest["requiredAdapterKey"] = "foresite"
 guided_manifest["assetRequirements"] = [guided_manifest["assetRequirements"][0]]
 guided_manifest["assetRequirements"][0].update(minimumCount=1, maximumCount=1)
 guided_manifest["parameterSchema"] = {"type":"object","properties":{"threshold":{"type":"number","minimum":0,"maximum":100}},
@@ -134,6 +135,14 @@ guided_manifest["parameterSchema"] = {"type":"object","properties":{"threshold":
 guided_content = {"manifestJson":json.dumps(guided_manifest), "definition":{"parameter":"threshold","default":70,
     "outcomeCode":"LOW_FILLAGE","title":"Low fillage","detail":"Review pump fillage."}}
 request("POST", "/guided-module-drafts", GROUP_ONLY, guided_content, expected=403)
+providers = request("GET", "/guided-module-drafts/providers", OPERATOR)
+assert [item["adapterKey"] for item in providers] == ["foresite", "cygnet"] and providers[1]["currentValuesOnly"], providers
+request("GET", "/guided-module-drafts/providers", GROUP_ONLY, expected=403)
+for bad_key in (None, "nonesuch"):
+    bad = dict(guided_manifest, requiredAdapterKey=bad_key)
+    if bad_key is None: del bad["requiredAdapterKey"]
+    assert "GUIDED_DRAFT_PROVIDER" in json.dumps(request("POST", "/guided-module-drafts", OPERATOR,
+        dict(guided_content, manifestJson=json.dumps(bad)), expected=400)), bad_key
 guided = request("POST", "/guided-module-drafts", OPERATOR, guided_content)
 guided_url = "/guided-module-drafts/" + guided["id"]
 request("GET", guided_url, OTHER, expected=404)
@@ -146,6 +155,8 @@ preview = {"expectedRevision":1,"value":62,"parametersJson":"{}"}
 assert request("POST", guided_url + "/preview", OPERATOR, preview)["outcomeCode"] == "LOW_FILLAGE"
 assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, value=70))["outcomeCode"] == "THRESHOLD_NOT_MET"
 assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, value=None))["failureCode"] == "MODULE_DECLARATIVE_INPUT_UNAVAILABLE"
+request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1,
+    manifestJson=json.dumps(dict(guided_manifest, requiredAdapterKey="cygnet"))), expected=400)
 assert request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1))["revision"] == 2
 request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1), expected=409)
 request("POST", guided_url + "/preview", OPERATOR, preview, expected=409)
