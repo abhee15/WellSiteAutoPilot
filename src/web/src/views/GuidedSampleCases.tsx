@@ -6,6 +6,17 @@ import { t } from '../localization';
 /** The expectation value meaning "the rule must not trigger"; any other value must be the rule's outcome code. */
 export const noOutcome = 'NONE';
 export const maximumSampleCases = 50;
+/** Readings a sample case may carry: a percentage is 0-100 and a pressure is bounded like the rule's threshold. */
+export const maximumSampleReading = (pressure: boolean) => (pressure ? 10000 : 100);
+
+export function sampleCasesInRange(cases: readonly GuidedSampleCaseRequest[], pressure: boolean): boolean {
+  const limit = maximumSampleReading(pressure);
+  return cases.every((item) =>
+    [item.value, item.casingPsi, item.tubingPsi].every(
+      (reading) => reading == null || (Number.isFinite(reading) && reading >= 0 && reading <= limit),
+    ),
+  );
+}
 
 /** Starting cases for a new draft. They carry no expectations: the author decides what each case must show. */
 export function defaultSampleCases(pressure: boolean, boundary: number): GuidedSampleCaseRequest[] {
@@ -93,6 +104,7 @@ export function GuidedSampleCases({
                     <NumberField
                       label={t('guided.caseCasing', { number })}
                       min={0}
+                      max={maximumSampleReading(pressure)}
                       value={item.casingPsi ?? ''}
                       disabled={disabled}
                       onChange={(event) => update(index, { casingPsi: numberOrNull(event.target.value) })}
@@ -100,6 +112,7 @@ export function GuidedSampleCases({
                     <NumberField
                       label={t('guided.caseTubing', { number })}
                       min={0}
+                      max={maximumSampleReading(pressure)}
                       value={item.tubingPsi ?? ''}
                       disabled={disabled}
                       onChange={(event) => update(index, { tubingPsi: numberOrNull(event.target.value) })}
@@ -109,6 +122,7 @@ export function GuidedSampleCases({
                   <NumberField
                     label={t('guided.caseValue', { number })}
                     min={0}
+                    max={maximumSampleReading(pressure)}
                     value={item.value ?? ''}
                     disabled={disabled}
                     onChange={(event) => update(index, { value: numberOrNull(event.target.value) })}

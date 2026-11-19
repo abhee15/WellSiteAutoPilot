@@ -14,6 +14,8 @@ public static class GuidedSampleCases
     public const int Maximum = 50;
     public const int MaximumNameLength = 60;
     public const string NoOutcome = "NONE";
+    public const decimal MaximumPercent = 100;
+    public const decimal MaximumPressurePsi = 10000;
 
     /// <summary>Rejects cases that cannot describe the draft's calculation. Contract-only drafts have no rule, so no cases.</summary>
     public static void Validate(GuidedModuleDraftContent content)
@@ -31,6 +33,9 @@ public static class GuidedSampleCases
                 throw Invalid("Each sample case needs a unique name of at most " + MaximumNameLength + " characters.");
             if (difference ? item.Value is not null : item.CasingPsi is not null || item.TubingPsi is not null)
                 throw Invalid("Sample case '" + item.Name.Trim() + "' does not match the draft calculation.");
+            var limit = difference ? MaximumPressurePsi : MaximumPercent;
+            if (new[] { item.Value, item.CasingPsi, item.TubingPsi }.Any(reading => reading is < 0 || reading > limit))
+                throw Invalid("Sample case '" + item.Name.Trim() + "' has a reading outside 0 to " + limit + ".");
             if (item.ExpectedOutcome is not null && item.ExpectedOutcome != NoOutcome && item.ExpectedOutcome != definition.OutcomeCode)
                 throw Invalid("Sample case '" + item.Name.Trim() + "' expects an outcome the rule cannot produce.");
         }

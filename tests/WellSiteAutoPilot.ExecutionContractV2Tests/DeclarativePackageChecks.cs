@@ -129,6 +129,8 @@ internal static class DeclarativePackageChecks
         await RejectAsync(() => Invalid(new GuidedSampleCase("A", 1, null, null, null), new GuidedSampleCase("a", 2, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
         await RejectAsync(() => Invalid(new GuidedSampleCase("Pair", null, 100, 50, null)), "GUIDED_SAMPLE_CASES_INVALID");
         await RejectAsync(() => Invalid(new GuidedSampleCase("Wrong code", 1, null, null, "OTHER")), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new GuidedSampleCase("Impossible percentage", 250, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new GuidedSampleCase("Negative", -1, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
         await RejectAsync(() => Task.Run(() => GuidedSampleCases.Validate(new GuidedModuleDraftContent(manifest) with { SampleCases = cases })), "GUIDED_SAMPLE_CASES_INVALID");
         var observedCases = new List<DeclarativeThresholdEvidence>();
         foreach (var item in cases)

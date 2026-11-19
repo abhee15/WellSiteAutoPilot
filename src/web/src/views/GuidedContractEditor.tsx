@@ -196,6 +196,21 @@ export function contractIsComplete(source: string | null | undefined): boolean {
   );
 }
 
+/** The first port that blocks saving, for telling the author why; null when the contract is complete. */
+export function firstIncompletePort(source: string | null | undefined): string | null {
+  const manifest = parseManifest(source);
+  if (!manifest) return null;
+  for (const kind of ['input', 'output'] as const)
+    for (const port of portsOf(manifest, kind))
+      if (!(
+        typeof port.quantity === 'string' &&
+        identifier.test(port.quantity) &&
+        (kind === 'output' || (typeof port.requiredCapability === 'string' && identifier.test(port.requiredCapability)))
+      ))
+        return (typeof port.quantity === 'string' && port.quantity) || (typeof port.id === 'string' && port.id) || kind;
+  return null;
+}
+
 function withPorts(manifest: Json, kind: PortKind, ports: Json[]): Json {
   return { ...manifest, [listKey[kind]]: ports };
 }

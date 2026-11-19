@@ -266,6 +266,8 @@ export function GuidedLivePreview({
   const history = historyResult?.data;
 
   const result = assetPreview?.kind === 'current' ? assetPreview.data : null;
+  // An asset with no single active source fails every read, so nothing further is offered for it.
+  const sourceUnavailable = compatibility?.kind === 'sourceUnavailable';
   const productionDays = assetPreview?.kind === 'productionDays' ? assetPreview.data : null;
   const productionDaysQuantity = assetPreview?.kind === 'productionDays' ? assetPreview.quantity : '';
 
@@ -382,9 +384,13 @@ export function GuidedLivePreview({
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkAsset(assetId)} />
         )}
         {canRun && (
-          <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />
+          <ActionButton
+            label={t('guided.runLive')}
+            disabled={busy || !assetId || sourceUnavailable}
+            onClick={() => void preview()}
+          />
         )}
-        {assetId && (
+        {assetId && !sourceUnavailable && (
           <GuidedQuantityDiscovery
             key={`${draftId}:${revision}:${assetId}`}
             {...{ draftId, revision, assetId, inputs, busy, onUseDailyField, declaredDaily }}
@@ -437,7 +443,7 @@ export function GuidedLivePreview({
             )}
           </div>
         )}
-        {assetId && (
+        {assetId && !sourceUnavailable && (
           <div className="guided-authoring-actions">
             <ActionButton
               label={t('guided.readSurfaceCards')}
