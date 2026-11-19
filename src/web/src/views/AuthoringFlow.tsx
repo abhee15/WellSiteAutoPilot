@@ -12,6 +12,9 @@ import { Notice } from '../components/Notice';
 import { Section } from '../components/Section';
 import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
+import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
+import { emptyRules, serializeRules } from './rulesModel';
+import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
   addDailyInput,
@@ -33,8 +36,11 @@ const sourceLabels = { current: 'flow.sourceCurrent', daily: 'flow.sourceDaily' 
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
-type Section = 'inputs';
-const outline: { id: Section; label: 'flow.outlineInputs' }[] = [{ id: 'inputs', label: 'flow.outlineInputs' }];
+type Section = 'inputs' | 'parameters';
+const outline: { id: Section; label: 'flow.outlineInputs' | 'flow.outlineParameters' }[] = [
+  { id: 'inputs', label: 'flow.outlineInputs' },
+  { id: 'parameters', label: 'flow.outlineParameters' },
+];
 
 /**
  * Module authoring workbench. A module is created with a name and a provider, then edited here: an outline of the
@@ -46,6 +52,7 @@ export function AuthoringFlow() {
   const [providerKey, setProviderKey] = useState('');
   const [manifest, setManifest] = useState('');
   const [hints, setHints] = useState<GuidedSourceHintRequest[]>([]);
+  const [rules, setRules] = useState<RulesModel>(emptyRules);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selected, setSelected] = useState<Section>('inputs');
@@ -65,9 +72,15 @@ export function AuthoringFlow() {
 
   const provider = providers.find((item) => item.adapterKey === providerKey);
   const inputs = useMemo(() => (manifest ? inputsOf(manifest) : []), [manifest]);
-  const canSave = draft !== null && contractIsComplete(manifest) && dirty && !busy;
+  const inputNames = useMemo(() => inputs.map((input) => String(input.quantity ?? '')), [inputs]);
+  const canSave =
+    draft !== null && contractIsComplete(manifest) && !hasParameterProblems(rules, inputNames) && dirty && !busy;
 
-  async function persist(body: { manifestJson: string; sourceHints: GuidedSourceHintRequest[] }) {
+  async function persist(body: {
+    manifestJson: string;
+    sourceHints: GuidedSourceHintRequest[];
+    rulesJson: string | null;
+  }) {
     const { data } =
       draft?.id && draft.revision
         ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
@@ -92,10 +105,17 @@ export function AuthoringFlow() {
   const bodyOf = (current: string) => ({
     manifestJson: JSON.stringify({ ...(parseManifest(current) ?? {}), displayName: name.trim() }),
     sourceHints: hints,
+    rulesJson: serializeRules(rules),
   });
 
   function edit(next: string) {
     setManifest(next);
+    setDirty(true);
+    setJustSaved(false);
+  }
+
+  function editRules(next: RulesModel) {
+    setRules(next);
     setDirty(true);
     setJustSaved(false);
   }
@@ -188,11 +208,12 @@ export function AuthoringFlow() {
               onClick={() => setSelected(item.id)}
             >
               <span>{t(item.label)}</span>
-              <span className="authoring-count">{inputs.length}</span>
+              <span className="authoring-count">{item.id === 'inputs' ? inputs.length : rules.parameters.length}</span>
             </button>
           ))}
         </nav>
         <div className="authoring-workbench-editor">
+          {selected === 'parameters' && <ParametersEditor rules={rules} takenNames={inputNames} onChange={editRules} />}
           {selected === 'inputs' && (
             <InputsEditor
               providerKey={providerKey}
