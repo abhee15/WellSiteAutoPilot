@@ -320,6 +320,24 @@ it('saves authored sample cases and flags an outcome that contradicts the expect
   });
   fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
   expect(await screen.findByText('Does not match the expectation. Observed: NONE.')).toBeTruthy();
+  // A failing assertion keeps Submit off until the expectation or the rule is fixed, saved and run again.
+  expect(screen.getByRole('button', { name: 'Submit for review' }).hasAttribute('disabled')).toBe(true);
+  vi.mocked(editGuidedModuleDraft).mockResolvedValueOnce({
+    data: {
+      id: 'draft-cases',
+      revision: 1,
+      manifestJson: '{"displayName":"Fillage check","entryPoint":"wsa.declarative.threshold.v1"}',
+      definition: { default: 70, outcomeCode: 'LOW_FILLAGE' },
+      sampleCases: [{ name: 'Dry tubing', value: 42, casingPsi: null, tubingPsi: null, expectedOutcome: 'NONE' }],
+    },
+  } as never);
+  fireEvent.change(screen.getByLabelText('Case 1 expected outcome'), { target: { value: 'NONE' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Submit for review' }).hasAttribute('disabled')).toBe(false),
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
   await screen.findByLabelText('Shareable review link');
   // Saved cases are the evidence of record, so no readings are posted with the submission.
