@@ -2099,7 +2099,8 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
     }
     if (request.Definition is not { } definition)
         // Contract-only: the server owns the placeholder entry point so no client can claim runnable code.
-        return new(manifest with { EntryPoint = GuidedContractDraft.UnsetEntryPoint }, SourceHints: ToSourceHints(request.SourceHints));
+        return new(manifest with { EntryPoint = GuidedContractDraft.UnsetEntryPoint }, SourceHints: ToSourceHints(request.SourceHints),
+            RulesJson: request.RulesJson);
     return new(manifest with
     {
         EntryPoint = manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
@@ -2119,7 +2120,8 @@ static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
     return new(draft.Id, draft.Revision, GuidedDraftManifestJson.Serialize(draft.Content.Manifest),
         definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
         draft.Content.SampleCases?.Select(item => new GuidedSampleCaseRequest(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray(),
-        draft.Content.SourceHints?.Select(item => new GuidedSourceHintRequest(item.InputId, item.ExternalSource)).ToArray());
+        draft.Content.SourceHints?.Select(item => new GuidedSourceHintRequest(item.InputId, item.ExternalSource)).ToArray(),
+        draft.Content.RulesJson);
 }
 
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
