@@ -117,7 +117,7 @@ Each step is done only when: designed here, small PR, positive and negative test
 
 | Step | Plan | State |
 |---|---|---|
-| 1 Provider catalogue | Per-field catalogue for surveillance AND daily fields; unit, range, time source, fixtures; full-list discovery | Surveillance done (43 fields, units checked, fixtures). **Not done:** daily-field catalogue, per-field range (percent only), time source stored per entry. Live: well 776 gave 23 observed, 20 no value, 0 unit mismatches, so the account is imperial |
+| 1 Provider catalogue | Per-field catalogue for surveillance AND daily fields; unit, range, time source, fixtures; full-list discovery | Surveillance done (43 fields, units checked, fixtures). Daily catalogue done (82 fields, imperial units, unit mismatch refused, count unit), time source stored per catalogue (scan time / production day) - commit df11c258. **Not done:** per-field range for non-percent quantities (no evidence of valid bounds yet; stays finite-number check only), daily catalogue not yet offered through adapter operations/UI. Live: well 776 gave 23 observed, 20 no value, 0 unit mismatches, so the account is imperial |
 | 2 Daily and window inputs, real data requirements on submit | Not started. Discovery now one read (done); typeahead, generator scripts in repo outstanding |
 | 3 Setpoint roles, multi-value outcomes, Outputs part | Not started |
 | 4 Invariants, alarm output, Target Fillage end to end, two wells | Not started |
