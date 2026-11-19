@@ -15,3 +15,5 @@ Generated from that log; update both when adding items.
 | P103 | Many newer PRs (#665-#681) add a rules engine, rules drafts and a workbench. These are exactly the multi-in... | Open | No | CL #662 - stop unusable drafts without telling why |
 | P107 | The new flow has no outputs or logic step yet ('later steps appear as the backend can run them'), so multi-... | Open | No | CL #666 - first steps of the new authoring flow (live, ForeSite provid |
 | P109 | Daily source gives one value per quantity; no window (last N days), aggregation or lag choice, so Idle Time... | Open | No | CL #667 - daily averages source (live, ForeSite provider, Edge) |
+| P110 | Function set is min, max, avg, abs, round, clamp, if. Rod Buckling, Target Fillage and Rotaflex logic need ... | Open | No | CL #670 - rule expression engine (build + V2 checks; library only, not |
+| P111 | Expressions are single-valued (number, boolean or text) with decimal arithmetic. No multi-output assignment... | Open | No | CL #670 - rule expression engine (build + V2 checks; library only, not |

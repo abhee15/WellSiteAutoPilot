@@ -541,3 +541,9 @@ The filter resets to All providers on reload. An author who works on one provide
 - Works: Source now offers Current values and Daily averages; Example well search (RPOC_0413) lists a Well select, then a Daily field select with 19 quantities (TotalFluidRateInferred, AllocatedGasVolume, FBHP, GasRateInferred, ...).
 - **P108** The Well select is an "example well" used only to discover which daily quantities exist; the picker returns every matching asset (51 options for "RPOC") with no limit or paging note, and the option labels repeat "Not Mapped / RRL / Unspecified device", so wells are hard to tell apart.
 - **P109** Daily source gives one value per quantity; no window (last N days), aggregation or lag choice, so Idle Time or Target Fillage style inputs that need several days cannot be expressed. Save with a chosen field was not exercised live.
+
+## CL #670 - rule expression engine (build + V2 checks; library only, nothing to exercise live yet)
+
+- Verified: server build 0/0, V2 checks pass. The engine is parser, checker and evaluator only; no API, draft field or UI reaches it, so it cannot be driven through the stack yet (live testing resumes when a later CL wires it in).
+- **P110** Function set is min, max, avg, abs, round, clamp, if. Rod Buckling, Target Fillage and Rotaflex logic need more: sqrt/pow/exp/ln/trig, sum/count over a series, previous-value or time-window access, text functions. Bounds are 512 chars, 128 nodes, depth 32.
+- **P111** Expressions are single-valued (number, boolean or text) with decimal arithmetic. No multi-output assignment, no variables or intermediate steps, no array/series type, so multi-step custom logic (P87-P90) needs several chained expressions with no defined way to share intermediates.
