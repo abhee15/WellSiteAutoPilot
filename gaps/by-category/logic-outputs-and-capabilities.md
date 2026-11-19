@@ -13,3 +13,4 @@ Generated from that log; update both when adding items.
 | P99 | The proposal covers inputs only (Current, History, Daily, Latest test, Cards, Setpoint). It does not addres... | Open | No | CL #663 - one source model for module authoring (design doc) |
 | P100 | The doc lists setpoints as 'read design pending F3'. Live data (P78-P86) already shows setpoint values arri... | Open | Yes | CL #663 - one source model for module authoring (design doc) |
 | P103 | Many newer PRs (#665-#681) add a rules engine, rules drafts and a workbench. These are exactly the multi-in... | Open | No | CL #662 - stop unusable drafts without telling why |
+| P107 | The new flow has no outputs or logic step yet ('later steps appear as the backend can run them'), so multi-... | Open | No | CL #666 - first steps of the new authoring flow (live, ForeSite provid |

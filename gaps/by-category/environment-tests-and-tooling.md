@@ -16,3 +16,4 @@ Generated from that log; update both when adding items.
 | P101 | Verified by unit tests only (V2 and manifest checks pass). Not seen end to end: a run needs an input whose ... | Open | Yes | CL #664 - wrong unit reported separately from wrong quantity |
 | P102 | Not run live: build, V2 checks, tsc, eslint, vitest 13/13 + 10/10 and guards pass, but the stack is still o... | Open | Yes | CL #662 - stop unusable drafts without telling why |
 | P104 | Verified by build, V2 checks, tsc, eslint, vitest 13/13 + 10/10 and guards only; not exercised live. Markin... | Open | Yes | CL #665 - inputs read from the primary provider; external exceptions |
+| P105 | The web bundle served by the stack came from `vite build --watch` and stopped rebuilding while the CL's fil... | Open | No | CL #666 - first steps of the new authoring flow (live, ForeSite provid |

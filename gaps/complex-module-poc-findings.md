@@ -527,3 +527,11 @@ The filter resets to All providers on reload. An author who works on one provide
 ## CL #665 - inputs read from the primary provider; external exceptions
 
 - **P104** Verified by build, V2 checks, tsc, eslint, vitest 13/13 + 10/10 and guards only; not exercised live. Marking an input External (WAMI for ForeSite) reports 'External' in compatibility instead of reading it, so a module whose inputs are all external can pass compatibility without any real value read. WAMI needs a ForeSite well model file, which only the live environment can supply.
+
+## CL #666 - first steps of the new authoring flow (live, ForeSite provider, Edge)
+
+- Works: #authoring/new shows Name, Provider, then Inputs; choosing a Source then a Reading adds an input with Maximum age and an external-source tick; Save returns 'Saved.'.
+- **P105** The web bundle served by the stack came from `vite build --watch` and stopped rebuilding while the CL's files were still being synced, so the new flow was missing (the page showed the old panel and /#authoring/new showed a Reviews error). A manual `vite build` fixed it. Local-environment hazard when mirroring many web files; consider a watch that survives a missing import.
+- **P106** The only Source offered is 'Current values', and the ForeSite catalogue holds two readings (AveragePumpFillage, PumpFillage). No daily, history, setpoint or card sources, so none of the reference LMs (Idle Time, Target Fillage, Rod Buckling) can be modelled yet.
+- **P107** The new flow has no outputs or logic step yet ('later steps appear as the backend can run them'), so multi-output and custom-logic capability (P87-P90) is not reachable from it.
+
