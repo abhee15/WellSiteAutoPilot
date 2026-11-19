@@ -83,3 +83,14 @@ Read: foresite-controller-acquisition, foresite-measurement-evidence-plan, fores
 ## Daily average time rule (Sri, confirmed)
 
 Daily average values are written to the database at the end of the production day. A record's time is its day: `StartDateTime` to `EndDateTime`, not a scan time. The adapter's daily reader already returns `days[].start/end` with offsets and selects whole days by StartDateTime in [start, end). Like surveillance, the response has its own `Units` block (UnitKey, Precision). Consequences for the catalogue: each entry carries its time source (surveillance = LastGoodScanTime, daily = day start/end, well test = test date), and a module that reads "yesterday" resolves to the latest closed production day (P113), not to a surveillance Yesterday field.
+
+## Roadmap: module applicability constraints (after the first end-to-end module)
+
+Decided with Sri: do not build now; revisit once a logic module is built end to end from the UI.
+- A module carries asset-attribute conditions, separate from its data inputs and independent of live assets.
+- Rule shape: attribute, operator ("is any of" / "is none of"), values. Conditions AND across attributes, values OR within a list. Matching is trimmed and case-insensitive.
+- Attributes come from the ForeSite WellFilterDTO facets: well type, device type, SCADA type, composite well subtype, wellbore profile, field, region, lease, UserDef01-20. Status, down time, foreman, engineer and gauger beat are excluded; logic mode and assigned modules are later.
+- Well type is a fixed set (WellTypeId) shown as an Applies to / Excludes mode with multi-select chips. Default Any. Other attributes are free text with a typeahead from imported assets and a warning when no asset has the value.
+- Evaluated first when an asset is selected; input checks run only if applicability passes. Missing attribute fails closed ("can't tell"), pending Sri's confirmation for "none of".
+- Not in scope: wildcards, ranges, OR across attributes, numeric comparisons.
+- Prerequisite check: which attributes the import keeps from discovery.
