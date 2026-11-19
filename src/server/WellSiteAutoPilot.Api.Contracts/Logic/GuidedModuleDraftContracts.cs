@@ -76,7 +76,8 @@ public sealed record GuidedReportedWellTestResponse(DateTimeOffset? SampleDate, 
 
 public sealed record GuidedDiscoveredQuantityResponse(string Quantity, string? Unit, string Status);
 
-public sealed record GuidedProductionDaysPreviewRequest(int ExpectedRevision, Guid AssetId, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+public sealed record GuidedProductionDaysPreviewRequest(int ExpectedRevision, Guid AssetId, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
+    string? Quantity = null);
 
 public sealed record GuidedProductionDaysPreviewResponse(string? Unit, DateTimeOffset RetrievedAtUtc,
     IReadOnlyList<GuidedProductionDayResponse> Days);

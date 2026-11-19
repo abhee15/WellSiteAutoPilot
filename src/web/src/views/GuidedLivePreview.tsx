@@ -27,7 +27,7 @@ type AssetPreview =
   | { kind: 'current'; data: GuidedLivePreviewResponse }
   | { kind: 'history'; data: GuidedHistoryPreviewResponse; siteWindow?: { endLocal: string; timeZoneId: string } }
   | { kind: 'historyTimeError'; message: 'guided.siteTimeUnresolved' | 'guided.siteZoneInvalid' }
-  | { kind: 'productionDays'; data: GuidedProductionDaysPreviewResponse }
+  | { kind: 'productionDays'; data: GuidedProductionDaysPreviewResponse; quantity: string }
   | { kind: 'surfaceCards'; data: GuidedSurfaceCardsPreviewResponse }
   | { kind: 'unsupported'; preview: 'productionDays' | 'surfaceCards' };
 
@@ -200,7 +200,7 @@ export function GuidedLivePreview({
     }
   }
 
-  async function previewProductionDays(window: UtcWindow) {
+  async function previewProductionDays(window: UtcWindow, quantity: string) {
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
@@ -213,6 +213,7 @@ export function GuidedLivePreview({
           expectedRevision: revision,
           assetId,
           ...window,
+          quantity,
         },
         signal: controller.signal,
       });
@@ -227,7 +228,7 @@ export function GuidedLivePreview({
         return;
       }
       if (!data) throw new Error();
-      setAssetPreview({ kind: 'productionDays', data });
+      setAssetPreview({ kind: 'productionDays', data, quantity });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -266,6 +267,7 @@ export function GuidedLivePreview({
 
   const result = assetPreview?.kind === 'current' ? assetPreview.data : null;
   const productionDays = assetPreview?.kind === 'productionDays' ? assetPreview.data : null;
+  const productionDaysQuantity = assetPreview?.kind === 'productionDays' ? assetPreview.quantity : '';
 
   return (
     <details>
@@ -387,7 +389,7 @@ export function GuidedLivePreview({
             key={`${draftId}:${revision}:${assetId}`}
             {...{ draftId, revision, assetId, inputs, busy, onUseDailyField, declaredDaily }}
             onHistory={(inputId, bounds) => void previewHistory(inputId, bounds)}
-            onDaily={(window) => void previewProductionDays(window)}
+            onDaily={(window, quantity) => void previewProductionDays(window, quantity)}
             onChange={() => {
               setAssetPreview(null);
               setFailed(false);
@@ -446,7 +448,9 @@ export function GuidedLivePreview({
         )}
         {productionDays && (
           <div aria-live="polite">
-            <p>{t('guided.productionDaysTitle')}</p>
+            <p>
+              {t('guided.productionDaysTitle')} · {productionDaysQuantity}
+            </p>
             {productionDays.days?.length ? (
               <ul>
                 {productionDays.days.map((day) => (

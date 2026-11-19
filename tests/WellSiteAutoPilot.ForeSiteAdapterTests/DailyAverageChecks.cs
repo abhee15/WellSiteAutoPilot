@@ -68,6 +68,15 @@ internal static class DailyAverageChecks
         try { ForeSiteLatestDailyValue.Select(result with { UnitsByQuantity = new Dictionary<string, string>() }, "RunTime", after); throw new InvalidOperationException("A field with no unit must fail."); }
         catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_DAILY_UNIT_MISSING") { }
 
+        // A selected provider field is read per production day with its own unit; a day without it is empty, not zero.
+        var selectedRequest = Request2 with { Quantity = "RunTime" };
+        result = await ReadAsync(Envelope(Row + "," + day2, dayUnits), selectedRequest);
+        if (result is not { Quantity: "RunTime", Unit: "h" } || result.Days.Count != 2 || result.Days[0].Value is not null || result.Days[1].Value != 23.5m)
+            throw new InvalidOperationException("A selected daily quantity must be projected per day with its own unit.");
+        await Reject(Envelope(Row + "," + day2, "{}"), "FORESITE_DAILY_UNIT_MISSING");
+        try { await ReadAsync(Envelope(Row), Request2 with { Quantity = "Bad-Name" }); throw new InvalidOperationException("An invalid quantity name must be rejected."); }
+        catch (ForeSiteMeasurementException) { }
+
         await Reject(Envelope(Row + "," + Row), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row + "," + Row.Replace("\"Id\":7", "\"Id\":8", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");
         await Reject(Envelope(Row.Replace("05:00:00Z", "05:00:00", StringComparison.Ordinal)), "FORESITE_DAILY_RESPONSE_INVALID");

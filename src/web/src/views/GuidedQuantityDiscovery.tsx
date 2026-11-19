@@ -61,7 +61,7 @@ export function GuidedQuantityDiscovery({
   inputs: readonly { id: string; quantity: string }[];
   busy: boolean;
   onHistory: (inputId: string, bounds: HistoryBounds) => void;
-  onDaily: (bounds: UtcWindow) => void;
+  onDaily: (bounds: UtcWindow, quantity: string) => void;
   /** Offered for a discovered production-day field when the draft can take new inputs. */
   onUseDailyField?: (quantity: string, unit: string | null) => void;
   declaredDaily?: readonly string[];
@@ -136,8 +136,7 @@ export function GuidedQuantityDiscovery({
   const evidence = historical ? catalog.filter((entry) => entry.status !== 'Observed') : catalog;
   const selected = observed.find((entry) => entry.quantity === quantity);
   const matchingInput = inputs.find((input) => input.quantity === selected?.quantity);
-  const canPreview =
-    capability === 'DailyAverages' ? selected?.quantity === 'TotalFluidRateInferred' : Boolean(matchingInput);
+  const canPreview = capability === 'DailyAverages' ? Boolean(selected) : Boolean(matchingInput);
   const bounds = result?.kind === 'result' ? result.bounds : undefined;
   const window = bounds && 'startUtc' in bounds ? bounds : undefined;
 
@@ -246,7 +245,11 @@ export function GuidedQuantityDiscovery({
           canPreview &&
           bounds &&
           (capability === 'DailyAverages' && window ? (
-            <ActionButton label={t('guided.readProductionDays')} disabled={busy} onClick={() => onDaily(window)} />
+            <ActionButton
+              label={t('guided.readProductionDays')}
+              disabled={busy}
+              onClick={() => onDaily(window, selected.quantity)}
+            />
           ) : (
             <ActionButton
               label={t('guided.readHistory')}
@@ -259,11 +262,7 @@ export function GuidedQuantityDiscovery({
       </div>
       <div aria-live="polite">
         {ready && !result && <Notice>{t('guided.quantityDiscoveryLoading')}</Notice>}
-        {selected && !canPreview && (
-          <Notice>
-            {t(capability === 'WellTrend' ? 'guided.trendRequiresDraftInput' : 'guided.dailyDiscoveryOnly')}
-          </Notice>
-        )}
+        {selected && !canPreview && <Notice>{t('guided.trendRequiresDraftInput')}</Notice>}
         {result?.kind === 'error' && (
           <Notice tone="warning">
             {t(result.message)}

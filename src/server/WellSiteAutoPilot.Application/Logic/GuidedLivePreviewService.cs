@@ -198,10 +198,14 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     }
 
     public async Task<ForeSiteDailyAverageResult> ReadProductionDaysAsync(Guid draftId, int expectedRevision,
-        Guid assetId, DateTimeOffset startUtc, DateTimeOffset endUtc, AccessSubject subject, CancellationToken cancellationToken = default)
+        Guid assetId, DateTimeOffset startUtc, DateTimeOffset endUtc, AccessSubject subject, string? quantity = null,
+        CancellationToken cancellationToken = default)
     {
         var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
         draft.RequireRevision(expectedRevision);
+        if (quantity is not null && !ForeSiteDailyAverageContract.IsObservableQuantityName(quantity))
+            throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_QUANTITY_INVALID", FailureKind.Validation,
+                "Choose a daily quantity the provider reported.");
         if (!IsValidWindow(startUtc, endUtc))
             throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_WINDOW_INVALID", FailureKind.Validation,
                 "Specify an ordered production-day window with whole-second bounds.");
@@ -220,20 +224,20 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 "The selected connection does not support this production-day preview.");
 
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
-        var result = await ReadDailyOperationAsync(initial, operation, startUtc, endUtc, maximum, cancellationToken);
+        var result = await ReadDailyOperationAsync(initial, operation, startUtc, endUtc, maximum, cancellationToken, quantity);
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         return result;
     }
 
     private async Task<ForeSiteDailyAverageResult> ReadDailyOperationAsync(PreviewSource initial, AdapterOperationDescriptor operation,
-        DateTimeOffset startUtc, DateTimeOffset endUtc, int maximum, CancellationToken cancellationToken)
+        DateTimeOffset startUtc, DateTimeOffset endUtc, int maximum, CancellationToken cancellationToken, string? quantity = null)
     {
         const string utcFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
         var request = new ForeSiteDailyAverageRequest(initial.Binding.ExternalId,
             startUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture),
-            endUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture));
+            endUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture), quantity);
         var result = await history.ReadProductionDaysAsync(initial.Connection, operation, request, cancellationToken);
-        if (result.AssetExternalId != initial.Binding.ExternalId || result.Quantity != ForeSiteDailyAverageContract.Quantity ||
+        if (result.AssetExternalId != initial.Binding.ExternalId || result.Quantity != (quantity ?? ForeSiteDailyAverageContract.Quantity) ||
             result.StartUtc != startUtc || result.EndUtc != endUtc || result.RetrievedAtUtc == default ||
             result.Days is null || result.Days.Count > maximum ||
             result.Days.Any(day => day is null || day.Start < startUtc || day.Start >= endUtc || day.End <= day.Start ||
