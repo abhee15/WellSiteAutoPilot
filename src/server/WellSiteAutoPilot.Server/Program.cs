@@ -1348,6 +1348,30 @@ v1.MapPost("/guided-module-drafts/{id:guid}/submit",
     .WithName("SubmitGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleSubmissionResponse>();
 
+v1.MapPost("/guided-module-drafts/{id:guid}/rules-preview",
+    async (Guid id, PreviewGuidedRulesRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        if (request.Values is null || request.Values.Count > 64 || request.Settings?.Count > 64 ||
+            request.Values.Select(item => item.Name).Distinct(StringComparer.Ordinal).Count() != request.Values.Count ||
+            request.Settings?.Select(item => item.Name).Distinct(StringComparer.Ordinal).Count() != request.Settings?.Count)
+            throw new WellSiteAutoPilotException("GUIDED_RULES_VALUES_INVALID", FailureKind.Validation,
+                "Give each value once.");
+        var result = await drafts.PreviewRulesAsync(id, request.ExpectedRevision,
+            request.Values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal),
+            (request.Settings ?? []).ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal),
+            access.Subject, cancellationToken);
+        return new GuidedRulesPreviewResponse(request.ExpectedRevision, result.OutcomeCode, result.RuleId, result.Title,
+            result.Proposal is { } proposal
+                ? new GuidedRulesProposalResponse(proposal.Setpoint, proposal.RequestedValue, proposal.SuggestedValue,
+                    proposal.Unit, proposal.Limited, proposal.Reason)
+                : null,
+            result.Calculations.Select(item => new GuidedRuleValue(item.Key, item.Value)).ToArray(),
+            result.Trace.Select(step => new GuidedRulesTraceResponse(step.Kind, step.Id, step.Detail)).ToArray());
+    })
+    .WithName("PreviewGuidedModuleRules").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedRulesPreviewResponse>();
+
 v1.MapPost("/guided-module-drafts/{id:guid}/history-preview",
     async (Guid id, GuidedHistoryPreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
         CancellationToken cancellationToken) =>
