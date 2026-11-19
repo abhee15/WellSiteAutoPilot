@@ -329,8 +329,8 @@ Verified on the rebuilt stack (the new migration ran on start):
 - Server, Worker, AssetApiTests builds and V2 tests pass. Added lines are ASCII. UI Save draft from the starter works (interim provider).
 - Skipped when mirroring (P4 copies diverged): tools/ci/check_api_authorization.py, tools/ci/verify_grant_administration.py, tests/ci/test_check_api_authorization.py (the endpoint inventory count of 115 for the new providers endpoint). Those CI scripts will be one endpoint behind until their own sync.
 
-### P64 - Migration silently deletes every draft and submission
-The migration clears all guided drafts and submissions with no export or warning. Fine for a pre-release store, but on any environment with real authoring work it is destructive. Suggestion: keep a backup table for one release, or convert existing drafts using the interim provider rule instead of deleting.
+### P64 - Migration deletes every draft and submission (intended, closed)
+Owner confirmed this is deliberate: the core authoring model changed to provider-first, so pre-provider drafts and submissions are not carried over. No action. Only note for release notes: anyone with saved drafts loses them on upgrade.
 
 ### P65 - New module has no provider choice yet
 The starter silently assigns a provider (foresite for fillage, cygnet for pressure) and the author is never shown it, yet it can never be changed afterwards. Until the chooser (#656) lands, an author cannot know which provider their draft is locked to. Suggestion: show the locked provider as a read-only label on the draft.
