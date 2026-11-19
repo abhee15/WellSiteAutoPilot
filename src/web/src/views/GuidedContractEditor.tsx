@@ -207,7 +207,7 @@ export function firstIncompletePort(source: string | null | undefined): string |
         identifier.test(port.quantity) &&
         (kind === 'output' || (typeof port.requiredCapability === 'string' && identifier.test(port.requiredCapability)))
       ))
-        return textValue(port.quantity) || textValue(port.id) || kind;
+        return (typeof port.quantity === 'string' && port.quantity) || (typeof port.id === 'string' && port.id) || kind;
   return null;
 }
 
