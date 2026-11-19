@@ -34,3 +34,4 @@ Generated from that log; update both when adding items.
 | P106 | The only Source offered is 'Current values', and the ForeSite catalogue holds two readings (AveragePumpFill... | Open | No | CL #666 - first steps of the new authoring flow (live, ForeSite provid |
 | P108 | The Well select is an "example well" used only to discover which daily quantities exist; the picker returns... | Open | No | CL #667 - daily averages source (live, ForeSite provider, Edge) |
 | P114 | The "Current values" list offers only PumpFillage and AveragePumpFillage because the ForeSite adapter hard-... | Open | No | Surveillance catalogue limited to two readings (root cause found on th |
+| P115 | Asset-based discovery now makes one ForeSite call per catalogued quantity (43), because `GuidedLivePreviewS... | Open | No | Surveillance catalogue limited to two readings (root cause found on th |
