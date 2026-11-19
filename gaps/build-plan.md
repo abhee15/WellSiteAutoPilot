@@ -98,3 +98,4 @@ Decided with Sri: do not build now; revisit once a logic module is built end to 
 ## Decisions confirmed by Sri
 - Surveillance Yesterday/Today fields (CyclesYesterday, RunTimeYesterday and similar) stay in the Current values list, stamped with LastGoodScanTime.
 - Applicability constraints are deferred to the roadmap (see above).
+- Units (Sri): modules always read in one fixed unit system, ForeSite default (assumed imperial), as a requirement. Finding: in ForeSite, `UnitSystemEnum.Default` means the unit system the calling user has configured, so `well/{id}` returns the gateway account's own setting, which is not guaranteed to be imperial. Requirement for the adapter: the catalogue holds the expected UnitKey per quantity; each read compares the response `Units` UnitKey to it and fails closed on a mismatch (or requests an explicit unit system). Verify what the gateway account returns on the live server.
