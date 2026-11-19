@@ -399,3 +399,18 @@ Saved-setpoint reads time out at 120 s with no error, so a module that needs the
 
 ### P77 - Server looks like generated test data
 Well names (SAM_AIRBALANCE_PU_Lufkin-000NN, AEPOC_ROTAFLEX_PU_WFT-000NN) and the 50-well counts suggest a simulated set; the saved setpoints probably have no backing device. Needs confirming with the server owner before using it for Rod Buckling.
+
+## usdcfstappts010 / 011 check (Rod Buckling setpoints)
+
+- 011: UI on 8000 is up, but the API on port 80 resets every connection (token and filter), so nothing could be read. Port 8000 returns the SPA page for any path.
+- 010: API works (one transient connection reset at first). Wells/Well/Filter with welDeviceTypeValues=LufkinSam returned 302 wells, but the first ones are ESP, gas lift and test wells (ESP_0473, GASINJWELL-0001, GL-1136, GC_NH_01 ...), so the device-type value on this host appears not to narrow the list to Lufkin SAM wells (or PrincipalDeviceType is unset on most).
+- First 25 of the 302 scanned with AllSavedSetPointParams(scanOption=0): only 4 wells had any saved values. Wells 18_5 (id 973), GASINJWELL-0001 (421) and GL-1136-2 (836) each have one group "Basic SetPoints" holding PODeadBand, VFDMaxSPM, VFDMinSPM, IdealPF (e.g. 18_5: deadband 1 %, VFD min 30, max 60 (original 35), ideal fillage 86.55 %). None of the 25 had Sec*ScaSpd, Sec*StkLoc, Sec*WoSpLi or Sec*SpdChg, and none had the GRP_VSD_SPEED_CFG_1/2 groups. espnewdrill (1074) has a "POC set Point" group.
+
+### P78 - Setpoint values come back as strings with a separate original value
+Each setpoint carries Value and OriginalValue as strings, with units, range, Enum list and IsHidden. VFDMaxSPM shows Value 60 vs OriginalValue 35. A module needs to know which one is "current" and that numbers arrive as text. Suggestion: authoring declares the setpoint input type (number, enum) and which value it reads, and shows the current-vs-original difference.
+
+### P79 - Group names differ from the original script
+The script reads GRP_VSD_SPEED_CFG_1/2 and GRP_VSD_CONTROL_PARAMS; this system exposes the same elements under display groups such as "Basic SetPoints". An authored module must bind to the element (ElementId) not the group, or it will not port between systems.
+
+### P80 - Lufkin 2.0 speed-config setpoints are not on any scanned well
+Sec4ScaSpd, Sec4StkLoc, Sec1-3WoSpLi etc. were not found, so the audit and speed-write parts of Rod Buckling cannot be tested on these systems yet. Only the control parameters (VFDMin/Max, IdealPF, PODeadBand) exist, on 3 wells.
