@@ -31,6 +31,21 @@ describe('Adapter reference API conformance', () => {
     expect(result[0]?.capabilities?.[0]?.displayName).toBe('Provider-defined data');
     expect(result[1]?.capabilities).toEqual([]);
   });
+  it('accepts a workflow that references up to 64 operations and refuses more', async () => {
+    const make = (count: number) => {
+      const body = fixture();
+      const keys = Array.from({ length: count }, (_, index) => `read-${index}`);
+      body[0]!.operations = keys.map(key => ({ ...body[0]!.operations[0]!, key }));
+      body[0]!.capabilities[0]!.operationKeys = keys;
+      body[0]!.capabilities[0]!.workflows[0]!.operationKeys = keys;
+      return body;
+    };
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify(make(64))));
+    expect((await loadAdapterOperations(new AbortController().signal))[0]?.operations).toHaveLength(64);
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify(make(65))));
+    await expect(loadAdapterOperations(new AbortController().signal)).rejects.toMatchObject({ kind: 'invalidResponse' });
+  });
   it.each(['unknown-ref', 'duplicate-group', 'duplicate-operation', 'future-version', 'malformed-example', 'workflow-unknown-operation', 'workflow-duplicate-step', 'workflow-future-version', 'workflow-executable'])('refuses %s metadata', async kind => {
     const body = fixture();
     if (kind === 'unknown-ref') body[0]!.capabilities[0]!.operationKeys = ['missing'];

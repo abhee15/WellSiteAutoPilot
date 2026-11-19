@@ -33,7 +33,7 @@ function workflows(value: unknown, operationKeys: string[]): boolean {
       typeof workflow.purpose !== 'string' || workflow.purpose.length < 1 || workflow.purpose.length > 1024 ||
       !['ReferenceOnly', 'Implemented'].includes(String(workflow.readiness)) ||
       !supportedVersion(workflow.contractVersion) || !Array.isArray(workflow.operationKeys) ||
-      workflow.operationKeys.length < 1 || workflow.operationKeys.length > 32 ||
+      workflow.operationKeys.length < 1 || workflow.operationKeys.length > 64 ||
       new Set(workflow.operationKeys).size !== workflow.operationKeys.length ||
       !workflow.operationKeys.every(key => typeof key === 'string' && operationKeys.includes(key)) ||
       !Array.isArray(workflow.steps) || workflow.steps.length < 1 || workflow.steps.length > 12) return false;
