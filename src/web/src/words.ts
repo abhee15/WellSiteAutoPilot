@@ -69,7 +69,6 @@ const OUTCOME_LABELS: Record<string, string> = {
   GUIDED_LIVE_ACCESS_UNSUPPORTED: 'Only current readings can be checked here',
   GUIDED_LIVE_CAPABILITY_UNSUPPORTED: 'The input’s capability is not one this connection serves',
   GUIDED_LIVE_VALUE_TYPE_UNSUPPORTED: 'The input’s value type does not match this quantity',
-  GUIDED_LIVE_OPERATION_UNAVAILABLE: 'This connection does not offer the operation the input requires',
   GUIDED_LIVE_ADAPTER_MISMATCH: 'The module requires a different provider than this asset uses',
   GUIDED_LIVE_ASSET_UNSUPPORTED: 'This asset does not match the draft’s asset role',
   GUIDED_LIVE_INPUT_UNSUPPORTED: 'This connection cannot check the input',

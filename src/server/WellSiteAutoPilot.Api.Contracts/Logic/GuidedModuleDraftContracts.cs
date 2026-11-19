@@ -9,7 +9,7 @@ public sealed record SaveGuidedModuleDraftRequest(string ManifestJson, GuidedThr
     IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null, IReadOnlyList<GuidedSourceHintRequest>? SourceHints = null);
 
 /// <summary>Where an author wants an input read from: a preference unless Required. Parameters is a JSON object as text.</summary>
-public sealed record GuidedSourceHintRequest(string InputId, string? AdapterKey, string? OperationKey, bool Required, string? ParametersJson = null);
+public sealed record GuidedSourceHintRequest(string InputId, string ExternalSource);
 
 /// <summary>An authored sample. ExpectedOutcome is the author's assertion: null for none, NONE for not triggered, else the rule outcome code.</summary>
 public sealed record GuidedSampleCaseRequest(string Name, decimal? Value, decimal? CasingPsi, decimal? TubingPsi, string? ExpectedOutcome);
@@ -17,7 +17,10 @@ public sealed record GuidedSampleCaseRequest(string Name, decimal? Value, decima
 public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest? Definition,
     IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null, IReadOnlyList<GuidedSourceHintRequest>? SourceHints = null);
 
-public sealed record GuidedProviderResponse(string AdapterKey, string DisplayName, bool CurrentValuesOnly);
+public sealed record GuidedProviderResponse(string AdapterKey, string DisplayName, bool CurrentValuesOnly,
+    IReadOnlyList<GuidedExternalSourceResponse> ExternalSources);
+
+public sealed record GuidedExternalSourceResponse(string Key, string DisplayName);
 
 public sealed record GuidedPressureReadingRequest(decimal? CasingPsi, decimal? TubingPsi);
 

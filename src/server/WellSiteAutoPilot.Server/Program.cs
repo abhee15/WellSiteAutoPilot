@@ -1265,7 +1265,8 @@ v1.MapGet("/guided-module-drafts",
     .Produces<GuidedModuleDraftResponse[]>();
 
 v1.MapGet("/guided-module-drafts/providers",
-    () => GuidedProviders.List().Select(item => new GuidedProviderResponse(item.AdapterKey, item.DisplayName, item.CurrentValuesOnly)).ToArray())
+    () => GuidedProviders.List().Select(item => new GuidedProviderResponse(item.AdapterKey, item.DisplayName, item.CurrentValuesOnly,
+        item.ExternalSources.Select(source => new GuidedExternalSourceResponse(source.Key, source.DisplayName)).ToArray())).ToArray())
     .WithName("ListGuidedModuleProviders").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedProviderResponse[]>();
 
@@ -2110,7 +2111,7 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
 }
 
 static GuidedSourceHint[]? ToSourceHints(IReadOnlyList<GuidedSourceHintRequest>? hints) =>
-    hints?.Select(item => new GuidedSourceHint(item.InputId, item.AdapterKey, item.OperationKey, item.Required, item.ParametersJson)).ToArray();
+    hints?.Select(item => new GuidedSourceHint(item.InputId, item.ExternalSource)).ToArray();
 
 static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
 {
@@ -2118,7 +2119,7 @@ static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
     return new(draft.Id, draft.Revision, GuidedDraftManifestJson.Serialize(draft.Content.Manifest),
         definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
         draft.Content.SampleCases?.Select(item => new GuidedSampleCaseRequest(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray(),
-        draft.Content.SourceHints?.Select(item => new GuidedSourceHintRequest(item.InputId, item.AdapterKey, item.OperationKey, item.Required, item.ParametersJson)).ToArray());
+        draft.Content.SourceHints?.Select(item => new GuidedSourceHintRequest(item.InputId, item.ExternalSource)).ToArray());
 }
 
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(

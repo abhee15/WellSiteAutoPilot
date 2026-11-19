@@ -137,6 +137,7 @@ guided_content = {"manifestJson":json.dumps(guided_manifest), "definition":{"par
 request("POST", "/guided-module-drafts", GROUP_ONLY, guided_content, expected=403)
 providers = request("GET", "/guided-module-drafts/providers", OPERATOR)
 assert [item["adapterKey"] for item in providers] == ["foresite", "cygnet"] and providers[1]["currentValuesOnly"], providers
+assert [source["key"] for source in providers[0]["externalSources"]] == ["wami"] and providers[1]["externalSources"] == [], providers
 request("GET", "/guided-module-drafts/providers", GROUP_ONLY, expected=403)
 for bad_key in (None, "nonesuch"):
     bad = dict(guided_manifest, requiredAdapterKey=bad_key)

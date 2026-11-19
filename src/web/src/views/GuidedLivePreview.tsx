@@ -44,6 +44,7 @@ const compatibilityLabels = {
   Missing: 'guided.assetInputMissing',
   Rejected: 'guided.assetInputRejected',
   Unavailable: 'guided.assetInputUnavailable',
+  External: 'guided.assetInputExternal',
 } as const;
 
 export function GuidedLivePreview({
@@ -357,7 +358,7 @@ export function GuidedLivePreview({
           <Notice>
             <p>
               {t(
-                compatibility.inputs.every((input) => input.status === 'Satisfied')
+                compatibility.inputs.every((input) => input.status === 'Satisfied' || input.status === 'External')
                   ? 'guided.assetCompatible'
                   : 'guided.assetCompatibilityIncomplete',
               )}
@@ -370,7 +371,9 @@ export function GuidedLivePreview({
                 return (
                   <li key={input.inputId}>
                     {input.quantity} · {t(label)}
-                    {input.status !== 'Satisfied' && input.reasonCode && <> · {outcomeLabel(input.reasonCode).text}</>}
+                    {input.status !== 'Satisfied' && input.status !== 'External' && input.reasonCode && (
+                      <> · {outcomeLabel(input.reasonCode).text}</>
+                    )}
                   </li>
                 );
               })}

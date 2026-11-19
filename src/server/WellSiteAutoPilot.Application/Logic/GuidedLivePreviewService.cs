@@ -75,21 +75,16 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         var source = await ReadContextAsync(subject, assetId, cancellationToken);
         var matchesAsset = await MatchesAssetAsync(manifest, source, subject, cancellationToken);
         var results = new List<GuidedInputCompatibility>(manifest.DataRequirements.Count);
-        // Only a required source hint can make an otherwise supported input unsupported; a preference never blocks a check.
-        string[] operationKeys = draft.Content.SourceHints is { Count: > 0 }
-            ? (await adapters.ListAsync(cancellationToken)).SingleOrDefault(item => item.Key == source.Connection.AdapterKey)?
-                .ReadOperations().Select(item => item.Key).ToArray() ?? []
-            : [];
-
         foreach (var input in manifest.DataRequirements)
         {
-            var hint = draft.Content.SourceHints?.SingleOrDefault(item => item.InputId == input.Id);
+            var external = draft.Content.SourceHints?.SingleOrDefault(item => item.InputId == input.Id);
             if (!matchesAsset)
                 results.Add(new(input.Id, input.Quantity, "Unsupported", "GUIDED_LIVE_ASSET_UNSUPPORTED"));
+            // An external input is not read from this asset's provider, so there is nothing here to check yet.
+            else if (external is not null)
+                results.Add(new(input.Id, input.Quantity, "External", external.ExternalSource));
             else if (UnsupportedReason(manifest, source, input) is { } reason)
                 results.Add(new(input.Id, input.Quantity, "Unsupported", reason));
-            else if (GuidedSourceHints.UnmetReason(hint, source.Connection.AdapterKey, operationKeys) is { } unmet)
-                results.Add(new(input.Id, input.Quantity, "Unsupported", unmet));
             else
             {
                 await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, source, cancellationToken);
