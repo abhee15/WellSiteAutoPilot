@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace WellSiteAutoPilot.Application.Logic.Rules;
 
 /// <summary>One thing wrong with a definition, and where.</summary>
@@ -112,7 +114,7 @@ public static class RulesEngine
         foreach (var input in inputs)
         {
             values[input.Key] = RuleValue.OfNumber(input.Value);
-            trace.Add(new("input", input.Key, input.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            trace.Add(new("input", input.Key, input.Value.ToString(CultureInfo.InvariantCulture)));
         }
 
         foreach (var parameter in definition.Parameters)
@@ -121,7 +123,7 @@ public static class RulesEngine
             if ((parameter.Minimum is { } min && value < min) || (parameter.Maximum is { } max && value > max))
                 throw new RuleExpressionException("RULES_SETTING_OUT_OF_RANGE", $"'{parameter.Id}' is outside its allowed range.");
             values[parameter.Id] = RuleValue.OfNumber(value);
-            trace.Add(new("setting", parameter.Id, value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            trace.Add(new("setting", parameter.Id, value.ToString(CultureInfo.InvariantCulture)));
         }
 
         foreach (var calculation in definition.Calculations)

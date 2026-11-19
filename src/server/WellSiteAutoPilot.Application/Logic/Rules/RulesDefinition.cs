@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -64,7 +65,7 @@ public sealed record RulesDefinition(
 
     public static RulesDefinition Parse(string json)
     {
-        if (string.IsNullOrWhiteSpace(json) || System.Text.Encoding.UTF8.GetByteCount(json) > MaximumDefinitionBytes)
+        if (string.IsNullOrWhiteSpace(json) || Encoding.UTF8.GetByteCount(json) > MaximumDefinitionBytes)
             throw new RuleExpressionException("RULES_DEFINITION_INVALID", "The definition is empty or too large.");
         try
         {
