@@ -26,6 +26,10 @@ import type { SourceOption } from './GuidedContractEditor';
 import { GuidedSourceHintFields } from './GuidedSourceHintFields';
 import './authoringFlow.css';
 
+// Where a reading can come from. Each kind is added here once its readings can be listed and run.
+const inputSources = ['current'] as const;
+const sourceLabels = { current: 'flow.sourceCurrent' } as const;
+
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
 /**
@@ -41,6 +45,7 @@ export function AuthoringFlow() {
   const [hints, setHints] = useState<GuidedSourceHintRequest[]>([]);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [sourceKind, setSourceKind] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -202,22 +207,42 @@ export function AuthoringFlow() {
               {t('flow.noInputsOffered')}
             </Notice>
           ) : (
-            <SelectField
-              label={t('flow.addInput')}
-              value=""
-              disabled={options === null || offered.length === 0}
-              onChange={(event) => {
-                const option = offered.find((item) => item.quantity === event.target.value);
-                if (option) edit(addCurrentInput(manifest, option));
-              }}
-            >
-              <option value="">{t('flow.chooseInput')}</option>
-              {offered.map((option) => (
-                <option key={option.quantity} value={option.quantity}>
-                  {option.unit ? option.quantity + ' (' + option.unit + ')' : option.quantity}
-                </option>
-              ))}
-            </SelectField>
+            <>
+              <SelectField
+                label={t('flow.inputSource')}
+                value={sourceKind}
+                disabled={options === null}
+                onChange={(event) => setSourceKind(event.target.value)}
+              >
+                <option value="">{t('flow.chooseSource')}</option>
+                {inputSources.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {t(sourceLabels[kind])}
+                  </option>
+                ))}
+              </SelectField>
+              {sourceKind === 'current' && (
+                <SelectField
+                  label={t('flow.addInput')}
+                  value=""
+                  disabled={offered.length === 0}
+                  onChange={(event) => {
+                    const option = offered.find((item) => item.quantity === event.target.value);
+                    if (option) {
+                      edit(addCurrentInput(manifest, option));
+                      setSourceKind('');
+                    }
+                  }}
+                >
+                  <option value="">{t('flow.chooseInput')}</option>
+                  {offered.map((option) => (
+                    <option key={option.quantity} value={option.quantity}>
+                      {option.unit ? option.quantity + ' (' + option.unit + ')' : option.quantity}
+                    </option>
+                  ))}
+                </SelectField>
+              )}
+            </>
           )}
         </Section>
       )}
