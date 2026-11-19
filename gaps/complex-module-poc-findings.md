@@ -552,3 +552,7 @@ The filter resets to All providers on reload. An author who works on one provide
 
 - Works: Name + Provider + Create opens a workbench titled with the module name and provider, with Save and an outline showing "Inputs 0"; Source (Current values, Daily averages) then Reading (AveragePumpFillage, PumpFillage) works as before.
 - **P112** The outline lists only Inputs. There is still no Outputs or Logic part (P107), so the workbench cannot yet express multiple outputs or custom logic. Save with an empty module was not checked.
+
+## CL #679 - submit rules modules for review (build + V2 checks only; live deferred)
+
+- **P113** A rules draft is packaged as a version 1 module reading current values only. Daily-average and history sources from the new flow (#667) therefore cannot be part of a submitted rules module, so Idle Time and Target Fillage style inputs still cannot be reviewed or run. Verify live that submitting a draft with a Daily input is refused clearly.

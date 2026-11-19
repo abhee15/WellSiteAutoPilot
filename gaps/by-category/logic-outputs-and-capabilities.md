@@ -18,3 +18,4 @@ Generated from that log; update both when adding items.
 | P110 | Function set is min, max, avg, abs, round, clamp, if. Rod Buckling, Target Fillage and Rotaflex logic need ... | Open | No | CL #670 - rule expression engine (build + V2 checks; library only, not |
 | P111 | Expressions are single-valued (number, boolean or text) with decimal arithmetic. No multi-output assignment... | Open | No | CL #670 - rule expression engine (build + V2 checks; library only, not |
 | P112 | The outline lists only Inputs. There is still no Outputs or Logic part (P107), so the workbench cannot yet ... | Open | No | CL #669 - workbench shell (live, ForeSite, Edge) |
+| P113 | A rules draft is packaged as a version 1 module reading current values only. Daily-average and history sour... | Open | No | CL #679 - submit rules modules for review (build + V2 checks only; liv |
