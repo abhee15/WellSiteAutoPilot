@@ -414,3 +414,18 @@ The script reads GRP_VSD_SPEED_CFG_1/2 and GRP_VSD_CONTROL_PARAMS; this system e
 
 ### P80 - Lufkin 2.0 speed-config setpoints are not on any scanned well
 Sec4ScaSpd, Sec4StkLoc, Sec1-3WoSpLi etc. were not found, so the audit and speed-write parts of Rod Buckling cannot be tested on these systems yet. Only the control parameters (VFDMin/Max, IdealPF, PODeadBand) exist, on 3 wells.
+
+## usdcfstappts010 - dashboard-guided Lufkin / RPOC scan
+
+- The Production Dashboard (/fs/dashboards/pedashboard) is not a Lufkin list: it loads all 1,403 wells (Wells/Well/Filter with {}) and offers a Device Type filter (AEBEAM, LufkinSam, SAMIWC, WellPilotRPOC, WFord...). PrincipalDeviceType is null on every well, so the device type cannot be read off a well record, only used as a filter.
+- Filter results on this host: WellPilotRPOC 344 wells (AR-RRL2, 32G 17-14P, BG 41-2xH ...), SAMIWC 5 (WAG wells). LufkinSam gave 302 wells once, then reset the connection on three retries.
+- Scanned all 344 RPOC wells with AllSavedSetPointParams(scanOption=0), 8 in parallel: 326 failed (connection resets or 30 s timeouts under load) and 18 answered; 8 had saved values: 32G 17-14P (70), BG 41-29H (1635), AR-RRL2 (1468), CB_Test (796), BG 41-28H (1632), DC_RRL_01 (1416), ESP_Test1 (492), Cyclic steam test well (1580). Each carries the four control setpoints (VFDMinSPM, VFDMaxSPM, IdealPF, PODeadBand) in "Basic SetPoints Configuration" (three also in "Control Parameters"). None has Sec*ScaSpd, Sec*StkLoc, Sec*WoSpLi or Sec*SpdChg.
+
+### P81 - Device type is a filter, not a property
+A module cannot ask "what device is this well"; PrincipalDeviceType is empty. An authored Rod Buckling module has no reliable way to restrict itself to Lufkin SAM wells; it can only name the setpoints it needs and fail when they are absent. Suggestion: asset applicability should be driven by "has these setpoints saved", checked at preview.
+
+### P82 - Setpoint reads do not survive modest concurrency
+8 parallel reads failed 326 of 344 times. A fleet-wide module (all Rod Buckling wells) would need the adapter to throttle, retry and report per-well "unavailable" without failing the run.
+
+### P83 - Same elements, different group names across device families
+"Basic SetPoints" (SAM-style wells on 010) vs "Basic SetPoints Configuration" / "Control Parameters" (RPOC wells). Reinforces P79: bind to ElementId.
