@@ -773,7 +773,7 @@ export function GuidedAuthoringPage({
                 </div>
               )}
               {!inspectOnly && blockedReason && (
-                <p role="status">{t(blockedReason.key, { port: blockedReason.port ?? '' })}</p>
+                <Notice>{t(blockedReason.key, { port: blockedReason.port ?? '' })}</Notice>
               )}
               {draft?.id && contractOnly && !dirty && !submittedReference && !confirmDelete && (
                 <div className="guided-authoring-actions">
