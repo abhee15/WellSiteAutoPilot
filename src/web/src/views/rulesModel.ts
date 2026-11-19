@@ -10,10 +10,35 @@ export interface RuleParameter {
   assignable: boolean;
 }
 
+export interface RuleCalculation {
+  id: string;
+  expression: string;
+  unit: string | null;
+}
+
+export interface RuleRecommendation {
+  setpoint: string;
+  valueExpression: string;
+  unit: string | null;
+  currentValue: string | null;
+  minimum: number | null;
+  maximum: number | null;
+  maximumChange: number | null;
+}
+
+export interface RuleItem {
+  id: string;
+  when: string;
+  reason: string;
+  outcomeCode: string;
+  title: string | null;
+  recommend: RuleRecommendation | null;
+}
+
 export interface RulesModel {
   parameters: RuleParameter[];
-  calculations: unknown[];
-  rules: unknown[];
+  calculations: RuleCalculation[];
+  rules: RuleItem[];
 }
 
 export const emptyRules: RulesModel = { parameters: [], calculations: [], rules: [] };
@@ -35,6 +60,23 @@ const reservedNames = new Set([
 const identifier = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 
 const numberOrNull = (value: unknown) => (typeof value === 'number' ? value : null);
+const textOrNull = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null);
+const textOf = (value: unknown) => (typeof value === 'string' ? value : '');
+const listOf = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]) : []);
+
+function recommendationOf(value: unknown): RuleRecommendation | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const item = value as Record<string, unknown>;
+  return {
+    setpoint: textOf(item.setpoint),
+    valueExpression: textOf(item.valueExpression),
+    unit: textOrNull(item.unit),
+    currentValue: textOrNull(item.currentValue),
+    minimum: numberOrNull(item.minimum),
+    maximum: numberOrNull(item.maximum),
+    maximumChange: numberOrNull(item.maximumChange),
+  };
+}
 
 export function parseRules(json: string | null | undefined): RulesModel {
   if (!json) return emptyRules;
@@ -50,8 +92,19 @@ export function parseRules(json: string | null | undefined): RulesModel {
         maximum: numberOrNull(item.maximum),
         assignable: item.assignable === true,
       })),
-      calculations: Array.isArray(value.calculations) ? value.calculations : [],
-      rules: Array.isArray(value.rules) ? value.rules : [],
+      calculations: listOf(value.calculations).map((item) => ({
+        id: textOf(item.id),
+        expression: textOf(item.expression),
+        unit: textOrNull(item.unit),
+      })),
+      rules: listOf(value.rules).map((item) => ({
+        id: textOf(item.id),
+        when: textOf(item.when),
+        reason: textOf(item.reason),
+        outcomeCode: textOf(item.outcomeCode),
+        title: textOrNull(item.title),
+        recommend: recommendationOf(item.recommend),
+      })),
     };
   } catch {
     return emptyRules;
@@ -97,4 +150,82 @@ export function parameterProblems(model: RulesModel, takenNames: string[]): Map<
     seen.add(item.id);
   });
   return problems;
+}
+
+export const functionNames = ['min', 'max', 'avg', 'abs', 'round', 'clamp', 'if'];
+
+export function addCalculation(model: RulesModel, id: string): RulesModel {
+  return { ...model, calculations: [...model.calculations, { id, expression: '', unit: null }] };
+}
+
+export function updateCalculation(model: RulesModel, index: number, patch: Partial<RuleCalculation>): RulesModel {
+  return {
+    ...model,
+    calculations: model.calculations.map((item, at) => (at === index ? { ...item, ...patch } : item)),
+  };
+}
+
+export function removeCalculation(model: RulesModel, index: number): RulesModel {
+  return { ...model, calculations: model.calculations.filter((_, at) => at !== index) };
+}
+
+export function addRule(model: RulesModel, id: string): RulesModel {
+  const rule: RuleItem = { id, when: '', reason: '', outcomeCode: '', title: null, recommend: null };
+  return { ...model, rules: [...model.rules, rule] };
+}
+
+export function updateRule(model: RulesModel, index: number, patch: Partial<RuleItem>): RulesModel {
+  return { ...model, rules: model.rules.map((item, at) => (at === index ? { ...item, ...patch } : item)) };
+}
+
+export function removeRule(model: RulesModel, index: number): RulesModel {
+  return { ...model, rules: model.rules.filter((_, at) => at !== index) };
+}
+
+export function moveRule(model: RulesModel, index: number, by: -1 | 1): RulesModel {
+  const target = index + by;
+  if (target < 0 || target >= model.rules.length) return model;
+  const rules = [...model.rules];
+  [rules[index], rules[target]] = [rules[target], rules[index]];
+  return { ...model, rules };
+}
+
+export const blankRecommendation: RuleRecommendation = {
+  setpoint: '',
+  valueExpression: '',
+  unit: null,
+  currentValue: null,
+  minimum: null,
+  maximum: null,
+  maximumChange: null,
+};
+
+const outcomePattern = /^[A-Z][A-Z0-9_]{0,127}$/;
+
+/** Names a calculation or rule may read, in the order they are worked out. */
+export function namesBefore(model: RulesModel, inputNames: string[], calculationIndex: number | null): string[] {
+  const calculations = model.calculations
+    .slice(0, calculationIndex ?? model.calculations.length)
+    .map((item) => item.id);
+  return [...inputNames, ...model.parameters.map((item) => item.id), ...calculations].filter((name) => name !== '');
+}
+
+/** What is missing before the logic can be saved. The server checks the expressions themselves. */
+export function logicIncomplete(model: RulesModel, takenNames: string[]): boolean {
+  const names = new Set([...takenNames, ...model.parameters.map((item) => item.id)]);
+  for (const item of model.calculations) {
+    if (!identifier.test(item.id) || reservedNames.has(item.id.toLowerCase()) || names.has(item.id)) return true;
+    if (item.expression.trim() === '') return true;
+    names.add(item.id);
+  }
+  const ruleIds = new Set<string>();
+  for (const rule of model.rules) {
+    if (!identifier.test(rule.id) || ruleIds.has(rule.id)) return true;
+    ruleIds.add(rule.id);
+    if (rule.when.trim() === '' || rule.reason.trim() === '' || !outcomePattern.test(rule.outcomeCode)) return true;
+    const recommend = rule.recommend;
+    if (recommend && (recommend.setpoint.trim() === '' || recommend.valueExpression.trim() === '')) return true;
+    if (recommend?.maximumChange != null && (recommend.maximumChange <= 0 || !recommend.currentValue)) return true;
+  }
+  return false;
 }
