@@ -8,6 +8,9 @@ public sealed record ForeSiteSurveillanceQuantity(string Quantity, string Field,
 {
     public const string CountUnit = "count";
 
+    /// <summary>A surveillance value is stamped with the well's last good scan, never with the retrieval time.</summary>
+    public const string TimeSource = "LastGoodScanTime";
+
     /// <summary>The percentage fields are bounded; other fields only have to be finite numbers.</summary>
     public bool IsPercent => Unit == "%";
 }
