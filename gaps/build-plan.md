@@ -35,3 +35,8 @@ The code work happens on `feature/module-authoring-build`, branched from `develo
 1. Live-test the existing workbench end to end on the fresh database, and log what breaks.
 2. Pick the first complex module and map each of its inputs to something ForeSite can supply.
 3. Fix gaps in order of what blocks that module, one small PR at a time.
+
+## Decisions
+
+- The old module authoring (the guided contract editor and its starters) is removed once the new workbench is stable and the feature is done. Until then both exist; the workbench opens only rules drafts (#678).
+- Live check on the fresh database: `#authoring/new` creates a module and opens the workbench with Inputs, Settings, Calculations, Rules and Tests parts plus Save and Submit for review. There is no Outputs part (P107, P112).
