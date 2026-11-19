@@ -19,7 +19,7 @@ import type {
   GuidedSampleCaseRequest,
   GuidedSourceHintRequest,
 } from '../api/generated/v1/types.gen';
-import { ActionButton } from '../components/ActionButton';
+import { ActionButton, ActionLink } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
 import { SectionTabs } from '../components/SectionTabs';
@@ -38,6 +38,7 @@ import {
 import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
+import { AuthoringFlow } from './AuthoringFlow';
 import { GuidedSampleCases, defaultSampleCases, sampleCasesInRange } from './GuidedSampleCases';
 import { normalizeHint } from './GuidedSourceHintFields';
 import { ConfirmPanel, FormActions, NumberField, SelectField, TextField } from '../components/FormFields';
@@ -197,6 +198,7 @@ export function ModuleAuthoringWorkspace({
   const canReview = permissions.includes('logic.authoring.review');
   const showReviews = canReview && (Boolean(detail) || !canAuthor);
   const reviewReference = showReviews && detail !== 'reviews' ? (detail ?? '') : '';
+  if (canAuthor && detail === 'new') return <AuthoringFlow />;
   return (
     <>
       {canAuthor && canReview && (
@@ -208,6 +210,9 @@ export function ModuleAuthoringWorkspace({
             { id: 'reviews', label: t('guided.reviewsTab'), href: hashFor('authoring', 'reviews') },
           ]}
         />
+      )}
+      {canAuthor && !showReviews && (
+        <ActionLink href={hashFor('authoring', 'new')} label={t('flow.startModule')} variant="primary" />
       )}
       <GuidedAuthoringPage
         key={reviewReference || (showReviews ? 'reviews' : 'drafts')}

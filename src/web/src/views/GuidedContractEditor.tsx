@@ -127,6 +127,11 @@ export function parseManifest(source: string | null | undefined): Json | null {
   }
 }
 
+export function inputsOf(manifestJson: string): Record<string, unknown>[] {
+  const manifest = parseManifest(manifestJson);
+  return manifest ? portsOf(manifest, 'input') : [];
+}
+
 function portsOf(manifest: Json, kind: PortKind): Json[] {
   const list = manifest[listKey[kind]];
   return Array.isArray(list) ? list.filter(isObject) : [];
@@ -262,6 +267,37 @@ function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
     // Chosen by picking a registered quantity; a free-text capability would never match an adapter.
     requiredCapability: '',
   };
+}
+
+/** Adds a registered current reading as an input, with its registered unit and capability already filled in. */
+export function addCurrentInput(manifestJson: string, option: SourceOption): string {
+  const manifest = parseManifest(manifestJson);
+  if (!manifest || !identifier.test(option.quantity)) return manifestJson;
+  const ports = portsOf(manifest, 'input');
+  if (ports.some((port) => port.quantity === option.quantity && port.requiredCapability === option.capabilityId))
+    return manifestJson;
+  const port = { ...newPort(manifest, 'input', ports), quantity: option.quantity, requiredCapability: option.capabilityId };
+  return JSON.stringify(withPorts(manifest, 'input', [...ports, option.unit ? { ...port, canonicalUnit: option.unit } : port]));
+}
+
+/** Removes the input with this id. */
+export function removeInput(manifestJson: string, inputId: string): string {
+  const manifest = parseManifest(manifestJson);
+  if (!manifest) return manifestJson;
+  return JSON.stringify(withPorts(manifest, 'input', portsOf(manifest, 'input').filter((port) => port.id !== inputId)));
+}
+
+/** Changes the maximum age, in seconds, of one input; null means no limit. */
+export function setInputMaximumAge(manifestJson: string, inputId: string, seconds: number | null): string {
+  const manifest = parseManifest(manifestJson);
+  if (!manifest) return manifestJson;
+  return JSON.stringify(
+    withPorts(
+      manifest,
+      'input',
+      portsOf(manifest, 'input').map((port) => (port.id === inputId ? { ...port, maximumAgeSeconds: seconds } : port)),
+    ),
+  );
 }
 
 /** Adds a discovered provider daily field as an input. A field already declared as a daily input is left alone. */
