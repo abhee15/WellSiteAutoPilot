@@ -1,0 +1,112 @@
+using WellSiteAutoPilot.Application.Logic.Rules;
+
+namespace WellSiteAutoPilot.ExecutionContractV2Tests;
+
+internal static class RulesEngineChecks
+{
+    private const string Json = """
+        {
+          "parameters": [
+            { "id": "LowFillage", "unit": "%", "default": 70, "minimum": 0, "maximum": 100, "assignable": true },
+            { "id": "SpeedStep", "unit": "spm", "default": 0.5, "minimum": 0.1, "maximum": 2, "assignable": true },
+            { "id": "MinSpeed", "unit": "spm", "default": 3, "minimum": null, "maximum": null, "assignable": false }
+          ],
+          "calculations": [
+            { "id": "Shortfall", "expression": "LowFillage - PumpFillage", "unit": "%" }
+          ],
+          "rules": [
+            {
+              "id": "SlowDown",
+              "when": "Shortfall > 0 and CurrentSpeed > MinSpeed",
+              "reason": "Fillage is below the limit, so slow the pump to let it fill.",
+              "outcomeCode": "SLOW_PUMP",
+              "title": "Reduce pump speed",
+              "recommend": {
+                "setpoint": "PumpSpeed",
+                "valueExpression": "CurrentSpeed - SpeedStep * 4",
+                "unit": "spm",
+                "currentValue": "CurrentSpeed",
+                "minimum": null,
+                "maximum": 12,
+                "maximumChange": 1
+              }
+            }
+          ]
+        }
+        """;
+
+    public static void Run()
+    {
+        var definition = RulesDefinition.Parse(Json);
+        var inputs = new[] { "PumpFillage", "CurrentSpeed" };
+        var issues = RulesEngine.Validate(definition, inputs);
+        if (issues.Count != 0)
+            throw new InvalidOperationException("A valid definition was rejected: " + issues[0].Code + " " + issues[0].Path);
+
+        var again = RulesDefinition.Parse(definition.ToJson());
+        if (again.ToJson() != definition.ToJson())
+            throw new InvalidOperationException("A definition must survive a round trip.");
+
+        var none = new Dictionary<string, decimal>();
+        var matched = RulesEngine.Run(definition,
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+        if (matched.OutcomeCode != "SLOW_PUMP" || matched.RuleId != "SlowDown" ||
+            matched.Calculations["Shortfall"] != 15m ||
+            matched.Proposal is not { RequestedValue: 4m, SuggestedValue: 5m, Limited: true, Setpoint: "PumpSpeed" })
+            throw new InvalidOperationException("The rule must propose a change held to the largest change.");
+        if (!matched.Trace.Any(step => step.Kind == "rule" && step.Id == "SlowDown" && step.Detail == "matched"))
+            throw new InvalidOperationException("The trace must record the rule that matched.");
+
+        var chosen = RulesEngine.Run(definition,
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m },
+            new Dictionary<string, decimal> { ["SpeedStep"] = 0.1m });
+        if (chosen.Proposal is not { RequestedValue: 5.6m, SuggestedValue: 5.6m, Limited: false })
+            throw new InvalidOperationException("A chosen setting must replace its default.");
+
+        var clear = RulesEngine.Run(definition,
+            new Dictionary<string, decimal> { ["PumpFillage"] = 90m, ["CurrentSpeed"] = 6m }, none);
+        if (clear.OutcomeCode != RulesDefinition.NoMatchOutcome || clear.Proposal is not null)
+            throw new InvalidOperationException("No match must produce no proposal.");
+
+        var atFloor = RulesEngine.Run(definition,
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 3m }, none);
+        if (atFloor.OutcomeCode != RulesDefinition.NoMatchOutcome)
+            throw new InvalidOperationException("The rule must not match at the minimum speed.");
+
+        try
+        {
+            RulesEngine.Run(definition, new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m },
+                new Dictionary<string, decimal> { ["LowFillage"] = 150m });
+            throw new InvalidOperationException("A setting outside its range must fail.");
+        }
+        catch (RuleExpressionException ex) when (ex.Code == "RULES_SETTING_OUT_OF_RANGE")
+        {
+        }
+
+        ExpectIssue(Json.Replace("Shortfall > 0", "Shortfall + 1"), inputs, "RULE_EXPRESSION_TYPE");
+        ExpectIssue(Json.Replace("CurrentSpeed > MinSpeed", "Speed > MinSpeed"), inputs, "RULE_EXPRESSION_UNKNOWN_NAME");
+        ExpectIssue(Json.Replace("\"reason\": \"Fillage is below the limit, so slow the pump to let it fill.\"", "\"reason\": \"\""),
+            inputs, "RULES_REASON_REQUIRED");
+        ExpectIssue(Json.Replace("\"id\": \"SpeedStep\"", "\"id\": \"LowFillage\""), inputs, "RULES_ID_INVALID");
+        ExpectIssue(Json.Replace("\"default\": 70", "\"default\": 170"), inputs, "RULES_DEFAULT_OUT_OF_RANGE");
+        ExpectIssue(Json.Replace("\"outcomeCode\": \"SLOW_PUMP\"", "\"outcomeCode\": \"slow\""), inputs, "RULES_OUTCOME_INVALID");
+        ExpectIssue(Json.Replace("\"maximumChange\": 1", "\"maximumChange\": 0"), inputs, "RULES_LIMIT_INVALID");
+        ExpectIssue(Json.Replace("\"currentValue\": \"CurrentSpeed\"", "\"currentValue\": null"), inputs, "RULES_CURRENT_VALUE_REQUIRED");
+
+        try
+        {
+            RulesDefinition.Parse("""{ "parameters": [], "calculations": [], "rules": [], "extra": 1 }""");
+            throw new InvalidOperationException("An unknown member must be rejected.");
+        }
+        catch (RuleExpressionException ex) when (ex.Code == "RULES_DEFINITION_INVALID")
+        {
+        }
+    }
+
+    private static void ExpectIssue(string json, string[] inputs, string code)
+    {
+        var issues = RulesEngine.Validate(RulesDefinition.Parse(json), inputs);
+        if (!issues.Any(issue => issue.Code == code))
+            throw new InvalidOperationException("Expected " + code + " but got " + string.Join(", ", issues.Select(issue => issue.Code)));
+    }
+}
