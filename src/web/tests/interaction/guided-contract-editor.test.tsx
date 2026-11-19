@@ -72,8 +72,13 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
 function registerProviders() {
   vi.mocked(listGuidedModuleProviders).mockResolvedValue({
     data: [
-      { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false },
-      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true },
+      {
+        adapterKey: 'foresite',
+        displayName: 'ForeSite',
+        currentValuesOnly: false,
+        externalSources: [{ key: 'wami', displayName: 'WAMI' }],
+      },
+      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true, externalSources: [] },
     ],
   } as never);
 }
@@ -303,40 +308,31 @@ it('lets an author choose where an input is read from, and saves it beside the c
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pinned fillage' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
   // The registry supplies the capability, so wait for it before choosing the quantity.
-  await screen.findByLabelText('Read from provider');
+  await screen.findByLabelText('Read this input from an external source');
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'PumpFillage' } });
 
-  // No choice means any provider that serves the quantity, so nothing is saved for the input.
-  expect(screen.getByLabelText<HTMLSelectElement>('Read from provider').value).toBe('');
-  expect(screen.getByLabelText('Only run with this source').hasAttribute('disabled')).toBe(true);
-  fireEvent.change(screen.getByLabelText('Read from provider'), { target: { value: 'foresite' } });
-  fireEvent.change(screen.getByLabelText('Read with operation'), { target: { value: 'current.pump-fillage' } });
-  // Only operations that serve this quantity are offered.
-  expect(screen.getByRole('option', { name: 'Current pump fillage' })).toBeTruthy();
-  expect(screen.queryByRole('option', { name: 'Stroke rate trend' })).toBeNull();
-  fireEvent.click(screen.getByLabelText('Only run with this source'));
-  expect(screen.getByText(/limits which assets this module/i)).toBeTruthy();
+  // Every input is read from the primary provider unless it is marked external; nothing is saved by default.
+  const external = screen.getByLabelText<HTMLInputElement>('Read this input from an external source');
+  expect(external.checked).toBe(false);
+  expect(screen.queryByLabelText('External source')).toBeNull();
+  fireEvent.click(external);
+  // Only the sources the primary provider allows are offered.
+  const choice = screen.getByLabelText<HTMLSelectElement>('External source');
+  expect(choice.value).toBe('wami');
+  expect(screen.queryByRole('option', { name: 'CygNet' })).toBeNull();
 
   fireEvent.click(screen.getByRole('button', { name: 'Add output' }));
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'Result' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await screen.findByText('Draft saved.');
   const body = vi.mocked(createGuidedModuleDraft).mock.calls.at(-1)![0].body as unknown as {
-    sourceHints: { inputId: string; adapterKey: string; operationKey: string; required: boolean }[];
+    sourceHints: { inputId: string; externalSource: string }[];
     manifestJson: string;
   };
   const manifest = JSON.parse(body.manifestJson) as { dataRequirements: { id: string }[] };
-  expect(body.sourceHints).toEqual([
-    {
-      inputId: manifest.dataRequirements[0]!.id,
-      adapterKey: 'foresite',
-      operationKey: 'current.pump-fillage',
-      required: true,
-      parametersJson: null,
-    },
-  ]);
-  // The hint is not part of the portable manifest.
-  expect(body.manifestJson).not.toContain('current.pump-fillage');
+  expect(body.sourceHints).toEqual([{ inputId: manifest.dataRequirements[0]!.id, externalSource: 'wami' }]);
+  // The external marker is not part of the portable manifest.
+  expect(body.manifestJson).not.toContain('wami');
 });
 
 it('adds a discovered production-day field as an uncertain-quality daily input, once', () => {
@@ -417,7 +413,7 @@ it('copies a saved contract to a new draft for the other provider, without hints
     { id: 'fillage', assetRole: 'asset', quantity: 'PumpFillage', access: 'Current', canonicalUnit: '%', maximumAgeSeconds: 60 },
   ];
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
-    data: [{ id: 'src', revision: 3, manifestJson: JSON.stringify(source), sourceHints: [{ inputId: 'fillage', adapterKey: 'foresite' }] }],
+    data: [{ id: 'src', revision: 3, manifestJson: JSON.stringify(source), sourceHints: [{ inputId: 'fillage', externalSource: 'wami' }] }],
   } as never);
   vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
     data: { id: 'copy', revision: 1, manifestJson: body.manifestJson },

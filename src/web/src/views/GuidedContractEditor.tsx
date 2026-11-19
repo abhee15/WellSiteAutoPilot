@@ -1,5 +1,9 @@
 import { useEffect, useId, useState } from 'react';
-import type { AdapterOperationsResponse, GuidedSourceHintRequest } from '../api/generated/v1/types.gen';
+import type {
+  AdapterOperationsResponse,
+  GuidedExternalSourceResponse,
+  GuidedSourceHintRequest,
+} from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -274,12 +278,14 @@ export function GuidedContractEditor({
   disabled,
   onChange,
   hints = [],
+  externalSources = [],
   onHintsChange,
 }: {
   manifestJson: string;
   disabled: boolean;
   onChange: (manifestJson: string) => void;
   hints?: GuidedSourceHintRequest[];
+  externalSources?: GuidedExternalSourceResponse[];
   onHintsChange?: (hints: GuidedSourceHintRequest[]) => void;
 }) {
   const [selection, setSelection] = useState<{ kind: PortKind; index: number }>({ kind: 'input', index: 0 });
@@ -522,8 +528,7 @@ export function GuidedContractEditor({
                   {onHintsChange && catalog.status === 'ready' && (
                     <GuidedSourceHintFields
                       inputId={textValue(port.id)}
-                      quantity={textValue(port.quantity)}
-                      adapters={providerAdapters}
+                      externalSources={externalSources}
                       hint={hints.find((item) => item.inputId === textValue(port.id))}
                       disabled={disabled}
                       onChange={(next) => changeHint(textValue(port.id), next)}

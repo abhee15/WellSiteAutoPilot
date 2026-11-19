@@ -86,8 +86,8 @@ client.setConfig({
     Response.json(
       request.url.endsWith('/providers')
         ? [
-            { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false },
-            { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true },
+            { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false, externalSources: [] },
+            { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true, externalSources: [] },
           ]
         : request.url.endsWith('/submissions/1')
           ? {

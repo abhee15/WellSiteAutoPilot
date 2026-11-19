@@ -46,8 +46,8 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
 beforeEach(() => {
   vi.mocked(listGuidedModuleProviders).mockResolvedValue({
     data: [
-      { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false },
-      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true },
+      { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false, externalSources: [] },
+      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true, externalSources: [] },
     ],
   } as never);
 });

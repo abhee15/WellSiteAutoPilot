@@ -851,6 +851,9 @@ export function GuidedAuthoringPage({
                         disabled={busy}
                         onChange={setContractManifest}
                         hints={activeHints}
+                        externalSources={
+                          providers.find((item) => item.adapterKey === activeProvider)?.externalSources ?? []
+                        }
                         onHintsChange={setHints}
                       />
                       {view === 'ide' && draft?.manifestJson && (
