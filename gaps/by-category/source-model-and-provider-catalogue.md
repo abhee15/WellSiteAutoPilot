@@ -33,3 +33,4 @@ Generated from that log; update both when adding items.
 | P65 | New module has no provider choice yet | Fixed on develop | No | CL 1108784 (#655, provider required, canonical and immutable on guided |
 | P106 | The only Source offered is 'Current values', and the ForeSite catalogue holds two readings (AveragePumpFill... | Open | No | CL #666 - first steps of the new authoring flow (live, ForeSite provid |
 | P108 | The Well select is an "example well" used only to discover which daily quantities exist; the picker returns... | Open | No | CL #667 - daily averages source (live, ForeSite provider, Edge) |
+| P114 | The "Current values" list offers only PumpFillage and AveragePumpFillage because the ForeSite adapter hard-... | Open | No | Surveillance catalogue limited to two readings (root cause found on th |
