@@ -1427,6 +1427,8 @@ export const englishMessages = {
   'flow.removeScenario': 'Remove scenario',
   'flow.submit': 'Submit for review',
   'flow.submitted': 'Submitted for review.',
+  'review.rules': 'Rules',
+  'review.scenarios': 'Scenarios the author ran',
   'flow.testLimited': 'held to the limits from',
   'flow.removeInput': 'Remove input',
   'flow.noInputsOffered': 'This provider offers no readings.',
