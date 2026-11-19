@@ -17,7 +17,6 @@ import {
   addDailyInput,
   blankContractManifest,
   contractIsComplete,
-  dailyCapability,
   inputsOf,
   parseManifest,
   removeInput,
@@ -25,8 +24,6 @@ import {
   sourceOptionsFrom,
 } from './GuidedContractEditor';
 import type { SourceOption } from './GuidedContractEditor';
-import { ExampleWellPicker } from './ExampleWellPicker';
-import { GuidedQuantityDiscovery } from './GuidedQuantityDiscovery';
 import { GuidedSourceHintFields } from './GuidedSourceHintFields';
 import './authoringFlow.css';
 
@@ -50,7 +47,8 @@ export function AuthoringFlow() {
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [dirty, setDirty] = useState(false);
   const [sourceKind, setSourceKind] = useState('');
-  const [wellId, setWellId] = useState('');
+  const [dailyField, setDailyField] = useState('');
+  const [dailyUnit, setDailyUnit] = useState('');
   const [justSaved, setJustSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -135,23 +133,6 @@ export function AuthoringFlow() {
     setDraft(data);
     setDirty(false);
     return data;
-  }
-
-  // Daily fields are listed from a real well, which needs the draft to exist on the server.
-  async function chooseSource(kind: string) {
-    setSourceKind(kind);
-    setWellId('');
-    if (kind !== 'daily' || draft) return;
-    setBusy(true);
-    setFailed(false);
-    try {
-      await persist();
-    } catch {
-      setFailed(true);
-      setSourceKind('');
-    } finally {
-      setBusy(false);
-    }
   }
 
   return (
@@ -241,8 +222,8 @@ export function AuthoringFlow() {
               <SelectField
                 label={t('flow.inputSource')}
                 value={sourceKind}
-                disabled={options === null || busy}
-                onChange={(event) => void chooseSource(event.target.value)}
+                disabled={options === null}
+                onChange={(event) => setSourceKind(event.target.value)}
               >
                 <option value="">{t('flow.chooseSource')}</option>
                 {inputSources.map((kind) => (
@@ -272,30 +253,33 @@ export function AuthoringFlow() {
                   ))}
                 </SelectField>
               )}
-              {sourceKind === 'daily' && draft?.id && draft.revision && (
-                <>
-                  <ExampleWellPicker value={wellId} onChange={setWellId} />
-                  {wellId && (
-                    <GuidedQuantityDiscovery
-                      key={draft.id + ':' + draft.revision + ':' + wellId}
-                      draftId={draft.id}
-                      revision={draft.revision}
-                      assetId={wellId}
-                      inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}
-                      busy={busy}
-                      fixedCapability="DailyAverages"
-                      declaredDaily={inputs
-                        .filter((input) => input.requiredCapability === dailyCapability)
-                        .map((input) => text(input.quantity))}
-                      onUseDailyField={(quantity, unit) => {
-                        edit(addDailyInput(manifest, quantity, unit));
-                        setSourceKind('');
-                        setWellId('');
-                      }}
-                      onChange={() => undefined}
-                    />
-                  )}
-                </>
+              {sourceKind === 'daily' && (
+                <form
+                  className="authoring-flow-search"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const field = dailyField.trim();
+                    if (!field) return;
+                    edit(addDailyInput(manifest, field, dailyUnit.trim() || null));
+                    setDailyField('');
+                    setDailyUnit('');
+                    setSourceKind('');
+                  }}
+                >
+                  <TextField
+                    label={t('flow.dailyField')}
+                    value={dailyField}
+                    maxLength={128}
+                    onChange={(event) => setDailyField(event.target.value)}
+                  />
+                  <TextField
+                    label={t('flow.dailyUnit')}
+                    value={dailyUnit}
+                    maxLength={64}
+                    onChange={(event) => setDailyUnit(event.target.value)}
+                  />
+                  <ActionButton type="submit" label={t('flow.add')} disabled={!dailyField.trim()} />
+                </form>
               )}
             </>
           )}
