@@ -56,6 +56,22 @@ public sealed record GuidedModuleDraft(
         return new(Id, Revision, artifact, evidence.AsReadOnly());
     }
 
+    /// <summary>Packages the draft's rules and runs the author's scenarios against them as review evidence.</summary>
+    public async Task<GuidedModuleSubmission> PrepareRulesSubmissionAsync(
+        int expectedRevision, IReadOnlyList<Rules.RulesCase> cases, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cases);
+        RequireRevision(expectedRevision);
+        if (Content.RulesJson is not { } json)
+            throw new WellSiteAutoPilotException("GUIDED_RULES_MISSING", FailureKind.Validation,
+                "This draft has no rules to submit.");
+        var definition = Rules.RulesDefinition.Parse(json);
+        var evidence = Rules.GuidedRulesCases.Run(definition,
+            Content.Manifest.DataRequirements.Select(input => input.Quantity).ToArray(), cases);
+        var artifact = await Rules.RulesPackageBuilder.BuildAsync(Content.Manifest, definition, cancellationToken);
+        return new(Id, Revision, artifact, [], Rules.GuidedRulesCases.ToJson(evidence));
+    }
+
     /// <summary>Contract-only drafts have no supported runtime path, so preview and submission fail explicitly.</summary>
     internal void RequireThresholdLogic()
     {
@@ -74,4 +90,4 @@ public sealed record GuidedModuleDraft(
 
 public sealed record GuidedModuleSubmission(
     Guid DraftId, int DraftRevision, DeclarativeThresholdArtifact Artifact,
-    IReadOnlyList<DeclarativeThresholdEvidence> Evidence);
+    IReadOnlyList<DeclarativeThresholdEvidence> Evidence, string? EvidenceJson = null);

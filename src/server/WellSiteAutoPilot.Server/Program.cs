@@ -1316,12 +1316,14 @@ v1.MapGet("/guided-module-drafts/{id:guid}/submissions/{revision:int}",
         var reviewed = await drafts.GetSubmissionAsync(id, revision, access.Subject, cancellationToken);
         var definition = reviewed.Definition;
         return new GuidedModuleReviewResponse(id, revision, reviewed.PackageSha256, reviewed.SubmittedAtUtc,
-            reviewed.ReviewedManifestJson, new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
+            reviewed.ReviewedManifestJson,
+            definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
             reviewed.Evidence.Select(item => new GuidedModuleReviewCaseResponse(
                 item.Sample.Input?.Value, item.Result?.OutcomeCode, item.FailureCode,
                 reviewed.IsPressureDifference
                     ? new(item.Sample.Input?.Value, item.Sample.SecondInput?.Value) : null,
-                item.Result?.EngineeringResults.SingleOrDefault()?.Value)).ToArray());
+                item.Result?.EngineeringResults.SingleOrDefault()?.Value)).ToArray(),
+            reviewed.RulesJson, reviewed.RulesEvidenceJson);
     })
     .WithName("GetGuidedModuleSubmission").RequireAuthorization(WellSitePolicies.GuidedDraftReview)
     .Produces<GuidedModuleReviewResponse>();
@@ -1334,6 +1336,31 @@ v1.MapPost("/guided-module-drafts/{id:guid}/submissions/{revision:int}/approve",
     .WithName("ApproveGuidedModuleSubmission").RequireAuthorization(WellSitePolicies.LogicManage)
     .NotifiesChange(ChangeArea.Modules)
     .Produces<LogicModuleResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/rules-submit",
+    async (Guid id, SubmitGuidedRulesRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        if (request.Cases is null || request.Cases.Count > 50 || request.Cases.Any(item => item is null || item.Values is null))
+            throw new WellSiteAutoPilotException("GUIDED_RULES_CASES_INVALID", FailureKind.Validation,
+                "Provide between one and fifty scenarios.");
+        var cases = request.Cases.Select(item =>
+        {
+            if (item.Values.Select(value => value.Name).Distinct(StringComparer.Ordinal).Count() != item.Values.Count ||
+                item.Settings?.Select(value => value.Name).Distinct(StringComparer.Ordinal).Count() != item.Settings?.Count)
+                throw new WellSiteAutoPilotException("GUIDED_RULES_CASES_INVALID", FailureKind.Validation,
+                    "Give each value once in a scenario.");
+            return new WellSiteAutoPilot.Application.Logic.Rules.RulesCase(item.Name ?? string.Empty,
+                item.Values.ToDictionary(value => value.Name, value => value.Value, StringComparer.Ordinal),
+                (item.Settings ?? []).ToDictionary(value => value.Name, value => value.Value, StringComparer.Ordinal),
+                item.ExpectedOutcome);
+        }).ToArray();
+        var receipt = await drafts.SubmitRulesAsync(id, request.ExpectedRevision, cases,
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return new GuidedModuleSubmissionResponse(receipt.DraftId, receipt.Revision, receipt.PackageSha256, receipt.SubmittedAtUtc);
+    })
+    .WithName("SubmitGuidedModuleRules").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModuleSubmissionResponse>();
 
 v1.MapPost("/guided-module-drafts/{id:guid}/submit",
     async (Guid id, SubmitGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,

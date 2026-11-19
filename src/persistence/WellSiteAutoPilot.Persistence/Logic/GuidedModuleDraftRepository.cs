@@ -121,7 +121,7 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
     {
         using var source = new MemoryStream(bytes);
         var inspected = await LogicModulePackageReader.ReadAsync(source, cancellationToken);
-        if (inspected.Sha256 != packageSha256 || inspected.DeclarativeModule is null)
+        if (inspected.Sha256 != packageSha256 || (inspected.DeclarativeModule is null && inspected.RulesModule is null))
             throw new WellSiteAutoPilotException("GUIDED_SUBMISSION_INVALID", FailureKind.Conflict, "The reviewed package could not be verified.");
         return inspected;
     }
@@ -133,6 +133,9 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             .SingleOrDefaultAsync(item => item.DraftId == id && item.Revision == revision, cancellationToken);
         if (entity is null) return null;
         var inspected = await InspectSubmissionAsync(entity.PackageBytes, entity.PackageSha256, cancellationToken);
+        if (inspected.RulesModule is { } rules)
+            return new(id, revision, entity.PackageSha256, entity.SubmittedAtUtc, entity.PackageBytes, inspected.ManifestJson,
+                null, [], false) { RulesJson = rules.Definition.ToJson(), RulesEvidenceJson = entity.EvidenceJson };
         return new(id, revision, entity.PackageSha256, entity.SubmittedAtUtc, entity.PackageBytes, inspected.ManifestJson,
             inspected.DeclarativeModule!.Definition,
             JsonSerializer.Deserialize<DeclarativeThresholdEvidence[]>(entity.EvidenceJson, Json)!,
@@ -166,7 +169,7 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             {
                 DraftId = draft.Id, Revision = draft.Revision, PackageSha256 = hash,
                 PackageBytes = submission.Artifact.Bytes.ToArray(),
-                EvidenceJson = JsonSerializer.Serialize(submission.Evidence, Json), SubmittedAtUtc = now
+                EvidenceJson = submission.EvidenceJson ?? JsonSerializer.Serialize(submission.Evidence, Json), SubmittedAtUtc = now
             });
             receipt = new(draft.Id, draft.Revision, hash, now);
         }, cancellationToken);
