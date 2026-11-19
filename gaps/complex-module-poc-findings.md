@@ -363,3 +363,11 @@ The author must pick a provider before choosing what to build, and a provider ca
 
 ### P71 - Draft list mixes providers
 The Open draft list shows every draft regardless of provider with no label (the list filter arrives later in #658). Mild, noted to confirm there.
+
+## CL 1108788 (#657, CygNet stand-in for current values)
+
+Six files mirrored (five CLEAN, one new). Gateway, simulator and AssetApiTests build with 0 warnings and 0 errors; ASCII clean. The skipped file is .github/workflows/ci.yml (P4 copy diverged).
+Not run live: the stand-in only activates when CygNet:Simulator:BaseUrl is set and needs the provider simulator; the e2e needs WSA_ASSET_API_URL and WSA_DATABASE_CONNECTION_STRING (same limit as P63). The local stack reads the real CygNet, so this changes nothing there.
+
+### P72 - Simulator-only CygNet path cannot be exercised on this box
+The stand-in is useful in CI, but the local stack uses live CygNet. Suggestion: document how to point a dev stack at the simulator (one setting and the simulator start command) so the bad-quality rejection case can be reproduced locally without live data.
