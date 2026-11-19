@@ -134,6 +134,32 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
             : GuidedContractDraft.ValidateAsync(content.Manifest, cancellationToken);
     }
 
+    /// <summary>Runs the draft's rules against values the author types. Nothing is read from a well and nothing is saved.</summary>
+    public async Task<Rules.RulesRunResult> PreviewRulesAsync(Guid id, int expectedRevision,
+        IReadOnlyDictionary<string, decimal> values, IReadOnlyDictionary<string, decimal> settings,
+        AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(settings);
+        var draft = await GetAsync(id, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        if (draft.Content.RulesJson is not { } json)
+            throw new WellSiteAutoPilotException("GUIDED_RULES_MISSING", FailureKind.Validation,
+                "This draft has no rules to try.");
+        var inputs = draft.Content.Manifest.DataRequirements.Select(input => input.Quantity).ToArray();
+        if (inputs.Any(name => !values.ContainsKey(name)) || values.Keys.Any(name => !inputs.Contains(name, StringComparer.Ordinal)))
+            throw new WellSiteAutoPilotException("GUIDED_RULES_VALUES_INVALID", FailureKind.Validation,
+                "Give a value for each input of the module, and no others.");
+        try
+        {
+            return Rules.RulesEngine.Run(Rules.RulesDefinition.Parse(json), values, settings);
+        }
+        catch (Rules.RuleExpressionException ex)
+        {
+            throw new WellSiteAutoPilotException(ex.Code, FailureKind.Validation, ex.Message);
+        }
+    }
+
     public async Task<GuidedModuleDraft> GetAsync(Guid id, AccessSubject subject, CancellationToken cancellationToken = default) =>
         await drafts.FindOwnedAsync(id, subject, cancellationToken) ??
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_NOT_FOUND", FailureKind.NotFound, "The guided draft was not found.");

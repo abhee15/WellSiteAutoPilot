@@ -25,6 +25,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/guided-module-drafts/{id:guid}/submissions/{revision:int}"): ("GetGuidedModuleSubmission", "GuidedDraftReview"),
     ("POST", "/guided-module-drafts/{id:guid}/submissions/{revision:int}/approve"): ("ApproveGuidedModuleSubmission", "LogicManage"),
     ("POST", "/guided-module-drafts/{id:guid}/submit"): ("SubmitGuidedModuleDraft", "GuidedDraftManage"),
+    ("POST", "/guided-module-drafts/{id:guid}/rules-preview"): ("PreviewGuidedModuleRules", "GuidedDraftManage"),
     ("POST", "/guided-module-drafts/{id:guid}/history-preview"): ("PreviewGuidedModuleInputHistory", "GuidedDraftManage"),
     ("POST", "/guided-module-drafts/{id:guid}/quantity-discovery"): ("DiscoverGuidedModuleQuantities", "GuidedDraftManage"),
     ("POST", "/guided-module-drafts/{id:guid}/production-days-preview"): ("PreviewGuidedModuleProductionDays", "GuidedDraftManage"),

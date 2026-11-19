@@ -94,3 +94,18 @@ public sealed record GuidedSurfaceCardsPreviewResponse(string? Quality, DateTime
 
 public sealed record GuidedSurfaceCardResponse(string Id, string Kind, string CapturedAtUtc,
     string PositionUnit, string LoadUnit, IReadOnlyList<decimal> Position, IReadOnlyList<decimal> Load);
+
+/// <summary>A named number: an input reading or a setting value typed in to try a module's rules.</summary>
+public sealed record GuidedRuleValue(string Name, decimal Value);
+
+public sealed record PreviewGuidedRulesRequest(int ExpectedRevision, IReadOnlyList<GuidedRuleValue> Values,
+    IReadOnlyList<GuidedRuleValue>? Settings = null);
+
+public sealed record GuidedRulesProposalResponse(string Setpoint, decimal RequestedValue, decimal SuggestedValue,
+    string? Unit, bool Limited, string Reason);
+
+public sealed record GuidedRulesTraceResponse(string Kind, string Id, string Detail);
+
+public sealed record GuidedRulesPreviewResponse(int Revision, string OutcomeCode, string? RuleId, string? Title,
+    GuidedRulesProposalResponse? Proposal, IReadOnlyList<GuidedRuleValue> Calculations,
+    IReadOnlyList<GuidedRulesTraceResponse> Trace);
