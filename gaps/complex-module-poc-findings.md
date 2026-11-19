@@ -371,3 +371,19 @@ Not run live: the stand-in only activates when CygNet:Simulator:BaseUrl is set a
 
 ### P72 - Simulator-only CygNet path cannot be exercised on this box
 The stand-in is useful in CI, but the local stack uses live CygNet. Suggestion: document how to point a dev stack at the simulator (one setting and the simulator start command) so the bad-quality rejection case can be reproduced locally without live data.
+
+## Rod Buckling check on usdcforsqlts004 (well "AN   13-14", WellPilotRPOC)
+
+- usdcforsqlts004:8000 is the ForeSite web UI only (static files). The API is on port 80 of the same host (apiUrl in env.js), cookie session from TokenService/CreateToken, same as usdcfstappts010.
+- The unfiltered Wells/Well/Filter returns 53,526 wells; with welDeviceTypeValues=WellPilotRPOC it returns exactly one: Name "AN   13-14" (three spaces), Id 891755170315, AssetId 1, FacilityId RPOC_00120, CygNet domain 31313 / site FSSUPPCN / service UIS, PrincipalDeviceType null.
+- AllSavedSetPointParams(WellId=891755170315, scanOption=0) lists 20 data groups (DynaCard Config I, Control Parameters I/II, Load Parameters I/II, Fluid Stroke Setup, VSD Control Setup I/II, Speed Trim Adjustment, Crank Switch Position, Analog Input 1-8 ...). Every group came back with SetPointsList null and ErrorMessage "Invalid transaction for data group <type>, ordinal ." (e.g. VSDCtrlS, SpdTrmAdj), so no saved values exist for this well.
+- None of the Rod Buckling setpoints (Sec*ScaSpd, Sec*StkLoc, Sec*WoSpLi, Sec*SpdChg, VFDMinSPM, VFDMaxSPM, IdealPF, PODeadBand) could be read. The Lufkin 2.0 groups (GRP_VSD_SPEED_CFG_1/2, GRP_VSD_CONTROL_PARAMS) are not among this device type's groups at all.
+
+### P73 - Rod Buckling cannot run on WellPilotRPOC
+The device type has VSD groups but not the Lufkin SAM speed-config groups the script reads. Rod Buckling needs LufkinSam wells with saved setpoints; module authoring gives no way to tell which device types support a use case. Suggestion: a use case declares the device types and setpoint groups it needs, and the picker only offers wells that have them.
+
+### P74 - Setpoint groups with no saved transaction look like errors
+A group with nothing saved is returned as ErrorMessage "Invalid transaction ...", not as an empty or not-saved state. Suggestion: the adapter maps this to a distinct "not saved" result so a module can say "no saved setpoints" rather than failing.
+
+### P75 - Well names are not normalised
+"AN   13-14" has three spaces, so a search for "AN 13-14" finds nothing. Suggestion: asset search should collapse whitespace.
