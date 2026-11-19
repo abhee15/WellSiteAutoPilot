@@ -13,7 +13,7 @@ const sources = [
   { key: 'WellTrend', label: 'guided.wellTrendQuantities' },
   { key: 'WellTest', label: 'guided.wellTestQuantities' },
 ] as const;
-export type Capability = (typeof sources)[number]['key'];
+type Capability = (typeof sources)[number]['key'];
 export type UtcWindow = { startUtc: string; endUtc: string };
 export type HistoryBounds =
   UtcWindow | { siteWindow: { endLocal: string; timeZoneId: string; durationMinutes: number } };
@@ -51,7 +51,6 @@ export function GuidedQuantityDiscovery({
   busy,
   onHistory,
   onDaily,
-  fixedCapability,
   onUseDailyField,
   declaredDaily = [],
   onChange,
@@ -61,16 +60,14 @@ export function GuidedQuantityDiscovery({
   assetId: string;
   inputs: readonly { id: string; quantity: string }[];
   busy: boolean;
-  onHistory?: (inputId: string, bounds: HistoryBounds) => void;
-  onDaily?: (bounds: UtcWindow, quantity: string) => void;
-  /** When set, the source is decided by the caller and the source choice is not shown. */
-  fixedCapability?: Capability;
+  onHistory: (inputId: string, bounds: HistoryBounds) => void;
+  onDaily: (bounds: UtcWindow, quantity: string) => void;
   /** Offered for a discovered production-day field when the draft can take new inputs. */
   onUseDailyField?: (quantity: string, unit: string | null) => void;
   declaredDaily?: readonly string[];
   onChange: () => void;
 }) {
-  const [capability, setCapability] = useState<Capability | ''>(fixedCapability ?? '');
+  const [capability, setCapability] = useState<Capability | ''>('');
   const [hours, setHours] = useState('4');
   const [anchor, setAnchor] = useState('now');
   const [endLocal, setEndLocal] = useState('');
@@ -149,24 +146,22 @@ export function GuidedQuantityDiscovery({
   return (
     <div>
       <div className="guided-authoring-fields">
-        {!fixedCapability && (
-          <SelectField
-            label={t('guided.quantitySource')}
-            value={capability}
-            disabled={busy}
-            onChange={(event) => {
-              reset();
-              setCapability(event.target.value as Capability | '');
-            }}
-          >
-            <option value="">{t('guided.chooseQuantitySource')}</option>
-            {sources.map((source) => (
-              <option key={source.key} value={source.key}>
-                {t(source.label)}
-              </option>
-            ))}
-          </SelectField>
-        )}
+        <SelectField
+          label={t('guided.quantitySource')}
+          value={capability}
+          disabled={busy}
+          onChange={(event) => {
+            reset();
+            setCapability(event.target.value as Capability | '');
+          }}
+        >
+          <option value="">{t('guided.chooseQuantitySource')}</option>
+          {sources.map((source) => (
+            <option key={source.key} value={source.key}>
+              {t(source.label)}
+            </option>
+          ))}
+        </SelectField>
         {capability === 'WellTrend' && (
           <>
             <SelectField
@@ -223,7 +218,7 @@ export function GuidedQuantityDiscovery({
         )}
         {historical && (
           <SelectField
-            label={fixedCapability ? t('flow.dailyField') : t('guided.historyInput')}
+            label={t('guided.historyInput')}
             value={quantity}
             disabled={busy || !observed.length}
             onChange={(event) => {
@@ -249,8 +244,6 @@ export function GuidedQuantityDiscovery({
         {selected &&
           canPreview &&
           bounds &&
-          onHistory &&
-          onDaily &&
           (capability === 'DailyAverages' && window ? (
             <ActionButton
               label={t('guided.readProductionDays')}
@@ -289,7 +282,7 @@ export function GuidedQuantityDiscovery({
           ) : (
             <>
               {evidenceNotice && <Notice>{t(evidenceNotice)}</Notice>}
-              {window && !fixedCapability && (
+              {window && (
                 <p>
                   {t('guided.quantityWindow')} {formatTimestamp(window.startUtc)} – {formatTimestamp(window.endUtc)}
                 </p>
