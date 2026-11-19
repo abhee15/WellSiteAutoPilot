@@ -14,8 +14,10 @@ import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
 import {
   addCurrentInput,
+  addDailyInput,
   blankContractManifest,
   contractIsComplete,
+  dailyCapability,
   inputsOf,
   parseManifest,
   removeInput,
@@ -23,12 +25,14 @@ import {
   sourceOptionsFrom,
 } from './GuidedContractEditor';
 import type { SourceOption } from './GuidedContractEditor';
+import { ExampleWellPicker } from './ExampleWellPicker';
+import { GuidedQuantityDiscovery } from './GuidedQuantityDiscovery';
 import { GuidedSourceHintFields } from './GuidedSourceHintFields';
 import './authoringFlow.css';
 
 // Where a reading can come from. Each kind is added here once its readings can be listed and run.
-const inputSources = ['current'] as const;
-const sourceLabels = { current: 'flow.sourceCurrent' } as const;
+const inputSources = ['current', 'daily'] as const;
+const sourceLabels = { current: 'flow.sourceCurrent', daily: 'flow.sourceDaily' } as const;
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
@@ -46,6 +50,8 @@ export function AuthoringFlow() {
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [dirty, setDirty] = useState(false);
   const [sourceKind, setSourceKind] = useState('');
+  const [wellId, setWellId] = useState('');
+  const [justSaved, setJustSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -95,6 +101,7 @@ export function AuthoringFlow() {
   function edit(next: string) {
     setManifest(next);
     setDirty(true);
+    setJustSaved(false);
   }
 
   function changeHint(inputId: string, next: GuidedSourceHintRequest | null) {
@@ -106,19 +113,42 @@ export function AuthoringFlow() {
     setBusy(true);
     setFailed(false);
     try {
-      const body = {
-        manifestJson: JSON.stringify({ ...(parseManifest(manifest) ?? {}), displayName: name.trim() }),
-        sourceHints: hints,
-      };
-      const { data } =
-        draft?.id && draft.revision
-          ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
-          : await createGuidedModuleDraft({ body });
-      if (!data) throw new Error();
-      setDraft(data);
-      setDirty(false);
+      await persist();
+      setJustSaved(true);
     } catch {
       setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function persist(): Promise<GuidedModuleDraftResponse> {
+    const body = {
+      manifestJson: JSON.stringify({ ...(parseManifest(manifest) ?? {}), displayName: name.trim() }),
+      sourceHints: hints,
+    };
+    const { data } =
+      draft?.id && draft.revision
+        ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
+        : await createGuidedModuleDraft({ body });
+    if (!data) throw new Error();
+    setDraft(data);
+    setDirty(false);
+    return data;
+  }
+
+  // Daily fields are listed from a real well, which needs the draft to exist on the server.
+  async function chooseSource(kind: string) {
+    setSourceKind(kind);
+    setWellId('');
+    if (kind !== 'daily' || draft) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      await persist();
+    } catch {
+      setFailed(true);
+      setSourceKind('');
     } finally {
       setBusy(false);
     }
@@ -211,8 +241,8 @@ export function AuthoringFlow() {
               <SelectField
                 label={t('flow.inputSource')}
                 value={sourceKind}
-                disabled={options === null}
-                onChange={(event) => setSourceKind(event.target.value)}
+                disabled={options === null || busy}
+                onChange={(event) => void chooseSource(event.target.value)}
               >
                 <option value="">{t('flow.chooseSource')}</option>
                 {inputSources.map((kind) => (
@@ -242,6 +272,31 @@ export function AuthoringFlow() {
                   ))}
                 </SelectField>
               )}
+              {sourceKind === 'daily' && draft?.id && draft.revision && (
+                <>
+                  <ExampleWellPicker value={wellId} onChange={setWellId} />
+                  {wellId && (
+                    <GuidedQuantityDiscovery
+                      key={draft.id + ':' + draft.revision + ':' + wellId}
+                      draftId={draft.id}
+                      revision={draft.revision}
+                      assetId={wellId}
+                      inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}
+                      busy={busy}
+                      fixedCapability="DailyAverages"
+                      declaredDaily={inputs
+                        .filter((input) => input.requiredCapability === dailyCapability)
+                        .map((input) => text(input.quantity))}
+                      onUseDailyField={(quantity, unit) => {
+                        edit(addDailyInput(manifest, quantity, unit));
+                        setSourceKind('');
+                        setWellId('');
+                      }}
+                      onChange={() => undefined}
+                    />
+                  )}
+                </>
+              )}
             </>
           )}
         </Section>
@@ -256,7 +311,7 @@ export function AuthoringFlow() {
             disabled={!canSave}
             onClick={() => void save()}
           />
-          {draft && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
+          {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{t('flow.saveFailed')}</Notice>}
         </div>
       )}
