@@ -1,0 +1,53 @@
+.authoring-flow {
+  display: grid;
+  gap: var(--space-24);
+  max-width: var(--layout-form-wide);
+  padding: var(--space-16);
+}
+
+.authoring-flow-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.authoring-flow-fields > * {
+  flex: 1 1 var(--layout-field-min);
+  min-width: 0;
+}
+
+.authoring-flow-inputs {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-12);
+  padding: 0;
+  list-style: none;
+}
+
+.authoring-flow-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-8);
+}
+
+.authoring-flow-input-name {
+  display: flex;
+  flex: 1 1 var(--layout-field-min);
+  flex-direction: column;
+  min-width: 0;
+}
+
+.authoring-flow-input-name span {
+  color: var(--color-text-muted);
+}
+
+.authoring-flow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
