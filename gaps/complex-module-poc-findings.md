@@ -219,3 +219,8 @@ For RPOC_0413 the compatibility check says PumpFillage 'Rejected / EXECUTION_INP
 The read action is called 'Load history' for Well trend but 'Read last 7 days of production' for Daily averages, and appears between the selectors and the 'Search window' line. Naming and position are inconsistent (relates to P32/P35).
 
 Not verified: history for a numeric input declared with a schema other than a plain number (rejected by design), site-local time anchor on this CL, and the no-source message for an inactive or unauthorised asset (only the no-source case was reached).
+
+## CL 1108777 (#649) verification
+
+Scalar V2 current inputs through the structured worker path. Mirrored CLEAN (9 files, 2 new). Server and Worker.DotNet Release builds pass, ExecutionContractV2Tests pass including the new scalar runtime checks, added lines are ASCII. Server code changed, so the AppHost was rebuilt and the stack restarted (first start failed on a transient kubeconfig file lock, retry was healthy). No UI change in this PR. Not verified live: a scalar current read through a running worker on a real ForeSite asset; covered only by the contract tests. No new gaps.
+
