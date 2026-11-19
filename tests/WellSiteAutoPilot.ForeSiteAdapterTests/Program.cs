@@ -128,6 +128,17 @@ static async Task LiveIfConfigured()
     var result = await ForeSiteAdapter.CheckAsync(client, Environment.UserName, CancellationToken.None);
     Console.WriteLine($"Live ForeSite check: {result.Outcome} - {result.Message}");
     Expect(result.Outcome == AdapterTestOutcomes.Healthy, "the live ForeSite did not report Healthy");
+
+    // Optional: describe the catalogue for one live well. Units must match the imperial default.
+    if (Environment.GetEnvironmentVariable("FORESITE_WELL_ID") is { Length: > 0 } wellId)
+    {
+        var report = await WellSiteAutoPilot.Integration.ForeSite.ForeSiteSurveillanceSnapshot.DescribeAsync(
+            new WellSiteAutoPilot.Integration.ForeSite.ForeSiteSession(client), wellId, CancellationToken.None);
+        foreach (var group in report.Observations.GroupBy(item => item.Status))
+            Console.WriteLine($"Live well {wellId} {group.Key}: {group.Count()} ({string.Join(", ", group.Select(item => item.Quantity))})");
+        Expect(report.Observations.All(item => item.Status != "UnitMismatch"),
+            "the live well reported a non-default unit system");
+    }
 }
 
 
