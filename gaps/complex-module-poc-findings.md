@@ -547,3 +547,8 @@ The filter resets to All providers on reload. An author who works on one provide
 - Verified: server build 0/0, V2 checks pass. The engine is parser, checker and evaluator only; no API, draft field or UI reaches it, so it cannot be driven through the stack yet (live testing resumes when a later CL wires it in).
 - **P110** Function set is min, max, avg, abs, round, clamp, if. Rod Buckling, Target Fillage and Rotaflex logic need more: sqrt/pow/exp/ln/trig, sum/count over a series, previous-value or time-window access, text functions. Bounds are 512 chars, 128 nodes, depth 32.
 - **P111** Expressions are single-valued (number, boolean or text) with decimal arithmetic. No multi-output assignment, no variables or intermediate steps, no array/series type, so multi-step custom logic (P87-P90) needs several chained expressions with no defined way to share intermediates.
+
+## CL #669 - workbench shell (live, ForeSite, Edge)
+
+- Works: Name + Provider + Create opens a workbench titled with the module name and provider, with Save and an outline showing "Inputs 0"; Source (Current values, Daily averages) then Reading (AveragePumpFillage, PumpFillage) works as before.
+- **P112** The outline lists only Inputs. There is still no Outputs or Logic part (P107), so the workbench cannot yet express multiple outputs or custom logic. Save with an empty module was not checked.

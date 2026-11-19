@@ -17,3 +17,4 @@ Generated from that log; update both when adding items.
 | P109 | Daily source gives one value per quantity; no window (last N days), aggregation or lag choice, so Idle Time... | Open | No | CL #667 - daily averages source (live, ForeSite provider, Edge) |
 | P110 | Function set is min, max, avg, abs, round, clamp, if. Rod Buckling, Target Fillage and Rotaflex logic need ... | Open | No | CL #670 - rule expression engine (build + V2 checks; library only, not |
 | P111 | Expressions are single-valued (number, boolean or text) with decimal arithmetic. No multi-output assignment... | Open | No | CL #670 - rule expression engine (build + V2 checks; library only, not |
+| P112 | The outline lists only Inputs. There is still no Outputs or Logic part (P107), so the workbench cannot yet ... | Open | No | CL #669 - workbench shell (live, ForeSite, Edge) |
