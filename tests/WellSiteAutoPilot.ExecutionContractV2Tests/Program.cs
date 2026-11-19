@@ -179,6 +179,7 @@ await ModuleResultFailureChecks.RunAsync(request, new GatewayDataClient(httpClie
 StructuredTraceTransportChecks.Run();
 WellSiteAutoPilot.ExecutionContractV2Tests.RuleExpressionChecks.Run();
 WellSiteAutoPilot.ExecutionContractV2Tests.RulesEngineChecks.Run();
+await WellSiteAutoPilot.ExecutionContractV2Tests.RulesModuleChecks.RunAsync();
 await WellSiteAutoPilot.ExecutionContractV2Tests.PackageHostChecks.RunAsync();
 await WellSiteAutoPilot.ExecutionContractV2Tests.DeclarativePackageChecks.RunAsync(request, now);
 await WellSiteAutoPilot.ExecutionContractV2Tests.GuidedContractDraftChecks.RunAsync();
