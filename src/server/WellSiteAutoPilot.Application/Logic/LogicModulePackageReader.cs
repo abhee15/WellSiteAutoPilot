@@ -12,6 +12,7 @@ public sealed record InspectedLogicModulePackage(
 {
     public string ManifestJson { get; init; } = string.Empty;
     public DeclarativeThresholdModule? DeclarativeModule { get; init; }
+    public Rules.DeclarativeRulesModule? RulesModule { get; init; }
 }
 
 /// <summary>
@@ -94,7 +95,16 @@ public static class LogicModulePackageReader
             await using var manifestStream = manifestEntry!.Open();
             var parsed = await LogicModuleManifestReader.ReadDocumentAsync(manifestStream, cancellationToken);
             DeclarativeThresholdModule? declarative = null;
-            if (DeclarativeThresholdModule.UsesReservedEntryPoint(parsed.Manifest))
+            Rules.DeclarativeRulesModule? rules = null;
+            if (Rules.DeclarativeRulesModule.UsesEntryPoint(parsed.Manifest))
+            {
+                var definition = archive.GetEntry(Rules.DeclarativeRulesModule.PayloadPath);
+                if (payloadCount != 1 || definition is null || definition.Length > Rules.RulesDefinition.MaximumDefinitionBytes)
+                    Fail("The declarative package must contain only a bounded definition.json payload.");
+                await using var definitionStream = definition.Open();
+                rules = await Rules.DeclarativeRulesModule.ReadAsync(parsed.Manifest, definitionStream, cancellationToken);
+            }
+            else if (DeclarativeThresholdModule.UsesReservedEntryPoint(parsed.Manifest))
             {
                 var definition = archive.GetEntry(DeclarativeThresholdModule.PayloadPath);
                 if (payloadCount != 1 || definition is null || definition.Length > DeclarativeThresholdModule.MaximumDefinitionBytes)
@@ -105,7 +115,8 @@ public static class LogicModulePackageReader
             return new InspectedLogicModulePackage(parsed.Manifest, sha256, payloadCount)
             {
                 ManifestJson = parsed.NormalizedJson,
-                DeclarativeModule = declarative
+                DeclarativeModule = declarative,
+                RulesModule = rules
             };
         }
         catch (Exception exception) when (exception is InvalidDataException or JsonException or OverflowException)

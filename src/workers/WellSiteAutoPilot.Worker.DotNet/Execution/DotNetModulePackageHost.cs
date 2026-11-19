@@ -37,6 +37,8 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
 
         if (inspected.DeclarativeModule is { } declarative)
             return new LoadedLogicModule(declarative, null, null);
+        if (inspected.RulesModule is { } rules)
+            return new LoadedLogicModule(rules, null, null);
 
         var lease = _directories.Acquire();
         var directory = lease.DirectoryPath;
