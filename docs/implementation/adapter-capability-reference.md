@@ -23,7 +23,7 @@ shapes. The frontend also rejects malformed examples, duplicate identities and m
 
 | Capability | Operation / supported data | Explicit exclusions |
 | --- | --- | --- |
-| Surveillance data | Current PumpFillage and AveragePumpFillage via the existing typed current provider | Full surveillance DTO, arbitrary fields, well-test-derived telemetry |
+| Surveillance data | The catalogued numeric surveillance fields (`ForeSiteSurveillanceCatalogue`) via the existing typed current provider, in ForeSite's default unit system | Non-numeric fields, arbitrary fields, well-test-derived telemetry |
 | Well configuration data | Well details: name, WellType classification code, FacilityId, Field, Lease and optional PrincipalDeviceType | Engineering model files, complete provider DTO passthrough, writes, well tests |
 | Well trend data | Bounded raw PumpFillage history with UTC `[start,end)`, units, unknown source quality and truncation | Daily averages, arbitrary trends, hosted-module history binding |
 | Card data | CURRENT/FULL surface cards, typed schema, paired arrays, capture times and source units | Downhole cards and unrestricted card payloads |

@@ -6,6 +6,8 @@ using WellSiteAutoPilot.IntegrationGateway.Providers;
 
 internal static class MeasurementChecks
 {
+    private const string Units = "\"Units\":{\"CurrentPumpFillage\":{\"UnitKey\":\"%\"},\"AveragePumpFillage\":{\"UnitKey\":\"%\"}},";
+
     public static async Task RunAsync()
     {
         var factory = new Factory();
@@ -27,10 +29,12 @@ internal static class MeasurementChecks
         foreach (var (json, code) in new[] {
             ("<html>login</html>", "FORESITE_RESPONSE_INVALID"),
             ("{\"Value\":{}}", "FORESITE_MEASUREMENT_MISSING"),
-            ("{\"Value\":{\"CurrentPumpFillage\":null}}", "FORESITE_MEASUREMENT_MISSING"),
-            ("{\"Value\":{\"CurrentPumpFillage\":\"NaN\"}}", "FORESITE_MEASUREMENT_INVALID"),
-            ("{\"Value\":{\"CurrentPumpFillage\":101}}", "FORESITE_MEASUREMENT_INVALID"),
-            ("{\"Value\":{\"CurrentPumpFillage\":80,\"LastGoodScanTime\":\"2026-10-27T05:00:00\"}}", "FORESITE_TIMESTAMP_INVALID") })
+            ("{" + Units + "\"Value\":{\"CurrentPumpFillage\":null}}", "FORESITE_MEASUREMENT_MISSING"),
+            ("{" + Units + "\"Value\":{\"CurrentPumpFillage\":\"NaN\"}}", "FORESITE_MEASUREMENT_INVALID"),
+            ("{" + Units + "\"Value\":{\"CurrentPumpFillage\":101}}", "FORESITE_MEASUREMENT_INVALID"),
+            ("{\"Units\":{\"CurrentPumpFillage\":{\"UnitKey\":\"fraction\"}},\"Value\":{\"CurrentPumpFillage\":0.8}}", "FORESITE_UNIT_MISMATCH"),
+            ("{\"Value\":{\"CurrentPumpFillage\":80}}", "FORESITE_UNIT_MISMATCH"),
+            ("{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"LastGoodScanTime\":\"2026-10-27T05:00:00\"}}", "FORESITE_TIMESTAMP_INVALID") })
         {
             factory.Payload = json;
             try { await pool.ReadAsync(a with { ConnectionRevision = 2 }, CancellationToken.None); }
@@ -39,7 +43,8 @@ internal static class MeasurementChecks
         }
         // Latest scan attempt/status must not replace the last successful acquisition.
         factory.Payload = """
-            {"Value":{"CurrentPumpFillage":0,"AveragePumpFillage":100,
+            {"Units":{"CurrentPumpFillage":{"UnitKey":"%"},"AveragePumpFillage":{"UnitKey":"%"}},
+             "Value":{"CurrentPumpFillage":0,"AveragePumpFillage":100,
               "LastGoodScanTime":"2026-10-27T00:00:00-05:00",
               "LastScanTime":"2026-10-27T05:30:00Z","CommStatus":"Failed",
               "LatestValidWellTestDate":"2022-09-30T18:30:00Z",
@@ -53,10 +58,10 @@ internal static class MeasurementChecks
             "latest failed scan, test date or site UDC changed a successful controller acquisition");
         foreach (var timestamp in new[] { "null", "123", "\"invalid\"", "\"0001-01-01T00:00:00Z\"" })
         {
-            factory.Payload = "{\"Value\":{\"CurrentPumpFillage\":80,\"LastScanTime\":\"2026-10-27T05:30:00Z\",\"LastGoodScanTime\":" + timestamp + "}}";
+            factory.Payload = "{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"LastScanTime\":\"2026-10-27T05:30:00Z\",\"LastGoodScanTime\":" + timestamp + "}}";
             await RejectAsync(a, "FORESITE_TIMESTAMP_INVALID");
         }
-        factory.Payload = """{"Value":{"CurrentPumpFillage":80,"LastScanTime":"2026-10-27T05:30:00Z"}}""";
+        factory.Payload = "{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"LastScanTime\":\"2026-10-27T05:30:00Z\"}}";
         await RejectAsync(a, "FORESITE_TIMESTAMP_INVALID");
         // A name that is not a provider field identifier is never read. (An identifier is a daily field and carries the
         // production-day timestamp, never a controller scan timestamp; see DailyAverageChecks.)
@@ -109,7 +114,7 @@ internal static class MeasurementChecks
             }
             var number = request.RequestUri.Host == "a" ? 80 : 60;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(factory.Payload ??
-                "{\"Value\":{\"CurrentPumpFillage\":" + number + ",\"LastScanTime\":\"2026-10-27T00:00:00-05:00\",\"LastGoodScanTime\":\"2026-10-27T00:00:00-05:00\"}}", Encoding.UTF8, "application/json") });
+                "{" + Units + "\"Value\":{\"CurrentPumpFillage\":" + number + ",\"LastScanTime\":\"2026-10-27T00:00:00-05:00\",\"LastGoodScanTime\":\"2026-10-27T00:00:00-05:00\"}}", Encoding.UTF8, "application/json") });
         }
     }
 }

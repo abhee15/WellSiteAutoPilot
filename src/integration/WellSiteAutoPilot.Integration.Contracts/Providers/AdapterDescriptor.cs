@@ -72,7 +72,7 @@ public sealed record AdapterDescriptor(
             workflow.DisplayName.Length <= 128 && !string.IsNullOrWhiteSpace(workflow.Purpose) &&
             workflow.Purpose.Length <= 1024 && workflow.Readiness is ("ReferenceOnly" or "Implemented") &&
             Version.TryParse(workflow.ContractVersion, out var version) && version.Major == 1 &&
-            workflow.OperationKeys is { Count: >= 1 and <= 32 } &&
+            workflow.OperationKeys is { Count: >= 1 and <= 64 } &&
             workflow.OperationKeys.Distinct(StringComparer.Ordinal).Count() == workflow.OperationKeys.Count &&
             workflow.OperationKeys.All(key => group.OperationKeys.Contains(key, StringComparer.Ordinal)) &&
             workflow.Steps is { Count: >= 1 and <= 12 } &&

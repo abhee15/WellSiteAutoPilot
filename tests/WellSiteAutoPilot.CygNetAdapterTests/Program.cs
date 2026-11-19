@@ -40,8 +40,8 @@ var foreSiteRule = AdapterReadRules.Find("foresite")!;
 Expect(foreSiteRule.AllowsCurrentRead("PumpFillage", null, null) &&
     foreSiteRule.AllowsCurrentRead("SurfaceCards", "structured.current", "foresite.surface-cards/v1") &&
     !foreSiteRule.AllowsCurrentRead("SurfaceCards", null, null) && !foreSiteRule.AllowsCurrentRead("SurfaceCards", "structured.current", "other/v1") &&
-    !foreSiteRule.AllowsCurrentRead("MotorAmps", null, null),
-    "ForeSite keeps its scalar fillage reads and the one structured card read");
+    !foreSiteRule.AllowsCurrentRead("RodLoad", null, null),
+    "ForeSite serves its catalogued scalar reads and the one structured card read");
 
 // Settings parsing
 var connection = CygNetAdapter.ReadConnection(settings, out var problem)!;

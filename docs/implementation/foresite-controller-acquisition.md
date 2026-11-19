@@ -46,8 +46,8 @@ assumption that a trend's latest sample equals the current controller value.
 
 A well-test field must use its corresponding source date, for example a confirmed
 LatestValidWellTestDate association, never LastGoodScanTime. WaterCut and other
-well-test quantities remain unsupported by the current two-quantity live-read
-allowlist; adding them requires an explicit field/date/unit mapping and tests.
+well-test quantities remain unsupported by the surveillance catalogue; adding them
+requires an explicit field/date/unit mapping and tests.
 Their presence in the Surveillance response does not opt them into this rule.
 
 ## Validation and deployment

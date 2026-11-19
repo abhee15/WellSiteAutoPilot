@@ -54,15 +54,7 @@ public static class ForeSiteAdapter
             new DiscoveryField("lease", "Lease", "Unspecified lease")
         ], Operations:
         [
-            EngineeringOperationSchemas.Current("current.pump-fillage", "Pump fillage", "Current controller pump fillage.",
-                "PumpFillage", WellResourceKind, "%", "LastGoodScanTime: successful controller scan, never the latest attempted scan.",
-                "Good indicates successful acquisition of a valid controller value, not independent sensor validation.", 6) with
-            { Documentation = ForeSiteReference.Current("PumpFillage") },
-            EngineeringOperationSchemas.Current("current.average-pump-fillage", "Average pump fillage", "Controller average pump fillage.",
-                "AveragePumpFillage", WellResourceKind, "%", "LastGoodScanTime from the controller scan.",
-                "Good indicates successful acquisition of a valid controller value.", 6) with
-            { Documentation = ForeSiteReference.Current("AveragePumpFillage") },
-            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
+            .. ForeSiteSurveillanceOperations.All,            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
                 "SurfaceCards", WellResourceKind, null, "Oldest card acquisition time; each card also preserves its capture time. Retrieval time is separate.",
                 "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
             {
@@ -97,11 +89,11 @@ public static class ForeSiteAdapter
             ForeSiteWellTestReference.Latest
         ], OperationGroups:
         [
-            new("surveillance", "Surveillance data", "Current controller surveillance measurements. This adapter currently exposes the supported quantities listed here, not the entire ForeSite surveillance DTO.", "1.0",
-                ["current.pump-fillage", "current.average-pump-fillage"],
+            new("surveillance", "Surveillance data", "Current controller surveillance measurements: the catalogued numeric fields of the ForeSite well-status document, in ForeSite's default (imperial) unit system.", "1.0",
+                ForeSiteSurveillanceOperations.Keys,
                 [new AdapterWorkflowGuide("applicable-surveillance", "Read an applicable surveillance quantity",
                     "Recommended ForeSite sequence; the installed current-value reader does not yet perform the AvailableQuantities precheck.",
-                    "ReferenceOnly", ["current.pump-fillage", "current.average-pump-fillage"],
+                    "ReferenceOnly", ForeSiteSurveillanceOperations.Keys,
                     [
                         new("applicable", "Discover the WellQuantity enum identifiers applicable to the exact well.",
                             "GET Surveillance/AvailableQuantities/{wellId}",
@@ -109,8 +101,8 @@ public static class ForeSiteAdapter
                             "If the quantity is not applicable, stop; do not fetch a value."),
                         new("status", "Fetch one well-status document and extract the supported quantity and source unit.",
                             "GET Surveillance/well/{wellId}",
-                            "The current reader supports PumpFillage and AveragePumpFillage only; a populated field is not itself proof of applicability.",
-                            "Missing, null or out-of-range values fail validation."),
+                            "The current reader supports the catalogued quantities; a populated field is not itself proof of applicability.",
+                            "Missing, null, out-of-range values or a unit other than the catalogue's fail validation."),
                         new("timestamp", "Use LastGoodScanTime to determine the age of successfully scanned controller data.",
                             Requirement: "LastScanTime is only the last scan attempt, and retrieval time is not acquisition time.",
                             OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")

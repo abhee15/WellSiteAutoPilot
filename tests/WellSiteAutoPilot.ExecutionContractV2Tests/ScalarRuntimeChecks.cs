@@ -23,25 +23,25 @@ internal static class ScalarRuntimeChecks
             "An unregistered quantity was accepted for assignment.");
         Assert(!foresite.AllowsCurrentRead("PumpFillage", AdapterReadRules.EngineeringCurrentCapability, null),
             "A scalar V2 declaration without a schema identity was accepted.");
-        Assert(!foresite.AllowsCurrentRead("MotorAmps", AdapterReadRules.EngineeringCurrentCapability, SchemaId),
+        Assert(!foresite.AllowsCurrentRead("RodLoad", AdapterReadRules.EngineeringCurrentCapability, SchemaId),
             "A quantity the adapter does not serve was accepted.");
         Assert(!foresite.AllowsCurrentRead("PumpFillage", "other.current", SchemaId), "An unknown capability was accepted.");
 
         // A daily field is the provider's own name, read as the latest finished production day. Only ForeSite serves them,
         // only with the daily capability and a schema, and never a name that is not an identifier.
         var cygnet = AdapterReadRules.Find("cygnet")!;
-        Assert(foresite.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, SchemaId),
+        Assert(foresite.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringDailyCapability, SchemaId),
             "A provider daily field was refused assignment.");
-        Assert(!foresite.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringCurrentCapability, SchemaId),
+        Assert(!foresite.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringCurrentCapability, SchemaId),
             "A daily field was accepted as a current reading.");
-        Assert(!foresite.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, null),
+        Assert(!foresite.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringDailyCapability, null),
             "A daily declaration without a schema identity was accepted.");
-        Assert(!foresite.AllowsCurrentRead("Cycles Yesterday", AdapterReadRules.EngineeringDailyCapability, SchemaId),
+        Assert(!foresite.AllowsCurrentRead("Gross Rate", AdapterReadRules.EngineeringDailyCapability, SchemaId),
             "A non-identifier daily name was accepted.");
-        Assert(!cygnet.AllowsCurrentRead("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, SchemaId),
+        Assert(!cygnet.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringDailyCapability, SchemaId),
             "An adapter with no daily record served a daily field.");
-        Assert(foresite.AllowsScalarCurrentDeclaration("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, "number") &&
-               !foresite.AllowsScalarCurrentDeclaration("CyclesYesterday", AdapterReadRules.EngineeringDailyCapability, "string"),
+        Assert(foresite.AllowsScalarCurrentDeclaration("GrossRate", AdapterReadRules.EngineeringDailyCapability, "number") &&
+               !foresite.AllowsScalarCurrentDeclaration("GrossRate", AdapterReadRules.EngineeringDailyCapability, "string"),
             "The daily declaration must be numeric.");
         Assert(AdapterReadRules.IsScalarCapability(AdapterReadRules.EngineeringDailyCapability) &&
                !AdapterReadRules.IsScalarCapability(AdapterReadRules.StructuredCurrentCapability),

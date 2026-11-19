@@ -5,12 +5,13 @@ using WellSiteAutoPilot.Integration.Contracts.Providers;
 namespace WellSiteAutoPilot.Integration.ForeSite;
 
 /// <summary>
-/// One authorized ForeSite well-status acquisition, exposing only the two reviewed controller
-/// quantities. This is not an applicability catalog: numeric WellQuantity IDs are unmapped.
+/// One authorized ForeSite well-status acquisition of catalogued surveillance quantities
+/// (<see cref="ForeSiteSurveillanceCatalogue"/>). A value's presence never proves applicability, and
+/// a missing value stays missing rather than becoming zero.
 /// </summary>
 public static class ForeSiteSurveillanceSnapshot
 {
-    public const int MaximumQuantities = 2;
+    public static int MaximumQuantities => ForeSiteSurveillanceCatalogue.All.Count;
 
     public static async Task<IReadOnlyDictionary<string, EngineeringValue>> ReadAsync(
         ForeSiteSession session, string externalId, IReadOnlyCollection<string> quantities,
@@ -20,15 +21,13 @@ public static class ForeSiteSurveillanceSnapshot
         ArgumentNullException.ThrowIfNull(quantities);
         if (!long.TryParse(externalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
-        if (quantities.Count is < 1 or > MaximumQuantities)
+        if (quantities.Count is < 1 || quantities.Count > MaximumQuantities)
             throw new ForeSiteMeasurementException("FORESITE_SNAPSHOT_QUANTITY_LIMIT");
 
-        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        var entries = new Dictionary<string, ForeSiteSurveillanceQuantity>(StringComparer.Ordinal);
         foreach (var quantity in quantities)
         {
-            // SourceField is deliberately the existing *two-quantity* production allowlist.
-            var field = ForeSiteMeasurements.SourceField(quantity);
-            if (!fields.TryAdd(quantity, field))
+            if (!entries.TryAdd(quantity, ForeSiteMeasurements.Catalogued(quantity)))
                 throw new ForeSiteMeasurementException("FORESITE_SNAPSHOT_QUANTITY_DUPLICATE");
         }
 
@@ -49,14 +48,18 @@ public static class ForeSiteSurveillanceSnapshot
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
 
             // Validate all required values before returning any result. A partial snapshot is refused.
+            root.TryGetProperty("Units", out var units);
             var numbers = new Dictionary<string, decimal>(StringComparer.Ordinal);
-            foreach (var (quantity, field) in fields)
+            foreach (var (quantity, entry) in entries)
             {
-                if (!value.TryGetProperty(field, out var reading) || reading.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                if (!value.TryGetProperty(entry.Field, out var reading) || reading.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
                     throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
                 if (reading.ValueKind != JsonValueKind.Number || !reading.TryGetDecimal(out var number) ||
-                    number is < 0 or > 100)
+                    entry.IsPercent && number is < 0 or > 100)
                     throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_INVALID");
+                // The document states each field's unit. A different unit system is refused, never converted.
+                if (entry.Unit != ForeSiteSurveillanceQuantity.CountUnit && UnitKey(units, entry.Field) != entry.Unit)
+                    throw new ForeSiteMeasurementException("FORESITE_UNIT_MISMATCH");
                 numbers.Add(quantity, number);
             }
 
@@ -68,12 +71,17 @@ public static class ForeSiteSurveillanceSnapshot
             // substituted; the reviewed host separately evaluates data age/future policy.
             var retrievedAt = DateTimeOffset.UtcNow;
             return numbers.ToDictionary(pair => pair.Key,
-                pair => new EngineeringValue(pair.Key, pair.Value, "%", acquiredAt, "Good",
+                pair => new EngineeringValue(pair.Key, pair.Value, entries[pair.Key].Unit, acquiredAt, "Good",
                     "foresite:controller-scan", retrievedAt, "ControllerScan"),
                 StringComparer.Ordinal);
         }
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
     }
+
+    private static string? UnitKey(JsonElement units, string field) =>
+        units.ValueKind == JsonValueKind.Object && units.TryGetProperty(field, out var unit) &&
+        unit.ValueKind == JsonValueKind.Object && unit.TryGetProperty("UnitKey", out var key) &&
+        key.ValueKind == JsonValueKind.String ? key.GetString() : null;
 
     private static bool TryOffsetTime(string? text, out DateTimeOffset timestamp)
     {

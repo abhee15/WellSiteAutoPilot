@@ -70,7 +70,7 @@ public static class AdapterReadRules
 
     private static readonly AdapterReadRule[] Rules =
     [
-        new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal) { "PumpFillage", "AveragePumpFillage" },
+        new(ForeSiteKey, "foresite.well", ForeSiteSurveillanceCatalogue.Quantities,
             [new StructuredCurrentRead(ForeSiteSurfaceCard.Quantity, StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId)],
             ServesDailyQuantities: true),
         new(CygNetKey, CygNetResourceKind, CygNetQuantities)
