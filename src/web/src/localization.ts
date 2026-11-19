@@ -1411,6 +1411,8 @@ export const englishMessages = {
   'flow.limitMinimum': 'Lowest allowed',
   'flow.limitMaximum': 'Highest allowed',
   'flow.limitChange': 'Largest change',
+  'flow.cannotOpen': 'This module could not be opened.',
+  'flow.opening': 'Opening the module.',
   'flow.removeInput': 'Remove input',
   'flow.noInputsOffered': 'This provider offers no readings.',
   'flow.save': 'Save',

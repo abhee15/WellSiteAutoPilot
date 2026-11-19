@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { createGuidedModuleDraft, editGuidedModuleDraft, listGuidedModuleProviders } from '../api/generated/v1/sdk.gen';
+import {
+  createGuidedModuleDraft,
+  editGuidedModuleDraft,
+  getGuidedModuleDraft,
+  listGuidedModuleProviders,
+} from '../api/generated/v1/sdk.gen';
 import type {
   GuidedModuleDraftResponse,
   GuidedProviderResponse,
@@ -14,7 +19,7 @@ import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
-import { emptyRules, logicIncomplete, serializeRules } from './rulesModel';
+import { emptyRules, logicIncomplete, parseRules, serializeRules } from './rulesModel';
 import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
@@ -58,7 +63,7 @@ const outline: {
  * Module authoring workbench. A module is created with a name and a provider, then edited here: an outline of the
  * parts of the module, and the editor for the selected part. Parts are added to the outline as they can be run.
  */
-export function AuthoringFlow() {
+export function AuthoringFlow({ draftId }: { draftId?: string }) {
   const [providers, setProviders] = useState<GuidedProviderResponse[]>([]);
   const [name, setName] = useState('');
   const [providerKey, setProviderKey] = useState('');
@@ -81,6 +86,31 @@ export function AuthoringFlow() {
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!draftId) return;
+    const controller = new AbortController();
+    void getGuidedModuleDraft({ path: { id: draftId }, signal: controller.signal })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return;
+        if (!data?.manifestJson || data.definition) {
+          setFailed(t('flow.cannotOpen'));
+          return;
+        }
+        const loaded = parseManifest(data.manifestJson) ?? {};
+        setName(text(loaded.displayName));
+        setProviderKey(text(loaded.requiredAdapterKey));
+        setManifest(data.manifestJson);
+        setHints(data.sourceHints ?? []);
+        setRules(parseRules(data.rulesJson));
+        setDraft(data);
+        setDirty(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(t('flow.cannotOpen'));
+      });
+    return () => controller.abort();
+  }, [draftId]);
 
   const provider = providers.find((item) => item.adapterKey === providerKey);
   const inputs = useMemo(() => (manifest ? inputsOf(manifest) : []), [manifest]);
@@ -147,6 +177,20 @@ export function AuthoringFlow() {
     setHints((previous) => [...previous.filter((item) => item.inputId !== inputId), ...(next ? [next] : [])]);
     setDirty(true);
     setJustSaved(false);
+  }
+
+  if (!draft && draftId) {
+    return (
+      <div className="authoring-flow">
+        {failed ? (
+          <Notice tone="error">{failed}</Notice>
+        ) : (
+          <Notice tone="info" announce={false}>
+            {t('flow.opening')}
+          </Notice>
+        )}
+      </div>
+    );
   }
 
   if (!draft) {

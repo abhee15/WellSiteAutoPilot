@@ -199,6 +199,8 @@ export function ModuleAuthoringWorkspace({
   const showReviews = canReview && (Boolean(detail) || !canAuthor);
   const reviewReference = showReviews && detail !== 'reviews' ? (detail ?? '') : '';
   if (canAuthor && detail === 'new') return <AuthoringFlow />;
+  if (canAuthor && detail?.startsWith('draft:'))
+    return <AuthoringFlow key={detail} draftId={detail.slice('draft:'.length)} />;
   return (
     <>
       {canAuthor && canReview && (
@@ -344,6 +346,11 @@ export function GuidedAuthoringPage({
     nextPressure = Boolean(isPressure(next?.manifestJson)),
     section: typeof editorSection = 'module',
   ) {
+    // Contract drafts are edited in the module workbench; this page keeps the older threshold editor.
+    if (next?.id && next.manifestJson && isContractOnlyManifest(next.manifestJson)) {
+      window.location.hash = hashFor('authoring', 'draft:' + next.id);
+      return;
+    }
     setPressure(nextPressure);
     setDraft(next);
     setContractManifest(next?.manifestJson && isContractOnlyManifest(next.manifestJson) ? next.manifestJson : null);
