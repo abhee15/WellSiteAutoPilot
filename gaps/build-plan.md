@@ -40,3 +40,35 @@ The code work happens on `feature/module-authoring-build`, branched from `develo
 
 - The old module authoring (the guided contract editor and its starters) is removed once the new workbench is stable and the feature is done. Until then both exist; the workbench opens only rules drafts (#678).
 - Live check on the fresh database: `#authoring/new` creates a module and opens the workbench with Inputs, Settings, Calculations, Rules and Tests parts plus Save and Submit for review. There is no Outputs part (P107, P112).
+
+## Architect assessment of the design docs (before any code)
+
+Read: foresite-controller-acquisition, foresite-measurement-evidence-plan, foresite-native-applicability, module-authoring-source-model, provider-neutral-authoring-alignment, adapter-operations-framework-plan, adapter-capability-workflows-and-authoring-plan, module-authoring-data-flow-ux, module-authoring-runtime-trace, foresite-adapter, lm-blueprints (Target Fillage).
+
+**Correction to P114.** The two-reading limit is a deliberate, owner-approved evidence gate, not an oversight. Each quantity must have an explicit mapping (field, unit, valid range, time source) plus recorded fixtures before it is offered. "Widen the allowlist" is therefore wrong. The right move is a per-field catalogue where every entry carries its own contract.
+
+**Constraints that shape the build**
+1. Time source differs by field family. Controller values (PumpFillage, SPM) use LastGoodScanTime (owner clarification, 27 Oct 2026). Daily fields (CyclesYesterday, RunTimeYesterday, IdleTimeYesterday, InferredProductionYesterday) and well-test fields (LatestValidWellTestDate) must not borrow it; each needs its own time rule.
+2. Fail closed: missing stays missing (never zero), unknown quality is rejected, applicability must come from the provider, not from populated fields. WellQuantity enum IDs are unverified and must not be used as keys.
+3. Modules declare what they need (role, capability, typed ports), never how to call ForeSite. Adapters own operations; the catalogue is the single source (one registry, no second one). Capability availability is per connection revision and asset, never "Available" from the declaration alone.
+4. One source model for authors: Current value, History, Daily value, Latest test, Cards, Setpoint. No operation names in the UI. One verdict per input shared by preview and compatibility.
+5. Authored draft schema is single and versioned. Test cases are first-class fixtures. Traces are module-reported evidence only.
+6. Safety: shadow only, zero control commands, no provider writes.
+
+**Target Fillage needs (blueprint) vs what exists**
+- Inputs: setpoint roles (MinSpeed, MaxSpeed, TargetFillage, MinFillage), window inputs (AvgFillage, AvgSpm over N hours), current CyclesYest and RunTimeYest, attributes.
+- Logic: ordered Gate rules, then an Action table returning three values (NewMin, NewMax, NewMinFillage) with reasons.
+- Proposal: setpoint group, only changed members, group invariants, alarm output.
+- Built: rules engine (single-valued), settings, calculations, current-value inputs. Missing: window inputs, setpoint inputs, multi-value rule outcomes, group invariants, alarm output (P110, P111, P112, P113).
+
+**Build order (each a small PR, tested locally then CI)**
+1. Provider catalogue: replace the two-name allowlist with a per-field catalogue for ForeSite surveillance and daily fields, each with unit, range, time source and fixtures; discovery returns the full list with latest value, time and quality. (P114, P106, P12)
+2. Daily and window inputs usable in rules modules (P113); submit with the real data requirements.
+3. Setpoint inputs by role (read design F3), then multi-value rule outcomes (P111) and outputs part in the outline (P112).
+4. Invariants and alarm output; then model Target Fillage end to end and prove it on the two wells.
+5. Only after the new workbench is stable, remove the old authoring.
+
+**Open questions for Sri (need domain evidence, not guesses)**
+- Units and valid range per surveillance field (the payload has none). Is there a ForeSite reference (PointFieldList/{wellType}) we can read for them?
+- Time rule for the daily fields (production-day end?).
+- Which two wells to use.
