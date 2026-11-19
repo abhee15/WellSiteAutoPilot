@@ -110,3 +110,32 @@
   min-width: 0;
   max-width: var(--layout-readable);
 }
+
+.authoring-flow-fields {
+  align-items: end;
+}
+
+.authoring-flow-fields > .ui-action-button,
+.authoring-flow-search > .ui-action-button {
+  flex: none;
+}
+
+.authoring-outline > .ui-action-button {
+  justify-content: flex-start;
+}
+
+.authoring-workbench-editor .ui-field {
+  max-width: var(--layout-form-wide);
+}
+
+.authoring-flow-input {
+  align-items: center;
+}
+
+.authoring-flow-input .ui-field {
+  flex: 0 0 var(--layout-field-min);
+}
+
+.authoring-flow-input-name {
+  flex: 1 1 var(--layout-field-min);
+}
