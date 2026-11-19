@@ -32,21 +32,11 @@ public static class ForeSiteSurveillanceSnapshot
         }
 
         // Validate every requirement before the source call. No cross-execution status cache.
-        using var response = await session.GetAsync(
-            "Surveillance/well/" + wellId.ToString(CultureInfo.InvariantCulture), cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new ForeSiteMeasurementException("FORESITE_READ_FAILED",
-                await ForeSiteAdapter.ExplainAsync(response, "the Gateway Windows account", cancellationToken));
-
+        using var document = await GetStatusAsync(session, wellId, cancellationToken);
         try
         {
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
-                new JsonDocumentOptions { MaxDepth = 16 }, cancellationToken);
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object ||
-                !root.TryGetProperty("Value", out var value) || value.ValueKind != JsonValueKind.Object)
-                throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
-
+            var value = root.GetProperty("Value");
             // Validate all required values before returning any result. A partial snapshot is refused.
             root.TryGetProperty("Units", out var units);
             var numbers = new Dictionary<string, decimal>(StringComparer.Ordinal);
@@ -74,6 +64,57 @@ public static class ForeSiteSurveillanceSnapshot
                 pair => new EngineeringValue(pair.Key, pair.Value, entries[pair.Key].Unit, acquiredAt, "Good",
                     "foresite:controller-scan", retrievedAt, "ControllerScan"),
                 StringComparer.Ordinal);
+        }
+        catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
+    }
+
+    /// <summary>
+    /// One tolerant read of the whole catalogue for one well. Each field is reported as observed, missing, invalid or
+    /// in an unexpected unit, so a gap in one field never hides the others. Nothing here proves applicability.
+    /// </summary>
+    public static async Task<ForeSiteSurveillanceReport> DescribeAsync(
+        ForeSiteSession session, string externalId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!long.TryParse(externalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
+            throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
+
+        using var document = await GetStatusAsync(session, wellId, cancellationToken);
+        var root = document.RootElement;
+        var value = root.GetProperty("Value");
+        root.TryGetProperty("Units", out var units);
+        var observations = ForeSiteSurveillanceCatalogue.All.Select(entry =>
+        {
+            if (!value.TryGetProperty(entry.Field, out var reading) || reading.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                return new ForeSiteSurveillanceObservation(entry.Quantity, entry.Unit, ForeSiteSurveillanceObservation.NoValue);
+            if (reading.ValueKind != JsonValueKind.Number || !reading.TryGetDecimal(out var number) ||
+                entry.IsPercent && number is < 0 or > 100)
+                return new ForeSiteSurveillanceObservation(entry.Quantity, entry.Unit, ForeSiteSurveillanceObservation.Invalid);
+            return entry.Unit != ForeSiteSurveillanceQuantity.CountUnit && UnitKey(units, entry.Field) != entry.Unit
+                ? new ForeSiteSurveillanceObservation(entry.Quantity, UnitKey(units, entry.Field), ForeSiteSurveillanceObservation.UnitMismatch)
+                : new ForeSiteSurveillanceObservation(entry.Quantity, entry.Unit, ForeSiteSurveillanceObservation.Observed);
+        }).ToArray();
+        return new(externalId, observations, DateTimeOffset.UtcNow);
+    }
+
+    private static async Task<JsonDocument> GetStatusAsync(ForeSiteSession session, long wellId, CancellationToken cancellationToken)
+    {
+        using var response = await session.GetAsync(
+            "Surveillance/well/" + wellId.ToString(CultureInfo.InvariantCulture), cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new ForeSiteMeasurementException("FORESITE_READ_FAILED",
+                await ForeSiteAdapter.ExplainAsync(response, "the Gateway Windows account", cancellationToken));
+        try
+        {
+            var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
+                new JsonDocumentOptions { MaxDepth = 16 }, cancellationToken);
+            if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                !document.RootElement.TryGetProperty("Value", out var value) || value.ValueKind != JsonValueKind.Object)
+            {
+                document.Dispose();
+                throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
+            }
+            return document;
         }
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
     }

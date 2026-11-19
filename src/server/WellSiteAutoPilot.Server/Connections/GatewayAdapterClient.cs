@@ -97,6 +97,24 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         ReadRegisteredAsync<LatestWellTestReadRequest, LatestWellTestResult>(connection, operation, read.AssetExternalId, read,
             "GUIDED_WELL_TEST_RESPONSE_INVALID", cancellationToken);
 
+    public async Task<ForeSiteSurveillanceReport> ReadSurveillanceAsync(ConnectionRecord connection, string externalId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(connection.AdapterKey)}/surveillance");
+        request.Content = JsonContent.Create(new ConnectionMeasurementRequest(connection.Id, connection.Revision,
+            connection.Settings.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal), externalId, "Surveillance"));
+        using var response = await SendAsync(request, cancellationToken);
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<ForeSiteSurveillanceReport>(cancellationToken)
+                ?? throw ReadFailure("GUIDED_SURVEILLANCE_RESPONSE_INVALID");
+        }
+        catch (JsonException)
+        {
+            throw ReadFailure("GUIDED_SURVEILLANCE_RESPONSE_INVALID");
+        }
+    }
+
     private async Task<TResult> ReadRegisteredAsync<TRequest, TResult>(ConnectionRecord connection, AdapterOperationDescriptor operation,
         string externalId, TRequest read, string invalidResponseCode, CancellationToken cancellationToken) where TResult : class
     {

@@ -1575,6 +1575,7 @@ export const englishMessages = {
   'guided.reportedWellTestEvidence': 'Latest reported well test. Eligibility and units are unverified.',
   'guided.quantityCurrentObserved': 'Reading returned',
   'guided.quantityNoReading': 'Reading missing',
+  'guided.quantityUnitMismatch': 'Unit differs from the provider default',
   'guided.quantityReportedOnTest': 'Reported on this test',
   'guided.wellTestSampleDate': 'Sample date',
   'guided.wellTestEndDate': 'Test end date',

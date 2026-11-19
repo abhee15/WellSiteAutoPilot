@@ -346,26 +346,21 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             AdapterReadRules.Find(initial.Connection.AdapterKey) is not { } rule || rule.ResourceKind != initial.Binding.ResourceKind)
             return new(false, []);
 
-        var quantities = new List<GuidedDiscoveredQuantity>(rule.CurrentQuantities.Count);
-        foreach (var quantity in rule.CurrentQuantities.Order(StringComparer.Ordinal))
-        {
-            await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
-            try
-            {
-                var reading = await ReadCurrentAsync(initial, quantity, cancellationToken);
-                quantities.Add(reading.Quantity != quantity || reading.StructuredValue is not null
-                    ? new(quantity, null, "Unavailable")
-                    : reading.Value is null
-                        ? new(quantity, null, "NoReading")
-                        : new(quantity, reading.Unit, "CurrentObserved"));
-            }
-            catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
-            {
-                quantities.Add(new(quantity, null, exception.Code == "FORESITE_MEASUREMENT_MISSING" ? "NoReading" : "Unavailable"));
-            }
-        }
+        var report = await history.ReadSurveillanceAsync(initial.Connection, initial.Binding.ExternalId, cancellationToken);
+        if (report.AssetExternalId != initial.Binding.ExternalId ||
+            report.Observations.Select(item => item.Quantity).Order(StringComparer.Ordinal)
+                .SequenceEqual(rule.CurrentQuantities.Order(StringComparer.Ordinal), StringComparer.Ordinal) is false)
+            throw new WellSiteAutoPilotException("GUIDED_SURVEILLANCE_RESPONSE_INVALID",
+                FailureKind.DependencyUnavailable, "The surveillance response did not match the requested asset or catalogue.");
 
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        var quantities = report.Observations.OrderBy(item => item.Quantity, StringComparer.Ordinal).Select(item => item.Status switch
+        {
+            ForeSiteSurveillanceObservation.Observed => new GuidedDiscoveredQuantity(item.Quantity, item.Unit, "CurrentObserved"),
+            ForeSiteSurveillanceObservation.NoValue => new(item.Quantity, null, "NoReading"),
+            ForeSiteSurveillanceObservation.UnitMismatch => new(item.Quantity, null, "UnitMismatch"),
+            _ => new(item.Quantity, null, "Unavailable")
+        }).ToArray();
         return new(true, quantities, "ApplicabilityUnverified");
     }
 

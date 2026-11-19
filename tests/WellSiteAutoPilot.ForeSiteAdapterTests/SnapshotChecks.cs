@@ -97,6 +97,22 @@ internal static class SnapshotChecks
         await RejectAsync(["PumpFillage", "AveragePumpFillage"], "FORESITE_TIMESTAMP_INVALID", true);
 
         backend.Payload = Complete;
+        // Discovery reads the whole catalogue once and reports each field, so one gap never hides the others.
+        var before = backend.StatusCalls;
+        var report = await pool.ReadSurveillanceAsync(request, CancellationToken.None);
+        ForeSiteSurveillanceObservation Seen(string quantity) => report.Observations.Single(item => item.Quantity == quantity);
+        Check(backend.StatusCalls == before + 1 && report.AssetExternalId == "42" &&
+            report.Observations.Count == ForeSiteSurveillanceCatalogue.All.Count &&
+            Seen("PumpFillage") is { Status: "Observed", Unit: "%" } && Seen("TubingPressure") is { Status: "Observed", Unit: "psia" } &&
+            Seen("CyclesYesterday") is { Status: "Observed", Unit: "count" } && Seen("MotorAmps").Status == "NoValue",
+            "Discovery did not report observed, counted and missing fields from one read.");
+        backend.Payload = Complete.Replace("\"UnitKey\":\"psia\"", "\"UnitKey\":\"kPa\"")
+            .Replace("\"AveragePumpFillage\":100", "\"AveragePumpFillage\":101");
+        report = await pool.ReadSurveillanceAsync(request, CancellationToken.None);
+        Check(Seen("TubingPressure") is { Status: "UnitMismatch", Unit: "kPa" } && Seen("AveragePumpFillage").Status == "Invalid" &&
+            Seen("PumpFillage").Status == "Observed", "Discovery hid a unit mismatch or invalid value, or let it spoil other fields.");
+
+        backend.Payload = Complete;
         var later = await pool.ReadSnapshotAsync(request with { ConnectionRevision = 2 },
             ["AveragePumpFillage", "PumpFillage"], CancellationToken.None);
         Check(later.Count == 2 && backend.Tokens == 2,

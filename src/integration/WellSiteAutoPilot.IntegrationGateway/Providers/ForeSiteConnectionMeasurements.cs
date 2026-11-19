@@ -26,6 +26,11 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         WithSessionAsync(request, async session => await new ForeSiteCurrentDataProvider(session.Session)
             .GetCurrentSnapshotAsync(request.ExternalId, quantities, session.Token), cancellationToken);
 
+    public Task<ForeSiteSurveillanceReport> ReadSurveillanceAsync(
+        ConnectionMeasurementRequest request, CancellationToken cancellationToken) =>
+        WithSessionAsync(request, session => ForeSiteSurveillanceSnapshot.DescribeAsync(
+            session.Session, request.ExternalId, session.Token), cancellationToken);
+
     public Task<HistoricalReadResult> ReadHistoryAsync(ConnectionHistoryRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
