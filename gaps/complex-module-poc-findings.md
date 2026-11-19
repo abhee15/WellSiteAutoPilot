@@ -255,3 +255,34 @@ A hint holds an optional parameters value but the editor always saves it empty. 
 
 ### P51 - Provider names in a portable module
 A hint stores a provider key (for example foresite) inside the draft. This is explained as not part of the portable manifest, but nothing shows the author which parts of a draft are portable and which are local. It also conflicts with the P33 direction to avoid provider-specific wording. Suggestion: show a "Portable / Provider-specific" indicator on the module summary and on export.
+
+## CL 1108781 (#651, provider daily field as scalar input) - live verification and SME review
+
+Verified live against ForeSite (P4 tree with #651, stack restarted on the new integration code). Contract-only drafts (engineering.daily, number schema, quantity = ForeSite daily field) were created through the API and checked against RPOC_0413 (RRL), AR-ESP2 (ESP) and AEPOC_0001:
+- TotalFluidRateInferred, unit STB/d, uncertain quality allowed, max age 2 days: Satisfied on all three assets.
+- Same with uncertain quality not allowed: Rejected EXECUTION_INPUT_QUALITY_REJECTED (the daily reading is always Uncertain).
+- Unit declared as bbl: Rejected EXECUTION_INPUT_QUANTITY_MISMATCH.
+- Max age 1 hour: Rejected EXECUTION_INPUT_STALE (the reading is stamped with the production day end).
+- RunTimeYesterday (not in these wells' daily record): Missing FORESITE_MEASUREMENT_MISSING on all three.
+- CHP: Satisfied on AR-ESP2 (ESP), Missing on RPOC_0413 and AEPOC_0001.
+- No unit declared (AllocatedOilVolume): Satisfied on all three.
+- Server and Worker builds, V2 contract tests, ForeSite adapter tests (live ForeSite check skipped, no FORESITE_BASE_URL) and the added-lines ASCII check pass. No web changes in this PR.
+- Not verified: the worker run path with a real module (live preview refuses contract-only drafts), so the reading value itself is not shown anywhere yet (see P36).
+
+### P52 - A wrong unit is reported as a quantity mismatch
+The quantity matched; only the unit differed (declared bbl, provider STB/d), yet the reason is EXECUTION_INPUT_QUANTITY_MISMATCH. One code covers two different faults. Suggestion: separate EXECUTION_INPUT_UNIT_MISMATCH and include both units in the message ("declared bbl, ForeSite reports STB/d").
+
+### P53 - Missing field does not say why
+FORESITE_MEASUREMENT_MISSING is the same whether the field is not recorded for this lift type (CHP on an RRL well), the day has not closed, or the lookback of 4 days has no record. It also carries a provider name in the code, unlike the provider-neutral codes beside it. Suggestion: neutral reason such as "No finished production day in the last 4 days reports this field for this asset", and show which lift types report it.
+
+### P54 - Freshness for a daily value is expressed in seconds
+The reading is stamped with the end of the production day, so it is already up to a day old when read. An author who copies the usual 60 second or one hour maximum age gets STALE on every asset, and the blank default accepts any age. Suggestion: for a daily input, express freshness in production days ("latest finished day, no older than 2 days") and default it.
+
+### P55 - Daily readings need uncertain quality, but the default rejects them
+Every daily value is Uncertain, so a new input with the default setting (uncertain not allowed) fails on every asset with QUALITY_REJECTED. The author has to guess the cause. Suggestion: when the daily capability is chosen, set and explain "Allow uncertain quality" automatically, or say so in the reason ("daily values carry no verified quality").
+
+### P56 - A contract with no unit accepts any unit
+The no-unit draft is Satisfied on all assets, so a module can silently receive STB/d, Mscf or psia values as plain numbers. The unit travels with the reading but the module author is not told to check it. Suggestion: require a unit for numeric inputs, or warn on save when none is declared; ties to P5 and P42.
+
+### P57 - Daily field names are provider-specific
+The quantity is the provider's own daily field (TotalFluidRateInferred, AllocatedOilVolume, CHP). Another provider's name for the same field will not match, so a module reading daily production is not portable. The registry covers current quantities only. Suggestion: a small set of canonical daily quantities (oil, gas, water, fluid volumes; run time; cycles) mapped per provider; ties to P33 and P51.
