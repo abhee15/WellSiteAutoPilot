@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
 import { loadAdapterOperations } from '../../src/views/adapterOperations';
-import { addDailyInput, blankContractManifest } from '../../src/views/GuidedContractEditor';
+import { sampleCasesInRange } from '../../src/views/GuidedSampleCases';
+import { addDailyInput, blankContractManifest, firstIncompletePort } from '../../src/views/GuidedContractEditor';
 import {
   createGuidedModuleDraft,
   editGuidedModuleDraft,
@@ -440,4 +441,17 @@ it('copies a saved contract to a new draft for the other provider, without hints
   expect(copy.dataRequirements).toEqual(source.dataRequirements);
   expect(body.sourceHints).toBeUndefined();
   expect(screen.getByText(/Provider: CygNet/)).toBeTruthy();
+});
+
+it('names the port that blocks saving and rejects sample readings outside the quantity range', () => {
+  const manifest = JSON.parse(blankContractManifest('Check', 'foresite')) as Record<string, unknown>;
+  expect(firstIncompletePort(JSON.stringify(manifest))).toBeNull();
+  manifest.dataRequirements = [{ id: 'in-1', quantity: 'SPM', valueSchema: { type: 'number' } }];
+  expect(firstIncompletePort(JSON.stringify(manifest))).toBe('SPM');
+
+  const reading = (value: number | null) => ({ name: 'case', value, casingPsi: null, tubingPsi: null });
+  expect(sampleCasesInRange([reading(0), reading(100), reading(null)], false)).toBe(true);
+  expect(sampleCasesInRange([reading(250)], false)).toBe(false);
+  expect(sampleCasesInRange([reading(-1)], false)).toBe(false);
+  expect(sampleCasesInRange([{ name: 'p', value: null, casingPsi: 5000, tubingPsi: 9000 }], true)).toBe(true);
 });

@@ -31,13 +31,14 @@ import {
   copyContractManifest,
   dailyCapability,
   GuidedContractEditor,
+  firstIncompletePort,
   isContractOnlyManifest,
   parseManifest,
 } from './GuidedContractEditor';
 import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
-import { GuidedSampleCases, defaultSampleCases } from './GuidedSampleCases';
+import { GuidedSampleCases, defaultSampleCases, sampleCasesInRange } from './GuidedSampleCases';
 import { normalizeHint } from './GuidedSourceHintFields';
 import { ConfirmPanel, FormActions, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -396,6 +397,7 @@ export function GuidedAuthoringPage({
   const valid = contractOnly
     ? name.trim().length > 0 && contractIsComplete(contractManifest)
     : !inspectOnly &&
+      sampleCasesInRange(activeCases, pressure) &&
       name.trim().length > 0 &&
       threshold.trim() !== '' &&
       Number(threshold) >= 0 &&
@@ -412,11 +414,26 @@ export function GuidedAuthoringPage({
     contractChanged ||
     casesChanged ||
     hintsChanged;
+  const blockedPort = contractOnly ? firstIncompletePort(contractManifest) : null;
+  const blockedReason = inspectOnly || valid ? null : blockedReasonFor();
+  // Submitting is only offered once every asserted case, after a run, produced the outcome its author expected.
+  const expectationsMet = activeCases.every(
+    (item, index) => !item.expectedOutcome || evidence[index]?.observedOutcome === item.expectedOutcome,
+  );
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
   const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
   const activeSection =
     editorSection === 'live' && !showLivePreview ? (inspectOnly ? 'module' : 'rule') : editorSection;
+
+  function blockedReasonFor(): {
+    key: 'guided.saveNeedsName' | 'guided.saveNeedsPort' | 'guided.saveNeedsRule';
+    port?: string;
+  } {
+    if (name.trim().length === 0) return { key: 'guided.saveNeedsName' };
+    if (contractOnly) return { key: 'guided.saveNeedsPort', port: blockedPort ?? '' };
+    return { key: 'guided.saveNeedsRule' };
+  }
 
   function changeView(next: EditorView) {
     setView(next);
@@ -740,7 +757,13 @@ export function GuidedAuthoringPage({
                   {!contractOnly && (
                     <ActionButton
                       label={t('guided.submit')}
-                      disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                      disabled={
+                        busy ||
+                        dirty ||
+                        Boolean(submittedReference) ||
+                        evidence.length !== sampleCount ||
+                        !expectationsMet
+                      }
                       onClick={() => void run(submit)}
                     />
                   )}
@@ -748,6 +771,9 @@ export function GuidedAuthoringPage({
                     <ActionButton label={t('guided.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />
                   )}
                 </div>
+              )}
+              {!inspectOnly && blockedReason && (
+                <p role="status">{t(blockedReason.key, { port: blockedReason.port ?? '' })}</p>
               )}
               {draft?.id && contractOnly && !dirty && !submittedReference && !confirmDelete && (
                 <div className="guided-authoring-actions">
