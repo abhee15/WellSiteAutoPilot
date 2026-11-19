@@ -102,3 +102,7 @@ Decided with Sri: do not build now; revisit once a logic module is built end to 
 - Adapter requirement (Sri): the Integration Gateway's Windows account must have imperial set as its ForeSite unit system. The adapter still compares each response UnitKey with the catalogue and fails closed on a mismatch; the connection test and install docs should state the requirement.
 - Well test date: the ForeSite WellTestDTO has no field named WellTestDate. Its dates are SampleDate (required, "Sampling date time", and the latest test is chosen by SampleDate descending), TestEndDate (optional), TestStartDate (commented out in the DTO), LastChangedDT (edit time) and SyncDate. Proposal: SampleDate is the applicable date for all well test fields; the surveillance LatestValidWellTestDate is the same test seen from the status side. Pending Sri.
 - Well test date confirmed (Sri): SampleDate is the applicable date for all well test fields.
+
+## Decision: authoring lists the catalogue, assignment decides presence
+The Inputs list is the provider's full catalogue (asset-independent). Presence and applicability are only knowable once the module is assigned to an asset, so the check belongs to assignment time. Units in the surveillance payload mark a field as defined, not as present for a well (e.g. AveragePumpFillage has unit % but is null on RRL well 1596). Step 2 reports each field as observed, missing or unit-mismatched at assignment, not at authoring.
+
