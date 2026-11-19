@@ -37,6 +37,12 @@ const sourceLabels = { current: 'flow.sourceCurrent', daily: 'flow.sourceDaily' 
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
+// The server explains why it refused a save (an unknown name in an expression, say); show that, not a generic line.
+const detailOf = (error: unknown) =>
+  typeof error === 'object' && error !== null && typeof (error as { detail?: unknown }).detail === 'string'
+    ? (error as { detail: string }).detail
+    : '';
+
 type Section = 'inputs' | 'parameters' | 'calculations' | 'rules';
 const outline: {
   id: Section;
@@ -64,7 +70,7 @@ export function AuthoringFlow() {
   const [selected, setSelected] = useState<Section>('inputs');
   const [justSaved, setJustSaved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,22 +104,22 @@ export function AuthoringFlow() {
     sourceHints: GuidedSourceHintRequest[];
     rulesJson: string | null;
   }) {
-    const { data } =
+    const { data, error } =
       draft?.id && draft.revision
         ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
         : await createGuidedModuleDraft({ body });
-    if (!data) throw new Error();
+    if (!data) throw new Error(detailOf(error));
     setDraft(data);
     setDirty(false);
   }
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     try {
       await action();
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      setFailed(error instanceof Error && error.message ? error.message : t('flow.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -184,7 +190,7 @@ export function AuthoringFlow() {
               disabled={!name.trim() || !providerKey}
             />
           </form>
-          {failed && <Notice tone="error">{t('flow.saveFailed')}</Notice>}
+          {failed && <Notice tone="error">{failed}</Notice>}
         </Section>
       </div>
     );
@@ -199,7 +205,7 @@ export function AuthoringFlow() {
         </div>
         <div className="authoring-flow-actions">
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
-          {failed && <Notice tone="error">{t('flow.saveFailed')}</Notice>}
+          {failed && <Notice tone="error">{failed}</Notice>}
           <ActionButton
             label={t('flow.save')}
             variant="primary"
