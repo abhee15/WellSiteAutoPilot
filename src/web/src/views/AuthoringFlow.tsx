@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import {
   createGuidedModuleDraft,
   editGuidedModuleDraft,
+  submitGuidedModuleRules,
   getGuidedModuleDraft,
   listGuidedModuleProviders,
 } from '../api/generated/v1/sdk.gen';
@@ -18,7 +19,7 @@ import { Section } from '../components/Section';
 import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
-import { TestsEditor } from './AuthoringTests';
+import { TestsEditor, type Scenario } from './AuthoringTests';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
 import { emptyRules, logicIncomplete, parseRules, serializeRules } from './rulesModel';
 import type { RulesModel } from './rulesModel';
@@ -83,6 +84,8 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
   const [justSaved, setJustSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -137,6 +140,8 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     dirty &&
     !busy;
 
+  const canSubmit = draft !== null && !dirty && rules.rules.length > 0 && scenarios.length > 0 && !busy && !submitted;
+
   async function persist(body: {
     manifestJson: string;
     sourceHints: GuidedSourceHintRequest[];
@@ -149,6 +154,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     if (!data) throw new Error(detailOf(error));
     setDraft(data);
     setDirty(false);
+    setSubmitted(false);
   }
 
   async function run(action: () => Promise<void>) {
@@ -258,6 +264,22 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
         <div className="authoring-flow-actions">
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{failed}</Notice>}
+          {submitted && <Notice tone="success">{t('flow.submitted')}</Notice>}
+          <ActionButton
+            label={t('flow.submit')}
+            disabled={!canSubmit}
+            onClick={() =>
+              void run(async () => {
+                if (!draft?.id || !draft.revision) return;
+                const { data, error } = await submitGuidedModuleRules({
+                  path: { id: draft.id },
+                  body: { expectedRevision: draft.revision, cases: scenarios },
+                });
+                if (!data) throw new Error(detailOf(error));
+                setSubmitted(true);
+              })
+            }
+          />
           <ActionButton
             label={t('flow.save')}
             variant="primary"
@@ -299,6 +321,9 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               saved={!dirty}
               inputs={inputs.map((input) => ({ name: text(input.quantity), unit: text(input.canonicalUnit) }))}
               rules={rules}
+              scenarios={scenarios}
+              onAddScenario={(scenario) => setScenarios((previous) => [...previous, scenario])}
+              onRemoveScenario={(index) => setScenarios((previous) => previous.filter((_, at) => at !== index))}
             />
           )}
           {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
