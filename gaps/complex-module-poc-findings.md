@@ -495,3 +495,8 @@ The filter resets to All providers on reload. An author who works on one provide
 - **P94** Copy is offered only on contract-only drafts; threshold and pressure-differential drafts cannot be moved to another provider (observed: no Copy control on a ForeSite threshold draft). Suggest explaining why, or copying the contract part.
 - **P95** Provider list offers only the other providers (CygNet only here); verified copy produced 'GAP copy 659 (copy)' as a CygNet draft. Copying silently drops source hints and sample cases (per PR text) - suggest a visible notice after copy.
 
+
+## CL #660 - stored cards report Uncertain
+
+- **P96** Not verified live: the adapter tests skip the live check (FORESITE_BASE_URL unset), so Uncertain quality on real stored cards is unconfirmed. Needs a run against a ForeSite with a stored card library.
+
