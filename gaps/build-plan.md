@@ -79,3 +79,7 @@ Read: foresite-controller-acquisition, foresite-measurement-evidence-plan, fores
 - The surveillance response (`GET Surveillance/well/{id}`) is `UnitsValuesPairDTO`: `Units` gives per-field `UnitKey`, `Precision`, `AssumeCorrectUnitFromCygNet`; `Value` gives the numbers. There is also `well/{id}/{unitSystem}`. So units are available per response, not guessed, and the adapter's hard-coded "%" was avoidable.
 - Value DTOs differ by well type (RRL, ESP, GL, NF, ...), so the field list per well type comes from the enum attributes and the DTO class.
 - Time: surveillance values share `LastGoodScanTime` (datagroup scan success); `LastScanTime` is the last scan issued. Well test fields share one test date (`SampleDate` and `TestEndDate` are UTC datetimes at local midnight, e.g. 2024-09-16T05:00Z).
+
+## Daily average time rule (Sri, confirmed)
+
+Daily average values are written to the database at the end of the production day. A record's time is its day: `StartDateTime` to `EndDateTime`, not a scan time. The adapter's daily reader already returns `days[].start/end` with offsets and selects whole days by StartDateTime in [start, end). Like surveillance, the response has its own `Units` block (UnitKey, Precision). Consequences for the catalogue: each entry carries its time source (surveillance = LastGoodScanTime, daily = day start/end, well test = test date), and a module that reads "yesterday" resolves to the latest closed production day (P113), not to a surveillance Yesterday field.
