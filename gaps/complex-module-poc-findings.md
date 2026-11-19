@@ -387,3 +387,15 @@ A group with nothing saved is returned as ErrorMessage "Invalid transaction ..."
 
 ### P75 - Well names are not normalised
 "AN   13-14" has three spaces, so a search for "AN 13-14" finds nothing. Suggestion: asset search should collapse whitespace.
+
+## usdcfstappts012 check
+
+- Web UI on port 8000 returns 503; the API on port 80 is up (token OK).
+- Wells/Well/Filter by device type: LufkinSam 50 (all named SAM_AIRBALANCE_PU_Lufkin-000NN, ids 1341+), WFordKS 31 (GASINJWELL_ReservoirPressure-*), AEBEAM 50 (AEPOC_ROTAFLEX_PU_WFT-*), WellPilotRPOC 0, WFTA1K 0. Counts of exactly 50 suggest a cap or a generated set.
+- AllSavedSetPointParams(scanOption=0) for LufkinSam wells 1341 and 1342 timed out after 120 s (no data, no error text). No Rod Buckling setpoints could be read.
+
+### P76 - Setpoint read on this server hangs rather than failing
+Saved-setpoint reads time out at 120 s with no error, so a module that needs them would hang a run. Suggestion: the adapter applies its own short timeout and reports a distinct "setpoints unavailable" result.
+
+### P77 - Server looks like generated test data
+Well names (SAM_AIRBALANCE_PU_Lufkin-000NN, AEPOC_ROTAFLEX_PU_WFT-000NN) and the 50-well counts suggest a simulated set; the saved setpoints probably have no backing device. Needs confirming with the server owner before using it for Rod Buckling.
