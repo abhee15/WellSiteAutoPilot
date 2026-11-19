@@ -309,3 +309,11 @@ After Use as input, the editor still shows the previously selected input (Averag
 
 ### P62 - Quantity names are provider-specific
 The added input is named after the provider's field (CHP, TotalFluidRateInferred), not a module-friendly name, and the lookup is bound to one provider's vocabulary (ties to P57). Suggestion: let the author name the input separately from the provider field.
+
+## CL 1108783 (#654, e2e: guided fillage case through an imported ForeSite well) - verification and SME review
+
+- Test-only change (one file in AssetApiTests). The project builds (0 warnings, 0 errors) and the added lines are ASCII.
+- Not run: the e2e harness needs WSA_ASSET_API_URL, WSA_DATABASE_CONNECTION_STRING and a running asset API, and exits with "WSA_ASSET_API_URL is required" otherwise. It is built for CI, not for the local Aspire stack. No UI to check.
+
+### P63 - The e2e harness cannot run against the local stack
+The cross-process provider-first test is the only automated proof that a keyed module resolves bindings from the asset's own connection, but it needs hand-set environment variables and a separate asset API. Suggestion: add a script or Aspire profile that runs it against the local dev stack with the two ForeSite wells, so it can be exercised on this box as well as in CI.
