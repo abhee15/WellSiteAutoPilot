@@ -319,7 +319,7 @@ it('lets an author choose where an input is read from, and saves it beside the c
   // Only the sources the primary provider allows are offered.
   const choice = screen.getByLabelText<HTMLSelectElement>('External source');
   expect(choice.value).toBe('wami');
-  expect(screen.queryByRole('option', { name: 'CygNet' })).toBeNull();
+  expect(within(choice).getAllByRole('option').map((item) => item.textContent)).toEqual(['WAMI']);
 
   fireEvent.click(screen.getByRole('button', { name: 'Add output' }));
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'Result' } });
