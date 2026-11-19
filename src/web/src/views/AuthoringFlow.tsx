@@ -18,6 +18,7 @@ import { Section } from '../components/Section';
 import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
+import { TestsEditor } from './AuthoringTests';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
 import { emptyRules, logicIncomplete, parseRules, serializeRules } from './rulesModel';
 import type { RulesModel } from './rulesModel';
@@ -48,15 +49,21 @@ const detailOf = (error: unknown) =>
     ? (error as { detail: string }).detail
     : '';
 
-type Section = 'inputs' | 'parameters' | 'calculations' | 'rules';
+type Section = 'inputs' | 'parameters' | 'calculations' | 'rules' | 'tests';
 const outline: {
   id: Section;
-  label: 'flow.outlineInputs' | 'flow.outlineParameters' | 'flow.outlineCalculations' | 'flow.outlineRules';
+  label:
+    | 'flow.outlineInputs'
+    | 'flow.outlineParameters'
+    | 'flow.outlineCalculations'
+    | 'flow.outlineRules'
+    | 'flow.outlineTests';
 }[] = [
   { id: 'inputs', label: 'flow.outlineInputs' },
   { id: 'parameters', label: 'flow.outlineParameters' },
   { id: 'calculations', label: 'flow.outlineCalculations' },
   { id: 'rules', label: 'flow.outlineRules' },
+  { id: 'tests', label: 'flow.outlineTests' },
 ];
 
 /**
@@ -120,6 +127,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     parameters: rules.parameters.length,
     calculations: rules.calculations.length,
     rules: rules.rules.length,
+    tests: 0,
   };
   const canSave =
     draft !== null &&
@@ -275,7 +283,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               onClick={() => setSelected(item.id)}
             >
               <span>{t(item.label)}</span>
-              <span className="authoring-count">{counts[item.id]}</span>
+              {item.id !== 'tests' && <span className="authoring-count">{counts[item.id]}</span>}
             </button>
           ))}
         </nav>
@@ -283,6 +291,15 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           {selected === 'parameters' && <ParametersEditor rules={rules} takenNames={inputNames} onChange={editRules} />}
           {selected === 'calculations' && (
             <CalculationsEditor rules={rules} inputNames={inputNames} onChange={editRules} />
+          )}
+          {selected === 'tests' && (
+            <TestsEditor
+              draftId={draft?.id ?? null}
+              revision={draft?.revision ?? null}
+              saved={!dirty}
+              inputs={inputs.map((input) => ({ name: text(input.quantity), unit: text(input.canonicalUnit) }))}
+              rules={rules}
+            />
           )}
           {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
           {selected === 'inputs' && (
