@@ -517,3 +517,9 @@ The filter resets to All providers on reload. An author who works on one provide
 
 - **P101** Verified by unit tests only (V2 and manifest checks pass). Not seen end to end: a run needs an input whose declared unit differs from ForeSite's (e.g. a time setpoint declared in s vs provider text). The new message in words.ts is shown to authors; confirm it names the input and both units, since 'an input's unit differs' alone does not say which input or what the provider unit is.
 
+
+## CL #662 - stop unusable drafts without telling why
+
+- **P102** Not run live: build, V2 checks, tsc, eslint, vitest 13/13 + 10/10 and guards pass, but the stack is still on #661 code, so the sample-reading range bound (0-100 %, 0-10000 psi) and the Submit gate were not exercised. A fixed range per quantity cannot serve LM inputs such as SPM, setpoints or card data; ranges should come from the provider (ForeSite setpoints carry RangeLow/RangeHigh, see P78).
+- **P103** Many newer PRs (#665-#681) add a rules engine, rules drafts and a workbench. These are exactly the multi-input / multi-output / custom-logic capabilities requested (P87-P90) and will be re-tested against them as they are mirrored.
+
