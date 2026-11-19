@@ -178,6 +178,7 @@ var observed = await engine.ExecuteObservedAsync(request, "observed-input-test",
 await ModuleResultFailureChecks.RunAsync(request, new GatewayDataClient(httpClient), now);
 StructuredTraceTransportChecks.Run();
 WellSiteAutoPilot.ExecutionContractV2Tests.GuidedRulesDraftChecks.Run();
+await WellSiteAutoPilot.ExecutionContractV2Tests.RulesSubmissionChecks.RunAsync();
 WellSiteAutoPilot.ExecutionContractV2Tests.RuleExpressionChecks.Run();
 WellSiteAutoPilot.ExecutionContractV2Tests.RulesEngineChecks.Run();
 await WellSiteAutoPilot.ExecutionContractV2Tests.RulesModuleChecks.RunAsync();

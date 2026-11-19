@@ -35,7 +35,8 @@ public sealed record GuidedModulePreviewResponse(int Revision, string PackageSha
 public sealed record GuidedModuleReviewItemResponse(Guid DraftId, int Revision, string DisplayName, DateTimeOffset SubmittedAtUtc);
 
 public sealed record GuidedModuleReviewResponse(Guid DraftId, int Revision, string PackageSha256, DateTimeOffset SubmittedAtUtc,
-    string ReviewedManifestJson, GuidedThresholdDefinitionRequest Definition, IReadOnlyList<GuidedModuleReviewCaseResponse> Cases);
+    string ReviewedManifestJson, GuidedThresholdDefinitionRequest? Definition, IReadOnlyList<GuidedModuleReviewCaseResponse> Cases,
+    string? RulesJson = null, string? RulesEvidenceJson = null);
 
 public sealed record GuidedModuleReviewCaseResponse(decimal? Value, string? OutcomeCode, string? FailureCode,
     GuidedPressureReadingRequest? Pressure = null, decimal? DifferentialPsi = null);
@@ -109,3 +110,8 @@ public sealed record GuidedRulesTraceResponse(string Kind, string Id, string Det
 public sealed record GuidedRulesPreviewResponse(int Revision, string OutcomeCode, string? RuleId, string? Title,
     GuidedRulesProposalResponse? Proposal, IReadOnlyList<GuidedRuleValue> Calculations,
     IReadOnlyList<GuidedRulesTraceResponse> Trace);
+
+public sealed record GuidedRulesCaseRequest(string Name, IReadOnlyList<GuidedRuleValue> Values,
+    IReadOnlyList<GuidedRuleValue>? Settings = null, string? ExpectedOutcome = null);
+
+public sealed record SubmitGuidedRulesRequest(int ExpectedRevision, IReadOnlyList<GuidedRulesCaseRequest> Cases);

@@ -75,6 +75,15 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
             subject, actor, cancellationToken);
     }
 
+    public async Task<GuidedModuleSubmissionReceipt> SubmitRulesAsync(Guid id, int expectedRevision,
+        IReadOnlyList<Rules.RulesCase> cases, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        var draft = await GetAsync(id, subject, cancellationToken);
+        var submission = await draft.PrepareRulesSubmissionAsync(expectedRevision, cases, cancellationToken);
+        return await drafts.SubmitOwnedAsync(draft, submission, subject, actor, cancellationToken);
+    }
+
     public async Task<GuidedModuleSubmissionReceipt> SubmitAsync(Guid id, int expectedRevision,
         IReadOnlyList<decimal?>? readings, AccessSubject subject, SecurityActorContext actor,
         IReadOnlyList<GuidedPressureReading?>? pressureReadings = null, CancellationToken cancellationToken = default)
