@@ -429,3 +429,21 @@ A module cannot ask "what device is this well"; PrincipalDeviceType is empty. An
 
 ### P83 - Same elements, different group names across device families
 "Basic SetPoints" (SAM-style wells on 010) vs "Basic SetPoints Configuration" / "Control Parameters" (RPOC wells). Reinforces P79: bind to ElementId.
+
+## WellPilot (RPOC) logic module check on usdcfstappts010 (wells 776 and 457)
+
+Which reference LM fits WellPilot: the controller exposes the setpoints Idle Time (IdleTime), VFDMinSPM, VFDMaxSPM, IdealPF and MinPFA, so the candidates are Idle Time Adjustment and the SPM / target fillage optimization ("RRL_SPM Optimization Logic (Well Pilot)"). Not the Rod Buckling one.
+
+Live saved setpoints (AllSavedSetPointParams, scanOption 0):
+- Well 776 (RPOC_00016): "Basic SetPoints Configuration" (13 elements, writable) and "Control Parameters" (28). IdleTime = "00:01:00" with unit s (original 60); VFDMinSPM 0; VFDMaxSPM 10; IdealPF 0 %; MinPFA 0 %; PODeadBand 8 %. In Control Parameters ITFPO = "00:02:00" s (original 60) and IdTmFPO "00:02:00" (original "00:01:00").
+- Well 457: IdleTime "00:16:00", VFDMinSPM 4, VFDMaxSPM 10, IdealPF 5 %, MinPFA 4 %, POLoadSP 78 % (original 30), HiLim 24112 (original 22000).
+- Well 487: no saved values (all groups empty).
+
+### P84 - The same setpoint appears twice and disagrees
+On well 776 the idle time is IdleTime (Basic, 00:01:00) and ITFPO / IdTmFPO (Control Parameters, 00:02:00). A module that reads "idle time" by name could pick the wrong one. Authoring must let the author choose the exact element and show both values; the preview should flag a duplicate meaning.
+
+### P85 - Time-valued setpoints arrive as text with unit "s"
+Value "00:01:00" with UnitKey s and OriginalValue "60". A numeric input has to parse hh:mm:ss, while the original value is plain seconds. Matches the blueprint's note; the quantity input needs a "duration text" type or the adapter must normalise.
+
+### P86 - Wells with identical VFD limits make target-fillage logic meaningless
+Well 776 has VFDMinSPM 0, VFDMaxSPM 10 and IdealPF 0, i.e. unconfigured. Applicability needs a "configured" check (e.g. IdealPF > 0 and Max > Min) so the module skips it with a reason instead of producing a recommendation.
