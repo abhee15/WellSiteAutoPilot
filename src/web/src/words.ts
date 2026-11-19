@@ -76,6 +76,7 @@ const OUTCOME_LABELS: Record<string, string> = {
   EXECUTION_INPUT_STALE: 'An input was too old',
   EXECUTION_INPUT_QUALITY_REJECTED: 'An input’s data quality was not good enough',
   EXECUTION_INPUT_QUANTITY_MISMATCH: 'An input measured the wrong quantity',
+  EXECUTION_INPUT_UNIT_MISMATCH: 'An input’s unit differs from the unit the module declares',
   EXECUTION_INPUT_FUTURE: 'An input had a timestamp in the future',
   EXECUTION_INPUT_TIMESTAMP_UNVERIFIED: 'An input’s measurement time could not be verified',
   EXECUTION_INPUT_ACCESS_UNSUPPORTED: 'An input needs history access, which is not supported yet',
