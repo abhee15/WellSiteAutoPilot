@@ -506,3 +506,9 @@ The filter resets to All providers on reload. An author who works on one provide
 - **P97** Live preview not confirmed: POST production-days-preview with a seeded asset (18_5) returned 503 'The integration gateway could not complete the request.' for no quantity, an invalid quantity and a real-looking one alike, so the new quantity projection was not exercised. A random asset id gives 500 UNEXPECTED_ERROR rather than a 404. Suggest a 404/422 for unknown assets and a distinct error for an unknown quantity.
 - **P98** Build, adapter checks, V2 contract tests, tsc, eslint, vitest 13/13 and 379 guards pass; the generated client must be regenerated (stack restart) before tsc passes, since the request gains an optional quantity field.
 
+
+## CL #663 - one source model for module authoring (design doc)
+
+- **P99** The proposal covers inputs only (Current, History, Daily, Latest test, Cards, Setpoint). It does not address multiple outputs with setpoint targets/limits/reasons or custom logic (P87-P90), so the capabilities the reference LMs need (multi-input, proposal outputs, rules) have no design home yet. Suggest an 'Outputs and logic' companion section.
+- **P100** The doc lists setpoints as 'read design pending F3'. Live data (P78-P86) already shows setpoint values arrive as strings, group names differ per device type and time values are text; fold these into the Setpoint role definition.
+
