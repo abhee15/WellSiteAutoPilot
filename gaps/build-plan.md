@@ -106,3 +106,7 @@ Decided with Sri: do not build now; revisit once a logic module is built end to 
 ## Decision: authoring lists the catalogue, assignment decides presence
 The Inputs list is the provider's full catalogue (asset-independent). Presence and applicability are only knowable once the module is assigned to an asset, so the check belongs to assignment time. Units in the surveillance payload mark a field as defined, not as present for a well (e.g. AveragePumpFillage has unit % but is null on RRL well 1596). Step 2 reports each field as observed, missing or unit-mismatched at assignment, not at authoring.
 
+
+## Check: external authoring
+A guided draft is approved by building a package and calling LogicModulePackageService.UploadAsync, then ApprovalService.ApproveAsync (GuidedModuleDraftService lines 73-74). An externally built .wsamodule goes through POST /logic-modules/packages into the same UploadAsync and the same review. So both paths converge on one registration and approval. The provider catalogue is public via GET /connections/adapter-operations. Rule for the build: the web UI uses only public API and every authoring rule lives on the server. Draft-only today: preview, quantity discovery and submit-with-readings (an external author cannot preview). Overlap note: 15 catalogue names (GasInjectionRate, MotorAmps, PumpSpeed, Vibration and others) also exist as daily-average fields; on the current path they mean the controller scan.
+
