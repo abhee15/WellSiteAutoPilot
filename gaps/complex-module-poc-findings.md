@@ -224,3 +224,34 @@ Not verified: history for a numeric input declared with a schema other than a pl
 
 Scalar V2 current inputs through the structured worker path. Mirrored CLEAN (9 files, 2 new). Server and Worker.DotNet Release builds pass, ExecutionContractV2Tests pass including the new scalar runtime checks, added lines are ASCII. Server code changed, so the AppHost was rebuilt and the stack restarted (first start failed on a transient kubeconfig file lock, retry was healthy). No UI change in this PR. Not verified live: a scalar current read through a running worker on a real ForeSite asset; covered only by the contract tests. No new gaps.
 
+
+## CL 1108780 (#650, source hints) - live verification and SME review
+
+Verified live in visible Edge (P4 tree with #650, contract-only draft "GAP variant: scalar current number (AveragePumpFillage)"):
+- The Read from provider and Read with operation fields appear per input. Providers listed: Provider Simulator, ForeSite, PetroVisor, CygNet. ForeSite operations: Average pump fillage, Daily inferred total fluid rate, Active well alarms, Read well details, Saved setpoints, Latest reported well test. CygNet: Facility points, Active point alarms. Simulator and PetroVisor: none.
+- Choosing a provider, then Only run with this source, shows the warning. Save and reload keep provider and the required flag. Clearing the provider disables the required checkbox.
+- Required CygNet against the ForeSite asset RPOC_0413 gives "Unsupported for this asset - The module requires a different provider than this asset uses". Required ForeSite plus Average pump fillage against the same asset passes the hint (the reading then fails as "too old", the known P37 data-age issue).
+- Server build, V2 tests, tsc, eslint, vitest (guided-contract-editor 5/5) and the 379 node guards pass. Added lines are ASCII.
+
+### P46 - The operation list offers operations that cannot serve the input
+For an AveragePumpFillage input the ForeSite list shows Active well alarms, Read well details, Saved setpoints and Latest reported well test. The filter keeps "provider-level reads not tied to one quantity", so an author can require an operation that can never produce the input. The same list for CygNet shows Facility points and Active point alarms. Suggestion: list only operations that can serve the quantity and access type (current, history, daily, test), and say so when none can.
+
+### P47 - Providers with no usable operation are still offered
+Provider Simulator and PetroVisor appear in the provider list but have no operation for this quantity. The contract panel says "Registered by: ForeSite" yet CygNet can be set as required and saved, which can never match any asset. Suggestion: mark or disable providers that do not register the quantity, or warn at save time that no known provider serves the input.
+
+### P48 - The mismatch reason does not name the providers
+"The module requires a different provider than this asset uses" does not say which provider is required, which one the asset uses, or which operation was wanted. An author cannot act on it without opening the connection. Suggestion: "Requires CygNet; this asset reads from ForeSite" and the equivalent for operation.
+
+### P49 - Layout of the source fields
+The fields were added to the end of the input row and look unfinished:
+- The checkbox labels (Allow uncertain quality, Only run with this source) sit far from their checkboxes and the labels float on the baseline of other fields.
+- The info notice sits in the grid beside the field instead of under the checkbox it explains.
+- The Remove button is crowded against the operation select.
+- "Only run with this source" is ambiguous. "Required" or "Do not run on other providers" is clearer, and it does not say that the module stops being portable.
+Suggestion: a separate "Where it is read from" group per input, with the portable default stated ("Any provider that serves it - recommended").
+
+### P50 - Hint parameters cannot be authored
+A hint holds an optional parameters value but the editor always saves it empty. Choices such as which card type, how many days of history, or which daily field have nowhere to go. This ties to P34 (cards as a quantity source) and P32 (current versus history values). Suggestion: parameters derived from the operation's declared options, shown after the operation is chosen.
+
+### P51 - Provider names in a portable module
+A hint stores a provider key (for example foresite) inside the draft. This is explained as not part of the portable manifest, but nothing shows the author which parts of a draft are portable and which are local. It also conflicts with the P33 direction to avoid provider-specific wording. Suggestion: show a "Portable / Provider-specific" indicator on the module summary and on export.
