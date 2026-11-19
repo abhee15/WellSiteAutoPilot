@@ -19,7 +19,7 @@ internal static class ForeSiteReference
             position = new decimal[] { 0, 12, 0 }, load = new decimal[] { 0, 1200, 0 }
         } });
         return AdapterReferenceExamples.StructuredCurrent("101", ForeSiteCards.Quantity,
-            new EngineeringValue(ForeSiteCards.Quantity, null, "", time, "Unknown", "foresite:dynacard-library", time.AddSeconds(2), "CardCapture")
+            new EngineeringValue(ForeSiteCards.Quantity, null, "", time, "Uncertain", "foresite:dynacard-library", time.AddSeconds(2), "CardCapture")
             { StructuredValue = new(ForeSiteCards.SchemaId, cards) }) with
         { ProviderReference = "GET Dynacards/Dynacard/LatestWithUnits/Lib/{wellId}/{type}; types 1 (CURRENT) and 2 (FULL). Reads stored surface cards; never initiates a controller scan." };
     }

@@ -44,8 +44,11 @@ V2 requires a matching V2 entry point; dual V1/V2 implementations remain rejecte
 Reviewed capabilities and schema identities travel with immutable authorized read
 plans. Catalog acceptance is not source authority or evidence of live quality.
 
-The first adapter quantity is ForeSite SurfaceCards. Unknown library-card quality
-currently fails closed, pending a reviewed quality policy. Python, downhole cards,
+The first adapter quantity is ForeSite SurfaceCards. The card library supplies no
+quality, so the adapter labels a stored card `Uncertain` (as it does a daily value). It
+is still refused by default: a module must declare `allowUncertainQuality` to use it, and
+`Unknown` quality is rejected everywhere. This opt-in is provisional pending a reviewed
+quality policy (live question F10 in the gaps branch). Python, downhole cards,
 large-payload indirection and other structured provider capabilities remain future
 work. The offline authoring host continues to support synthetic arbitrary shapes;
 its validation is reused by the production worker.

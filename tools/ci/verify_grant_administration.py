@@ -841,7 +841,7 @@ request("POST", cards_url, ADMIN, live_body, expected=404)
 request("POST", cards_url, OTHER, dict(live_body, assetId=other_alpha["id"]), expected=404)
 request("POST", cards_url, OTHER, dict(live_body, expectedRevision=2), expected=409)
 card_preview = request("POST", cards_url, OTHER, live_body)
-assert card_preview["quality"] == "Unknown" and card_preview["retrievedAtUtc"], card_preview
+assert card_preview["quality"] == "Uncertain" and card_preview["retrievedAtUtc"], card_preview
 assert [card["kind"] for card in card_preview["cards"]] == ["CURRENT", "FULL"], card_preview
 for card in card_preview["cards"]:
     assert card["position"] == [0, 5, 12, 10, 2, 0] and len(card["load"]) == 6, card
