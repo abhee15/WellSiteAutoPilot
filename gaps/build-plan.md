@@ -94,3 +94,7 @@ Decided with Sri: do not build now; revisit once a logic module is built end to 
 - Evaluated first when an asset is selected; input checks run only if applicability passes. Missing attribute fails closed ("can't tell"), pending Sri's confirmation for "none of".
 - Not in scope: wildcards, ranges, OR across attributes, numeric comparisons.
 - Prerequisite check: which attributes the import keeps from discovery.
+
+## Decisions confirmed by Sri
+- Surveillance Yesterday/Today fields (CyclesYesterday, RunTimeYesterday and similar) stay in the Current values list, stamped with LastGoodScanTime.
+- Applicability constraints are deferred to the roadmap (see above).
