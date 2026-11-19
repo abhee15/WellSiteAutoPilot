@@ -110,3 +110,17 @@ The Inputs list is the provider's full catalogue (asset-independent). Presence a
 ## Check: external authoring
 A guided draft is approved by building a package and calling LogicModulePackageService.UploadAsync, then ApprovalService.ApproveAsync (GuidedModuleDraftService lines 73-74). An externally built .wsamodule goes through POST /logic-modules/packages into the same UploadAsync and the same review. So both paths converge on one registration and approval. The provider catalogue is public via GET /connections/adapter-operations. Rule for the build: the web UI uses only public API and every authoring rule lives on the server. Draft-only today: preview, quantity discovery and submit-with-readings (an external author cannot preview). Overlap note: 15 catalogue names (GasInjectionRate, MotorAmps, PumpSpeed, Vibration and others) also exist as daily-average fields; on the current path they mean the controller scan.
 
+
+## Step tracker (plan vs state, 19 Nov)
+
+Each step is done only when: designed here, small PR, positive and negative tests, live-checked on the fresh stack, CI green, then mirrored.
+
+| Step | Plan | State |
+|---|---|---|
+| 1 Provider catalogue | Per-field catalogue for surveillance AND daily fields; unit, range, time source, fixtures; full-list discovery | Surveillance done (43 fields, units checked, fixtures). **Not done:** daily-field catalogue, per-field range (percent only), time source stored per entry. Live: well 776 gave 23 observed, 20 no value, 0 unit mismatches, so the account is imperial |
+| 2 Daily and window inputs, real data requirements on submit | Not started. Discovery now one read (done); typeahead, generator scripts in repo outstanding |
+| 3 Setpoint roles, multi-value outcomes, Outputs part | Not started |
+| 4 Invariants, alarm output, Target Fillage end to end, two wells | Not started |
+| 5 Remove old authoring | Not started |
+
+Open before PR 1: draft PR not opened (gh missing); CI not run; web not re-checked on the stack after restart.
