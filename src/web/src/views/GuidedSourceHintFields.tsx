@@ -44,8 +44,8 @@ export function GuidedSourceHintFields({
           onChange={(event) => onChange({ inputId, externalSource: event.target.value })}
         >
           {externalSources.map((source) => (
-            <option key={source.key} value={source.key}>
-              {source.displayName}
+            <option key={source.key} value={source.key ?? ''}>
+              {source.displayName ?? source.key}
             </option>
           ))}
         </SelectField>
