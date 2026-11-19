@@ -1349,6 +1349,7 @@ export const englishMessages = {
   'guided.contractSource': 'Saved contract (read-only)',
   'guided.editorNoOutputs': 'No outputs are declared yet.',
   'guided.editorNoInputs': 'No inputs are declared yet.',
+  'flow.tagWellData': 'Well data',
   'flow.newModule': 'New module',
   'flow.create': 'Create',
   'flow.outline': 'Module outline',

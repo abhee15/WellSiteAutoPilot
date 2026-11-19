@@ -180,13 +180,16 @@ export function AuthoringFlow() {
       <div className="authoring-workbench-body">
         <nav className="authoring-outline" aria-label={t('flow.outline')}>
           {outline.map((item) => (
-            <ActionButton
+            <button
               key={item.id}
-              label={t(item.label) + ' (' + inputs.length + ')'}
-              variant="quiet"
+              type="button"
+              className="authoring-outline-item"
               aria-pressed={selected === item.id}
               onClick={() => setSelected(item.id)}
-            />
+            >
+              <span>{t(item.label)}</span>
+              <span className="authoring-count">{inputs.length}</span>
+            </button>
           ))}
         </nav>
         <div className="authoring-workbench-editor">
@@ -253,38 +256,43 @@ function InputsEditor({
             const id = text(input.id);
             return (
               <li key={id} className="authoring-flow-input">
-                <div className="authoring-flow-input-name">
+                <div className="authoring-card-head">
+                  <span className="authoring-tag">{t('flow.tagWellData')}</span>
                   <strong>{text(input.quantity)}</strong>
-                  {text(input.canonicalUnit) && <span>{text(input.canonicalUnit)}</span>}
+                  {text(input.canonicalUnit) && (
+                    <span className="authoring-card-unit">{text(input.canonicalUnit)}</span>
+                  )}
+                  <ActionButton
+                    label={t('flow.removeInput')}
+                    icon={Trash2}
+                    iconOnly
+                    variant="quiet"
+                    onClick={() => {
+                      onEdit(removeInput(manifest, id));
+                      onHint(id, null);
+                    }}
+                  />
                 </div>
-                <NumberField
-                  label={t('flow.maximumAge')}
-                  min={1}
-                  step={1}
-                  value={typeof input.maximumAgeSeconds === 'number' ? input.maximumAgeSeconds : ''}
-                  onChange={(event) =>
-                    onEdit(
-                      setInputMaximumAge(manifest, id, event.target.value === '' ? null : Number(event.target.value)),
-                    )
-                  }
-                />
-                <GuidedSourceHintFields
-                  inputId={id}
-                  externalSources={externalSources}
-                  hint={hints.find((item) => item.inputId === id)}
-                  disabled={false}
-                  onChange={(next) => onHint(id, next)}
-                />
-                <ActionButton
-                  label={t('flow.removeInput')}
-                  icon={Trash2}
-                  iconOnly
-                  variant="quiet"
-                  onClick={() => {
-                    onEdit(removeInput(manifest, id));
-                    onHint(id, null);
-                  }}
-                />
+                <div className="authoring-card-body">
+                  <NumberField
+                    label={t('flow.maximumAge')}
+                    min={1}
+                    step={1}
+                    value={typeof input.maximumAgeSeconds === 'number' ? input.maximumAgeSeconds : ''}
+                    onChange={(event) =>
+                      onEdit(
+                        setInputMaximumAge(manifest, id, event.target.value === '' ? null : Number(event.target.value)),
+                      )
+                    }
+                  />
+                  <GuidedSourceHintFields
+                    inputId={id}
+                    externalSources={externalSources}
+                    hint={hints.find((item) => item.inputId === id)}
+                    disabled={false}
+                    onChange={(next) => onHint(id, next)}
+                  />
+                </div>
               </li>
             );
           })}
@@ -295,7 +303,7 @@ function InputsEditor({
           {t('flow.noInputsOffered')}
         </Notice>
       ) : (
-        <>
+        <div className="authoring-add">
           <SelectField
             label={t('flow.inputSource')}
             value={sourceKind}
@@ -358,7 +366,7 @@ function InputsEditor({
               <ActionButton type="submit" label={t('flow.add')} disabled={!dailyField.trim()} />
             </form>
           )}
-        </>
+        </div>
       )}
     </Section>
   );

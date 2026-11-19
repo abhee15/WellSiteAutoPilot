@@ -24,36 +24,10 @@
   list-style: none;
 }
 
-.authoring-flow-input {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-12);
-  padding: var(--space-12);
-  border: var(--border-width-thin) solid var(--color-border-subtle);
-  border-radius: var(--radius-8);
-}
-
-.authoring-flow-input-name {
-  display: flex;
-  flex: 1 1 var(--layout-field-min);
-  flex-direction: column;
-  min-width: 0;
-}
-
-.authoring-flow-input-name span {
-  color: var(--color-text-muted);
-}
-
 .authoring-flow-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-12);
-}
-
-.authoring-flow-picker {
-  display: grid;
   gap: var(--space-12);
 }
 
@@ -120,22 +94,105 @@
   flex: none;
 }
 
-.authoring-outline > .ui-action-button {
-  justify-content: flex-start;
-}
-
 .authoring-workbench-editor .ui-field {
   max-width: var(--layout-form-wide);
 }
 
-.authoring-flow-input {
-  align-items: center;
+.authoring-outline {
+  padding: var(--space-6);
+  background: var(--color-surface-panel);
 }
 
-.authoring-flow-input .ui-field {
+.authoring-outline-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-height: var(--size-control);
+  padding: var(--space-6) var(--space-10);
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-control);
+  text-align: left;
+  cursor: pointer;
+}
+
+.authoring-outline-item:hover {
+  background: var(--color-surface-control-hover);
+}
+
+.authoring-outline-item[aria-pressed='true'] {
+  background: var(--color-surface-navigation-active);
+  color: var(--color-text-selected);
+  font-weight: var(--font-weight-medium);
+}
+
+.authoring-outline-item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.authoring-count {
+  min-width: var(--space-20);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-12);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  text-align: center;
+}
+
+.authoring-flow-input {
+  display: grid;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--color-surface-panel);
+}
+
+.authoring-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.authoring-card-head > .ui-action-button {
+  margin-inline-start: auto;
+}
+
+.authoring-card-unit {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-small);
+}
+
+.authoring-tag {
+  padding: var(--space-2) var(--space-8);
+  border: var(--border-width-thin) solid var(--color-border-status-info);
+  border-radius: var(--radius-12);
+  background: var(--color-surface-status-info);
+  color: var(--color-text-status-info);
+  font-size: var(--font-size-tag);
+}
+
+.authoring-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-16);
+}
+
+.authoring-card-body .ui-field {
   flex: 0 0 var(--layout-field-min);
 }
 
-.authoring-flow-input-name {
-  flex: 1 1 var(--layout-field-min);
+.authoring-add {
+  display: grid;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: var(--border-width-thin) dashed var(--color-border-control);
+  border-radius: var(--radius-8);
 }
