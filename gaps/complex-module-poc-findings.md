@@ -512,3 +512,8 @@ The filter resets to All providers on reload. An author who works on one provide
 - **P99** The proposal covers inputs only (Current, History, Daily, Latest test, Cards, Setpoint). It does not address multiple outputs with setpoint targets/limits/reasons or custom logic (P87-P90), so the capabilities the reference LMs need (multi-input, proposal outputs, rules) have no design home yet. Suggest an 'Outputs and logic' companion section.
 - **P100** The doc lists setpoints as 'read design pending F3'. Live data (P78-P86) already shows setpoint values arrive as strings, group names differ per device type and time values are text; fold these into the Setpoint role definition.
 
+
+## CL #664 - wrong unit reported separately from wrong quantity
+
+- **P101** Verified by unit tests only (V2 and manifest checks pass). Not seen end to end: a run needs an input whose declared unit differs from ForeSite's (e.g. a time setpoint declared in s vs provider text). The new message in words.ts is shown to authors; confirm it names the input and both units, since 'an input's unit differs' alone does not say which input or what the provider unit is.
+
