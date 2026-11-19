@@ -471,3 +471,21 @@ Live data exists (IdleTime, VFDMinSPM, VFDMaxSPM, IdealPF, MinPFA on WellPilot 7
 
 ### P90 - No code or expression path for power users
 Nothing between "fixed template" and "full code module". Even a minimal expression field (arithmetic, comparisons, clamp, min/max, if) per output, evaluated by the existing pure evaluator, would let Idle Time and Target Fillage run end to end.
+
+## CL 1108789 (#658, provider filter and label on the draft list - PR 3)
+
+Mirrored 10 files (9 CLEAN, Program.cs MERGED). Skipped: tools/ci/verify_grant_administration.py (P4 copy diverged). Rebuilt and restarted the stack (stack14, health 200). Server and worker build, ExecutionContractV2 tests, eslint, guided-authoring (13/13) and guided-contract-editor (8/8) vitest, 379 node guards and tsc pass. Added lines contain only middle dots; guided-contract-editor.test.tsx was typed text, reopened as utf8.
+
+Live results:
+- GET guided-module-drafts?adapterKey=cygnet returns only the CygNet draft, ?adapterKey=foresite only the ForeSite draft, ?adapterKey=nope gives 400.
+- The Open draft picker labels each draft "name - provider" (GAP list filter 658 cygnet - CygNet, GAP provider 655 renamed - ForeSite); the new "Show drafts for provider" select (All providers / ForeSite / CygNet) narrows the picker to the matching drafts and back.
+- A saved CygNet pressure draft shows "Provider: CygNet - Current values only. History is not available for this provider yet." in the header.
+
+### P91 - Changing the provider filter closes the open draft
+With a CygNet draft open, switching the filter to ForeSite returned the editor to "Untitled module". Unsaved edits would be lost with no warning. Suggestion: keep the open draft, or ask before closing.
+
+### P92 - Filter and picker label share one line of text
+The provider is appended to the name with a middle dot, so a draft named "x - CygNet" is ambiguous, and the filter only affects the picker, not the Reviews tab. Minor; suggest a separate badge and a filter on Reviews too.
+
+### P93 - Filter value is not remembered
+The filter resets to All providers on reload. An author who works on one provider has to re-pick it each session. Suggest persisting it per user.
