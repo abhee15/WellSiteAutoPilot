@@ -227,7 +227,7 @@ using (var wrongUnitClient = new HttpClient(new EngineeringValueHandler(now, wro
         await wrongUnitEngine.ExecuteAsync(request, "wrong-unit-test", now);
         throw new InvalidOperationException("Mismatched engineering unit was accepted.");
     }
-    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_INPUT_QUANTITY_MISMATCH")
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_INPUT_UNIT_MISMATCH")
     {
     }
 }

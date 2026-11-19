@@ -15,9 +15,11 @@ public static class LogicModuleInputValidation
     {
         if (requirement.Access != "Current") Fail("EXECUTION_INPUT_ACCESS_UNSUPPORTED");
         if (timestampUtc == default) Fail("EXECUTION_INPUT_TIMESTAMP_INVALID");
-        if (!string.Equals(quantity, requirement.Quantity, StringComparison.OrdinalIgnoreCase) ||
-            requirement.CanonicalUnit is not null && !string.Equals(unit, requirement.CanonicalUnit, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(quantity, requirement.Quantity, StringComparison.OrdinalIgnoreCase))
             Fail("EXECUTION_INPUT_QUANTITY_MISMATCH");
+        // The quantity matched, so only the unit differs: a separate reason tells the author which declaration to fix.
+        if (requirement.CanonicalUnit is not null && !string.Equals(unit, requirement.CanonicalUnit, StringComparison.OrdinalIgnoreCase))
+            Fail("EXECUTION_INPUT_UNIT_MISMATCH");
         if (!string.Equals(quality, "Good", StringComparison.OrdinalIgnoreCase) &&
             !(requirement.AllowUncertainQuality && string.Equals(quality, "Uncertain", StringComparison.OrdinalIgnoreCase)))
             Fail("EXECUTION_INPUT_QUALITY_REJECTED");

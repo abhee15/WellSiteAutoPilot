@@ -75,7 +75,7 @@ internal static class ScalarRuntimeChecks
                input.RequirementId == "fillage" && input.AssetId == asset && input.Quality == "Good",
             "A scalar reading lost its value, unit, schema identity or provenance.");
 
-        await RejectAsync(() => ScalarStructuredInput.BuildAsync(binding, declared, Value(unit: "kg"), now, CancellationToken.None), "EXECUTION_INPUT_QUANTITY_MISMATCH");
+        await RejectAsync(() => ScalarStructuredInput.BuildAsync(binding, declared, Value(unit: "kg"), now, CancellationToken.None), "EXECUTION_INPUT_UNIT_MISMATCH");
         await RejectAsync(() => ScalarStructuredInput.BuildAsync(binding, declared, Value(quantity: "SPM"), now, CancellationToken.None), "EXECUTION_INPUT_QUANTITY_MISMATCH");
         await RejectAsync(() => ScalarStructuredInput.BuildAsync(binding, declared, Value(quality: "Unknown"), now, CancellationToken.None), "EXECUTION_INPUT_QUALITY_REJECTED");
         await RejectAsync(() => ScalarStructuredInput.BuildAsync(binding, declared, Value(at: now.AddMinutes(-10)), now, CancellationToken.None), "EXECUTION_INPUT_STALE");

@@ -20,7 +20,8 @@ internal static class InputPolicyChecks
         foreach (var quality in new[] { "Bad", "Unknown", "" })
             Reject(input with { TimestampUtc = now, Quality = quality }, requirement with { AllowUncertainQuality = true }, "EXECUTION_INPUT_QUALITY_REJECTED");
         Reject(input with { TimestampUtc = default }, requirement, "EXECUTION_INPUT_TIMESTAMP_INVALID");
-        Reject(input, requirement with { CanonicalUnit = "fraction" }, "EXECUTION_INPUT_QUANTITY_MISMATCH");
+        Reject(input, requirement with { CanonicalUnit = "fraction" }, "EXECUTION_INPUT_UNIT_MISMATCH");
+        Reject(input with { Quantity = "OtherQuantity" }, requirement, "EXECUTION_INPUT_QUANTITY_MISMATCH");
         Console.WriteLine("Shared manifest-derived input policy checks passed.");
 
         void Accept(LogicInputValue value, LogicDataRequirement policy) => LogicModuleInputValidation.Validate(value, policy, now);
