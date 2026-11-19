@@ -12,8 +12,9 @@ import { Notice } from '../components/Notice';
 import { Section } from '../components/Section';
 import { t } from '../localization';
 import { loadAdapterOperations } from './adapterOperations';
+import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
-import { emptyRules, serializeRules } from './rulesModel';
+import { emptyRules, logicIncomplete, serializeRules } from './rulesModel';
 import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
@@ -36,10 +37,15 @@ const sourceLabels = { current: 'flow.sourceCurrent', daily: 'flow.sourceDaily' 
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
-type Section = 'inputs' | 'parameters';
-const outline: { id: Section; label: 'flow.outlineInputs' | 'flow.outlineParameters' }[] = [
+type Section = 'inputs' | 'parameters' | 'calculations' | 'rules';
+const outline: {
+  id: Section;
+  label: 'flow.outlineInputs' | 'flow.outlineParameters' | 'flow.outlineCalculations' | 'flow.outlineRules';
+}[] = [
   { id: 'inputs', label: 'flow.outlineInputs' },
   { id: 'parameters', label: 'flow.outlineParameters' },
+  { id: 'calculations', label: 'flow.outlineCalculations' },
+  { id: 'rules', label: 'flow.outlineRules' },
 ];
 
 /**
@@ -73,8 +79,19 @@ export function AuthoringFlow() {
   const provider = providers.find((item) => item.adapterKey === providerKey);
   const inputs = useMemo(() => (manifest ? inputsOf(manifest) : []), [manifest]);
   const inputNames = useMemo(() => inputs.map((input) => String(input.quantity ?? '')), [inputs]);
+  const counts: Record<Section, number> = {
+    inputs: inputs.length,
+    parameters: rules.parameters.length,
+    calculations: rules.calculations.length,
+    rules: rules.rules.length,
+  };
   const canSave =
-    draft !== null && contractIsComplete(manifest) && !hasParameterProblems(rules, inputNames) && dirty && !busy;
+    draft !== null &&
+    contractIsComplete(manifest) &&
+    !hasParameterProblems(rules, inputNames) &&
+    !logicIncomplete(rules, inputNames) &&
+    dirty &&
+    !busy;
 
   async function persist(body: {
     manifestJson: string;
@@ -208,12 +225,16 @@ export function AuthoringFlow() {
               onClick={() => setSelected(item.id)}
             >
               <span>{t(item.label)}</span>
-              <span className="authoring-count">{item.id === 'inputs' ? inputs.length : rules.parameters.length}</span>
+              <span className="authoring-count">{counts[item.id]}</span>
             </button>
           ))}
         </nav>
         <div className="authoring-workbench-editor">
           {selected === 'parameters' && <ParametersEditor rules={rules} takenNames={inputNames} onChange={editRules} />}
+          {selected === 'calculations' && (
+            <CalculationsEditor rules={rules} inputNames={inputNames} onChange={editRules} />
+          )}
+          {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
           {selected === 'inputs' && (
             <InputsEditor
               providerKey={providerKey}
