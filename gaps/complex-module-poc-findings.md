@@ -523,3 +523,7 @@ The filter resets to All providers on reload. An author who works on one provide
 - **P102** Not run live: build, V2 checks, tsc, eslint, vitest 13/13 + 10/10 and guards pass, but the stack is still on #661 code, so the sample-reading range bound (0-100 %, 0-10000 psi) and the Submit gate were not exercised. A fixed range per quantity cannot serve LM inputs such as SPM, setpoints or card data; ranges should come from the provider (ForeSite setpoints carry RangeLow/RangeHigh, see P78).
 - **P103** Many newer PRs (#665-#681) add a rules engine, rules drafts and a workbench. These are exactly the multi-input / multi-output / custom-logic capabilities requested (P87-P90) and will be re-tested against them as they are mirrored.
 
+
+## CL #665 - inputs read from the primary provider; external exceptions
+
+- **P104** Verified by build, V2 checks, tsc, eslint, vitest 13/13 + 10/10 and guards only; not exercised live. Marking an input External (WAMI for ForeSite) reports 'External' in compatibility instead of reading it, so a module whose inputs are all external can pass compatibility without any real value read. WAMI needs a ForeSite well model file, which only the live environment can supply.
