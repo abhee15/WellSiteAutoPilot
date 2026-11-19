@@ -8,6 +8,14 @@ import { Section } from '../components/Section';
 import { t } from '../localization';
 import type { RulesModel } from './rulesModel';
 
+/** A run the author kept: what went in and the outcome it gave, which submission checks again. */
+export interface Scenario {
+  name: string;
+  values: { name: string; value: number }[];
+  settings: { name: string; value: number }[];
+  expectedOutcome: string;
+}
+
 export interface TestInput {
   name: string;
   unit: string;
@@ -25,18 +33,25 @@ export function TestsEditor({
   saved,
   inputs,
   rules,
+  scenarios,
+  onAddScenario,
+  onRemoveScenario,
 }: {
   draftId: string | null;
   revision: number | null;
   saved: boolean;
   inputs: TestInput[];
   rules: RulesModel;
+  scenarios: Scenario[];
+  onAddScenario: (scenario: Scenario) => void;
+  onRemoveScenario: (index: number) => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [result, setResult] = useState<GuidedRulesPreviewResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ran, setRan] = useState<Omit<Scenario, 'name'> | null>(null);
 
   const ready =
     inputs.length > 0 && inputs.every((input) => values[input.name] !== undefined && values[input.name] !== '');
@@ -46,20 +61,25 @@ export function TestsEditor({
     setBusy(true);
     setMessage(null);
     try {
+      const sent = {
+        values: inputs.map((input) => ({ name: input.name, value: Number(values[input.name]) })),
+        settings: rules.parameters
+          .filter((item) => (settings[item.id] ?? '') !== '')
+          .map((item) => ({ name: item.id, value: Number(settings[item.id]) })),
+      };
       const { data, error } = await previewGuidedModuleRules({
         path: { id: draftId },
-        body: {
-          expectedRevision: revision,
-          values: inputs.map((input) => ({ name: input.name, value: Number(values[input.name]) })),
-          settings: rules.parameters
-            .filter((item) => (settings[item.id] ?? '') !== '')
-            .map((item) => ({ name: item.id, value: Number(settings[item.id]) })),
-        },
+        body: { expectedRevision: revision, ...sent },
       });
       if (!data) throw error ?? new Error();
       setResult(data);
+      setRan({
+        ...sent,
+        expectedOutcome: data.outcomeCode === 'NO_RULE_MATCHED' ? 'NONE' : (data.outcomeCode ?? 'NONE'),
+      });
     } catch (error) {
       setResult(null);
+      setRan(null);
       setMessage(detailOf(error));
     } finally {
       setBusy(false);
@@ -111,6 +131,23 @@ export function TestsEditor({
         </div>
       </div>
       {message && <Notice tone="error">{message}</Notice>}
+      {scenarios.length > 0 && (
+        <div className="authoring-flow-input">
+          <div className="authoring-card-head">
+            <span className="authoring-tag">{t('flow.scenarios')}</span>
+          </div>
+          {scenarios.map((item, index) => (
+            <div key={item.name} className="authoring-card-head">
+              <strong>{item.name}</strong>
+              <span className="authoring-card-unit">
+                {item.values.map((value) => value.name + ' ' + value.value).join(', ')}
+                {' → ' + (item.expectedOutcome === 'NONE' ? t('flow.testNoRule') : item.expectedOutcome)}
+              </span>
+              <ActionButton iconOnly label={t('flow.removeScenario')} onClick={() => onRemoveScenario(index)} />
+            </div>
+          ))}
+        </div>
+      )}
       {result && (
         <div className="authoring-flow-input" aria-live="polite">
           <div className="authoring-card-head">
@@ -130,6 +167,17 @@ export function TestsEditor({
             <p className="authoring-result-line">
               {(result.calculations ?? []).map((item) => item.name + ' = ' + item.value).join(', ')}
             </p>
+          )}
+          {ran && (
+            <div>
+              <ActionButton
+                label={t('flow.addScenario')}
+                onClick={() => {
+                  onAddScenario({ name: t('flow.scenarioName') + ' ' + (scenarios.length + 1), ...ran });
+                  setRan(null);
+                }}
+              />
+            </div>
           )}
           <ol className="authoring-trace">
             {(result.trace ?? []).map((step, index) => (
