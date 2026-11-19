@@ -286,3 +286,26 @@ The no-unit draft is Satisfied on all assets, so a module can silently receive S
 
 ### P57 - Daily field names are provider-specific
 The quantity is the provider's own daily field (TotalFluidRateInferred, AllocatedOilVolume, CHP). Another provider's name for the same field will not match, so a module reading daily production is not portable. The registry covers current quantities only. Suggestion: a small set of canonical daily quantities (oil, gas, water, fluid volumes; run time; cycles) mapped per provider; ties to P33 and P51.
+
+## CL 1108782 (#652, add a discovered production-day field as a daily input) - live verification and SME review
+
+Verified in visible Edge on the contract-only draft "GAP variant: scalar current number" with sample asset AR-ESP2 (ESP):
+- Choosing Quantity source = Daily averages lists the 30 daily fields with units straight away.
+- Selecting CHP and pressing "Use as input (latest finished day)" adds an input CHP: unit psia, number, access Current, max age 172800 s, uncertain quality allowed, capability engineering.daily. Matches the PR description.
+- tsc, eslint, guided-contract-editor vitest (6/6), 379 node guards and the added-lines ASCII check pass. No server change in this PR.
+- Not verified: saving and reloading the new input, and running a module against it (live preview refuses contract-only drafts, P36).
+
+### P58 - The button to read production days is not shown
+The PR text and the locale file offer "Read last 7 days of production", but with Daily averages selected the only button on screen is "Read stored surface cards" (a card action under a daily source). The field list does load automatically, so the flow works, but the button wording and the surface card action under a daily source are confusing.
+
+### P59 - Daily input shows Access = Current
+The added daily input carries access "Current" and the dropdown offers only "Current reading" and "History". An author cannot tell the input is the latest finished production day, and there is no way to see or change that. Suggestion: show "Latest finished production day" (a third access choice) for engineering.daily inputs and hide the seconds-based age (see P54).
+
+### P60 - Whole list of 30 fields, no search or grouping
+The field list is one long dropdown of provider names with units (MotorAmps, PIP, THT, Vibration, volumes and rates together). Volumes (STB, Mscf) and rates (STB/d) look alike, and fields that do not apply to the asset's lift type are not marked. Suggestion: group by type (volumes, rates, pressures, electrical), add type-ahead, and note when a field is only on some lift types (ties to P53).
+
+### P61 - New input is not selected after adding
+After Use as input, the editor still shows the previously selected input (AveragePumpFillage) and the new CHP row is only a plain label at the bottom of the list. The author has to click it to fill in anything else (see P56 for the unit). Suggestion: select the new input and scroll to it.
+
+### P62 - Quantity names are provider-specific
+The added input is named after the provider's field (CHP, TotalFluidRateInferred), not a module-friendly name, and the lookup is bound to one provider's vocabulary (ties to P57). Suggestion: let the author name the input separately from the provider field.
