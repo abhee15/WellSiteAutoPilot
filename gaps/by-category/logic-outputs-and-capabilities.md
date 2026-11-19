@@ -14,3 +14,4 @@ Generated from that log; update both when adding items.
 | P100 | The doc lists setpoints as 'read design pending F3'. Live data (P78-P86) already shows setpoint values arri... | Open | Yes | CL #663 - one source model for module authoring (design doc) |
 | P103 | Many newer PRs (#665-#681) add a rules engine, rules drafts and a workbench. These are exactly the multi-in... | Open | No | CL #662 - stop unusable drafts without telling why |
 | P107 | The new flow has no outputs or logic step yet ('later steps appear as the backend can run them'), so multi-... | Open | No | CL #666 - first steps of the new authoring flow (live, ForeSite provid |
+| P109 | Daily source gives one value per quantity; no window (last N days), aggregation or lag choice, so Idle Time... | Open | No | CL #667 - daily averages source (live, ForeSite provider, Edge) |

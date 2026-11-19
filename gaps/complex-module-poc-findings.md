@@ -535,3 +535,9 @@ The filter resets to All providers on reload. An author who works on one provide
 - **P106** The only Source offered is 'Current values', and the ForeSite catalogue holds two readings (AveragePumpFillage, PumpFillage). No daily, history, setpoint or card sources, so none of the reference LMs (Idle Time, Target Fillage, Rod Buckling) can be modelled yet.
 - **P107** The new flow has no outputs or logic step yet ('later steps appear as the backend can run them'), so multi-output and custom-logic capability (P87-P90) is not reachable from it.
 
+
+## CL #667 - daily averages source (live, ForeSite provider, Edge)
+
+- Works: Source now offers Current values and Daily averages; Example well search (RPOC_0413) lists a Well select, then a Daily field select with 19 quantities (TotalFluidRateInferred, AllocatedGasVolume, FBHP, GasRateInferred, ...).
+- **P108** The Well select is an "example well" used only to discover which daily quantities exist; the picker returns every matching asset (51 options for "RPOC") with no limit or paging note, and the option labels repeat "Not Mapped / RRL / Unspecified device", so wells are hard to tell apart.
+- **P109** Daily source gives one value per quantity; no window (last N days), aggregation or lag choice, so Idle Time or Target Fillage style inputs that need several days cannot be expressed. Save with a chosen field was not exercised live.
