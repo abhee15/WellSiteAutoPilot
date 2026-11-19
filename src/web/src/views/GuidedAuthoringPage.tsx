@@ -39,6 +39,7 @@ import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { AuthoringFlow } from './AuthoringFlow';
+import { RulesReview } from './AuthoringReview';
 import { GuidedSampleCases, defaultSampleCases, sampleCasesInRange } from './GuidedSampleCases';
 import { normalizeHint } from './GuidedSourceHintFields';
 import { ConfirmPanel, FormActions, NumberField, SelectField, TextField } from '../components/FormFields';
@@ -1045,29 +1046,35 @@ export function GuidedAuthoringPage({
           {review && (
             <>
               {review.reviewedManifestJson && <h3>{displayName(review.reviewedManifestJson)}</h3>}
-              <p>
-                {isPressure(review.reviewedManifestJson)
-                  ? t('guided.pressureThreshold') + ' ' + review.definition?.default + ' psi'
-                  : t('guided.threshold') + ' ' + review.definition?.default + '%'}
-              </p>
-              <p>{review.definition?.title}</p>
-              <ul>
-                {review.cases?.map((item, index) => (
-                  <li key={index}>
-                    {item.pressure ? (
-                      <PressureEvidence reading={item.pressure} differential={item.differentialPsi} />
-                    ) : item.value == null ? (
-                      t('guided.unavailable')
-                    ) : (
-                      item.value + '%'
-                    )}{' '}
-                    {' · '}
-                    <span title={item.outcomeCode ?? item.failureCode ?? undefined}>
-                      {outcomeLabel(item.outcomeCode ?? item.failureCode).text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              {review.rulesJson ? (
+                <RulesReview rulesJson={review.rulesJson} evidenceJson={review.rulesEvidenceJson} />
+              ) : (
+                <>
+                  <p>
+                    {isPressure(review.reviewedManifestJson)
+                      ? t('guided.pressureThreshold') + ' ' + review.definition?.default + ' psi'
+                      : t('guided.threshold') + ' ' + review.definition?.default + '%'}
+                  </p>
+                  <p>{review.definition?.title}</p>
+                  <ul>
+                    {review.cases?.map((item, index) => (
+                      <li key={index}>
+                        {item.pressure ? (
+                          <PressureEvidence reading={item.pressure} differential={item.differentialPsi} />
+                        ) : item.value == null ? (
+                          t('guided.unavailable')
+                        ) : (
+                          item.value + '%'
+                        )}{' '}
+                        {' · '}
+                        <span title={item.outcomeCode ?? item.failureCode ?? undefined}>
+                          {outcomeLabel(item.outcomeCode ?? item.failureCode).text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               {canApprove && (
                 <div className="guided-authoring-approval">
                   <TextField
