@@ -447,3 +447,27 @@ Value "00:01:00" with UnitKey s and OriginalValue "60". A numeric input has to p
 
 ### P86 - Wells with identical VFD limits make target-fillage logic meaningless
 Well 776 has VFDMinSPM 0, VFDMaxSPM 10 and IdealPF 0, i.e. unconfigured. Applicability needs a "configured" check (e.g. IdealPF > 0 and Max > Min) so the module skips it with a reason instead of producing a recommendation.
+
+## Capability check: inputs, outputs and custom logic (build through #656, live in Edge)
+
+Method: ForeSite contract-only draft and threshold draft in the live UI; server draft model read (GuidedModuleDraftContent = manifest + optional ThresholdDefinition).
+
+| Need | What the build does today | Verdict |
+|---|---|---|
+| Multiple inputs | "Add input" repeats freely (input-1, input-2 ...). Each has a quantity (registered or typed), unit, value type Number/Text, access and age (daily-field inputs add max age). Provider-discovered quantities can be picked (#651/#652). | Works for scalar current and daily values |
+| Setpoint, enum, window, anchored, alarm, attribute, lookup, previous inputs | Not offered. Only scalar quantities, daily fields and one structured input (SurfaceCards). No way to read a saved setpoint such as IdleTime or VFDMaxSPM, even though the ForeSite adapter can read them. | Missing |
+| Multiple outputs | "Add output" repeats freely (quantity, unit, Number/Text). An output is a named typed value only: no set-point target, no limits, no alarm or recommendation semantics, no write action. | Declares shape only |
+| Custom logic | Contract-only drafts say "Logic, sample cases and submission are not available yet." The only runnable drafts are two fixed templates: threshold (fillage below a number) and pressure differential. The IDE tab is an outline of the same form, not a code or expression editor. | Missing |
+| Test | Sample cases exist for the two templates only (name, reading, expected outcome); live preview refuses contract-only drafts. | Templates only |
+
+### P87 - Contract and logic are separate, and only the contract can have many inputs
+A module with several inputs and outputs cannot have logic; a module with logic has one reading. Idle Time (4 anchored inputs, 1 setpoint, 1 output) and Target Fillage (setpoints + windows, 3 outputs) cannot be authored. Smallest step that unblocks testing: a rule table over the declared inputs that returns the declared outputs.
+
+### P88 - Outputs are values, not proposals
+No way to say "propose IdleTime = clamp(...)" with limits, a reason, or to raise an alarm. Add an output kind (setpoint proposal / recommendation / alarm) with target element, unit, min, max, max step and a reason template.
+
+### P89 - Setpoints cannot be inputs
+Live data exists (IdleTime, VFDMinSPM, VFDMaxSPM, IdealPF, MinPFA on WellPilot 776 and 457; control values on 8 RPOC wells) and the adapter reads it, but authoring has no input kind for it. Highest-value next input kind for WellPilot, Rod Buckling and Target Fillage alike.
+
+### P90 - No code or expression path for power users
+Nothing between "fixed template" and "full code module". Even a minimal expression field (arithmetic, comparisons, clamp, min/max, if) per output, evaluated by the existing pure evaluator, would let Idle Time and Target Fillage run end to end.
