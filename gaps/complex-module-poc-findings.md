@@ -317,3 +317,26 @@ The added input is named after the provider's field (CHP, TotalFluidRateInferred
 
 ### P63 - The e2e harness cannot run against the local stack
 The cross-process provider-first test is the only automated proof that a keyed module resolves bindings from the asset's own connection, but it needs hand-set environment variables and a separate asset API. Suggestion: add a script or Aspire profile that runs it against the local dev stack with the two ForeSite wells, so it can be exercised on this box as well as in CI.
+
+## CL 1108784 (#655, provider required, canonical and immutable on guided drafts - PR 1) - live verification and SME review
+
+Verified on the rebuilt stack (the new migration ran on start):
+- The migration cleared all pre-existing drafts: the draft list was empty after start, so every earlier "GAP ..." test draft on the local DB is gone (expected, as the PR states; recreate them when needed).
+- GET providers lists ForeSite (full) and CygNet (currentValuesOnly: true).
+- Create with no provider: 400 GUIDED_DRAFT_PROVIDER_REQUIRED, "Choose the provider this module is written for (ForeSite or CygNet)."
+- Create or edit with an unknown provider (petrovisor): 400 GUIDED_DRAFT_PROVIDER_UNKNOWN.
+- A draft saved from the UI starter is stored as "foresite". Editing it to "CygNet" is refused with GUIDED_DRAFT_PROVIDER_IMMUTABLE ("Copy the contract into a new draft..."). Editing with "ForeSite" (mixed case) is accepted and kept canonical. Removing the provider on edit is refused with PROVIDER_REQUIRED.
+- Server, Worker, AssetApiTests builds and V2 tests pass. Added lines are ASCII. UI Save draft from the starter works (interim provider).
+- Skipped when mirroring (P4 copies diverged): tools/ci/check_api_authorization.py, tools/ci/verify_grant_administration.py, tests/ci/test_check_api_authorization.py (the endpoint inventory count of 115 for the new providers endpoint). Those CI scripts will be one endpoint behind until their own sync.
+
+### P64 - Migration silently deletes every draft and submission
+The migration clears all guided drafts and submissions with no export or warning. Fine for a pre-release store, but on any environment with real authoring work it is destructive. Suggestion: keep a backup table for one release, or convert existing drafts using the interim provider rule instead of deleting.
+
+### P65 - New module has no provider choice yet
+The starter silently assigns a provider (foresite for fillage, cygnet for pressure) and the author is never shown it, yet it can never be changed afterwards. Until the chooser (#656) lands, an author cannot know which provider their draft is locked to. Suggestion: show the locked provider as a read-only label on the draft.
+
+### P66 - Provider errors only give a code in the manifest field
+GUIDED_DRAFT_PROVIDER_IMMUTABLE has a good message, but the 400s carry no field pointer, so a form cannot highlight the provider control. Suggestion: include the field name in the problem details.
+
+### P67 - The pressure e2e case was dropped
+The PR removes the guided pressure e2e until a simulated CygNet exists (#657), so for now pressure is covered by no cross-process test.
