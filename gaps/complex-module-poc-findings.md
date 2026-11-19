@@ -489,3 +489,9 @@ The provider is appended to the name with a middle dot, so a draft named "x - Cy
 
 ### P93 - Filter value is not remembered
 The filter resets to All providers on reload. An author who works on one provider has to re-pick it each session. Suggest persisting it per user.
+
+## CL #659 - copy contract to other provider (live)
+
+- **P94** Copy is offered only on contract-only drafts; threshold and pressure-differential drafts cannot be moved to another provider (observed: no Copy control on a ForeSite threshold draft). Suggest explaining why, or copying the contract part.
+- **P95** Provider list offers only the other providers (CygNet only here); verified copy produced 'GAP copy 659 (copy)' as a CygNet draft. Copying silently drops source hints and sample cases (per PR text) - suggest a visible notice after copy.
+
