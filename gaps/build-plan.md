@@ -72,3 +72,10 @@ Read: foresite-controller-acquisition, foresite-measurement-evidence-plan, fores
 - Units and valid range per surveillance field (the payload has none). Is there a ForeSite reference (PointFieldList/{wellType}) we can read for them?
 - Time rule for the daily fields (production-day end?).
 - Which two wells to use.
+
+## ForeSite source findings (from ForeSiteService Trunk, with Sri's clarifications)
+
+- `WellQuantity` (Common/POP.Enums/QuantityEnums.cs) is the generic surveillance catalogue: about 75 members, each with `[ValidForWellTypes]` (applicable well types), `[Unit(UnitKey, category)]`, and an optional `[Description]` label. `DailyAverageQuantity` and `WellTestQuantity` follow the same pattern. The adapter can offer the whole list as a typeahead without knowing the asset or well type.
+- The surveillance response (`GET Surveillance/well/{id}`) is `UnitsValuesPairDTO`: `Units` gives per-field `UnitKey`, `Precision`, `AssumeCorrectUnitFromCygNet`; `Value` gives the numbers. There is also `well/{id}/{unitSystem}`. So units are available per response, not guessed, and the adapter's hard-coded "%" was avoidable.
+- Value DTOs differ by well type (RRL, ESP, GL, NF, ...), so the field list per well type comes from the enum attributes and the DTO class.
+- Time: surveillance values share `LastGoodScanTime` (datagroup scan success); `LastScanTime` is the last scan issued. Well test fields share one test date (`SampleDate` and `TestEndDate` are UTC datetimes at local midnight, e.g. 2024-09-16T05:00Z).
