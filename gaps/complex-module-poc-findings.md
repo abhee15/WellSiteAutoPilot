@@ -340,3 +340,26 @@ GUIDED_DRAFT_PROVIDER_IMMUTABLE has a good message, but the 400s carry no field 
 
 ### P67 - The pressure e2e case was dropped
 The PR removes the guided pressure e2e until a simulated CygNet exists (#657), so for now pressure is covered by no cross-process test.
+
+## CL 1108787 (#656, provider chooser and provider-filtered pickers - PR 2) - live verification and SME review
+
+Verified in visible Edge (web changes are served live; no restart needed):
+- "New module" opens a panel with "Provider for the new module" (Choose a provider first / ForeSite / CygNet) and three starters.
+- ForeSite: New threshold module and New contract-only module are enabled; New pressure differential module is disabled.
+- CygNet: shows the warning "Current values only. History is not available for this provider yet."; New threshold module is disabled; contract-only and pressure differential are enabled.
+- Choosing ForeSite then New contract-only module opens an untitled contract-only draft showing "Provider: ForeSite".
+- Opening a saved draft shows "Provider: ForeSite" in the header.
+- tsc, eslint, guided-authoring (13/13) and guided-contract-editor (7/7) vitest, 379 node guards pass. One added line has a middle dot (U+00B7) in a file that is already utf8 and already uses it; no other non-ASCII.
+- Not verified: the provider-filtered quantity and source pickers on a CygNet contract draft (no CygNet assets with current data were exercised in this pass), and a CygNet pressure draft end to end.
+
+### P68 - Disabled starters give no reason
+The starters that do not suit the chosen provider are just greyed out. A user cannot tell why "New threshold module" is off for CygNet or why "New pressure differential module" is off for ForeSite. Suggestion: a one-line reason under each disabled button (e.g. "Needs pump fillage, which only ForeSite serves").
+
+### P69 - New module panel pushes the page around
+The panel stacks the provider select and three full-width buttons above "Open draft", moving the draft picker and the Save/Submit buttons down about 200px, and the select changes width between provider choices. Suggestion: a compact row (provider chip + starter menu), or a modal; keep "Open draft" in place.
+
+### P70 - Provider is set before the author knows what they are building
+The author must pick a provider before choosing what to build, and a provider can never be changed later (#655). A wrong pick means copying the whole contract into a new draft (#659 adds that). Suggestion: start from the use case (e.g. "Rod buckling", "Idle time") and propose the provider the use case needs, with the reason; let the author override.
+
+### P71 - Draft list mixes providers
+The Open draft list shows every draft regardless of provider with no label (the list filter arrives later in #658). Mild, noted to confirm there.
