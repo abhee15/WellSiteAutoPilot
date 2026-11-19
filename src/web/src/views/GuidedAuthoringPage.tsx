@@ -346,8 +346,8 @@ export function GuidedAuthoringPage({
     nextPressure = Boolean(isPressure(next?.manifestJson)),
     section: typeof editorSection = 'module',
   ) {
-    // Contract drafts are edited in the module workbench; this page keeps the older threshold editor.
-    if (next?.id && next.manifestJson && isContractOnlyManifest(next.manifestJson)) {
+    // Drafts that hold rules are edited in the module workbench; this page keeps the older threshold editor.
+    if (next?.id && next.rulesJson) {
       window.location.hash = hashFor('authoring', 'draft:' + next.id);
       return;
     }
