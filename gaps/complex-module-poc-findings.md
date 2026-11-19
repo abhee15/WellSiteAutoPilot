@@ -500,3 +500,9 @@ The filter resets to All providers on reload. An author who works on one provide
 
 - **P96** Not verified live: the adapter tests skip the live check (FORESITE_BASE_URL unset), so Uncertain quality on real stored cards is unconfirmed. Needs a run against a ForeSite with a stored card library.
 
+
+## CL #661 - any discovered daily quantity in the production-day preview
+
+- **P97** Live preview not confirmed: POST production-days-preview with a seeded asset (18_5) returned 503 'The integration gateway could not complete the request.' for no quantity, an invalid quantity and a real-looking one alike, so the new quantity projection was not exercised. A random asset id gives 500 UNEXPECTED_ERROR rather than a 404. Suggest a 404/422 for unknown assets and a distinct error for an unknown quantity.
+- **P98** Build, adapter checks, V2 contract tests, tsc, eslint, vitest 13/13 and 379 guards pass; the generated client must be regenerated (stack restart) before tsc passes, since the request gains an optional quantity field.
+
