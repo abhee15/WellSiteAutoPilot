@@ -17,7 +17,8 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
         new("foresite.daily-average-request/v1", [
             new("assetExternalId", "string", true, "Imported numeric ForeSite well ID."),
             new("startUtc", "date-time", true, "Inclusive production-day start filter, with an explicit offset and whole seconds."),
-            new("endUtc", "date-time", true, "Exclusive production-day start filter, with an explicit offset and whole seconds.")]),
+            new("endUtc", "date-time", true, "Exclusive production-day start filter, with an explicit offset and whole seconds."),
+            new("quantity", "string", false, "The daily field to read per day. Omit for the total inferred fluid rate.")]),
         new("foresite.daily-average-result/v1", [
             new("assetExternalId", "string", true, "Requested ForeSite well ID."),
             new("quantity", "string", true, "ForeSite total inferred fluid rate."),
@@ -63,7 +64,8 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
             await response.Content.LoadIntoBufferAsync(HistoricalReadLimits.MaximumSourceBytes, cancellationToken);
             await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(body, new JsonDocumentOptions { MaxDepth = 16 }, cancellationToken);
-            return Project(document.RootElement, request.AssetExternalId, wellId, from, to, cancellationToken);
+            var projected = Project(document.RootElement, request.AssetExternalId, wellId, from, to, cancellationToken);
+            return request.Quantity is null or Quantity ? projected : ForQuantity(projected, request.Quantity);
         }
         catch (HttpRequestException) { throw new ForeSiteMeasurementException("FORESITE_DAILY_BODY_INVALID"); }
         catch (JsonException) { throw InvalidResponse(); }
@@ -124,6 +126,19 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
             ObservedQuantities = ReadObservedQuantities(root, observed),
             UnitsByQuantity = ReadFieldUnits(root, selected)
         };
+    }
+
+    /// <summary>The same production days, each carrying the value of another populated provider field and that field's unit.</summary>
+    private static ForeSiteDailyAverageResult ForQuantity(ForeSiteDailyAverageResult result, string quantity)
+    {
+        var days = result.Days.Select(day => day with
+        {
+            Value = day.Values is not null && day.Values.TryGetValue(quantity, out var value) ? value : null
+        }).ToArray();
+        string? unit = null;
+        if (days.Any(day => day.Value is not null) && result.UnitsByQuantity?.TryGetValue(quantity, out unit) != true)
+            throw new ForeSiteMeasurementException("FORESITE_DAILY_UNIT_MISSING");
+        return result with { Quantity = quantity, Unit = unit, Days = days, ObservedQuantities = null };
     }
 
     private static string? ReadUnit(JsonElement root)
@@ -193,6 +208,7 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
         from = to = default;
         return request.AssetExternalId is { Length: > 0 and <= 20 } &&
             long.TryParse(request.AssetExternalId, NumberStyles.None, CultureInfo.InvariantCulture, out id) && id > 0 &&
+            (request.Quantity is null || ForeSiteDailyAverageContract.IsObservableQuantityName(request.Quantity)) &&
             HasOffset(request.StartUtc) && HasOffset(request.EndUtc) &&
             DateTimeOffset.TryParseExact(request.StartUtc, RequestTimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out from) &&
             DateTimeOffset.TryParseExact(request.EndUtc, RequestTimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out to) &&

@@ -1383,7 +1383,7 @@ v1.MapPost("/guided-module-drafts/{id:guid}/production-days-preview",
         CancellationToken cancellationToken) =>
     {
         var result = await preview.ReadProductionDaysAsync(id, request.ExpectedRevision, request.AssetId,
-            request.StartUtc, request.EndUtc, access.Subject, cancellationToken);
+            request.StartUtc, request.EndUtc, access.Subject, request.Quantity, cancellationToken);
         return new GuidedProductionDaysPreviewResponse(result.Unit, result.RetrievedAtUtc,
             result.Days.Select(day => new GuidedProductionDayResponse(day.Start, day.End, day.Value)).ToArray());
     })

@@ -664,7 +664,7 @@ it('previews a saved revision with an imported well without enabling submission'
     await act(async () => finishOldWindow({ data: trendCatalog } as never));
     expect(screen.queryByRole('option', { name: 'PumpFillage (%)' })).toBeNull();
     fireEvent.change(quantity, { target: { value: 'OilRateInferred' } });
-    expect(screen.getByText('The daily series preview supports inferred total fluid rate.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Read last 7 days of production' })).toBeTruthy();
     fireEvent.change(quantity, { target: { value: 'TotalFluidRateInferred' } });
     const dailyRequest = discover.mock.lastCall?.[0].body;
     const daily = vi.mocked(previewGuidedModuleProductionDays);
@@ -686,7 +686,16 @@ it('previews a saved revision with an imported well without enabling submission'
       assetId: 'imported',
       startUtc: dailyRequest?.startUtc,
       endUtc: dailyRequest?.endUtc,
+      quantity: 'TotalFluidRateInferred',
     });
+
+    daily.mockResolvedValueOnce({
+      data: { unit: 'STB/d', retrievedAtUtc: '2026-11-12T15:00:00Z', days: [] },
+    } as never);
+    fireEvent.change(quantity, { target: { value: 'OilRateInferred' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Read last 7 days of production' }));
+    await waitFor(() => expect(daily.mock.lastCall?.[0].body).toMatchObject({ quantity: 'OilRateInferred' }));
+    fireEvent.change(quantity, { target: { value: 'TotalFluidRateInferred' } });
 
     discover.mockResolvedValueOnce({
       data: {

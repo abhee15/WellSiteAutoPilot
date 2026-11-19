@@ -5,7 +5,9 @@ namespace WellSiteAutoPilot.Integration.Contracts.Providers;
 public sealed record ForeSiteDailyAverageRequest(
     [property: JsonRequired] string AssetExternalId,
     [property: JsonRequired] string StartUtc,
-    [property: JsonRequired] string EndUtc);
+    [property: JsonRequired] string EndUtc,
+    // The provider's own daily field to read per production day. Null reads the total inferred fluid rate, as before.
+    string? Quantity = null);
 
 public sealed record ForeSiteDailyAverageRecord(string Id, DateTimeOffset Start, DateTimeOffset End, decimal? Value)
 {
