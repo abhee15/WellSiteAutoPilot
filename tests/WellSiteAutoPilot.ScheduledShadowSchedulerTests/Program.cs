@@ -15,6 +15,7 @@ using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Logic;
 
 CalendarScheduleChecks.Run();
+ScheduleBlockChecks.Run();
 
 // Presentation and dispatch share fixed UTC cadence, including exact boundaries and offsets.
 var presentationStart = new DateTimeOffset(2026, 11, 1, 1, 30, 0, TimeSpan.FromHours(-4));

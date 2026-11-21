@@ -61,6 +61,12 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
                     ScheduledShadowDispatchOutcome.CadenceBelowMinimum or
                     ScheduledShadowDispatchOutcome.DispatchFailed);
 
+            // A block opening or closing changes what a schedule's page should say; one that merely continues does not.
+            if (scope.ServiceProvider.GetService<IScheduleBlockStore>()?.Record(result.Decisions, timeProvider.GetUtcNow()) == true)
+            {
+                changes.Notify(ChangeArea.ConfiguredLogic);
+            }
+
             // Retry intents left undecided by an interrupted gate pass.
             var gate = scope.ServiceProvider.GetRequiredService<AutonomousControlService>();
             if (await gate.SweepAsync(batchSize, cancellationToken) > 0)

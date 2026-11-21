@@ -37,6 +37,14 @@ var bootstrapAdministrator = config["Identity:BootstrapAdministrator"]
         ? $"{Environment.UserDomainName}\\{Environment.UserName}"
         : "LOCAL\\wsa-dev-operator");
 
+// Scheduled runs that read live provider data act as this existing, active security user (Access, Users). Without it
+// they are refused with EXECUTION_READ_AUTHORITY_REQUIRED, which the Schedules page shows as the reason a run did not start.
+var schedulerPrincipal = config["Scheduler:ReadAuthority:ServicePrincipalUserId"];
+if (!string.IsNullOrWhiteSpace(schedulerPrincipal) && !Guid.TryParse(schedulerPrincipal, out _))
+{
+    throw new InvalidOperationException("Scheduler:ReadAuthority:ServicePrincipalUserId must be a user id (a GUID) or empty.");
+}
+
 const string natsUrl = "nats://127.0.0.1:4222";
 var natsExternal = string.Equals(config["Nats:Mode"], "External", StringComparison.OrdinalIgnoreCase);
 
@@ -147,6 +155,13 @@ var server = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Server>("serve
     .WithEnvironment("Security__AuthenticationMode", auth)
     .WithEnvironment("Security__ServiceKey", serverServiceKey)
     .WithEnvironment("Security__BootstrapAdministrators__0", bootstrapAdministrator)
+    .WithEnvironment(context =>
+    {
+        if (!string.IsNullOrWhiteSpace(schedulerPrincipal))
+        {
+            context.EnvironmentVariables["Scheduler__ReadAuthority__ServicePrincipalUserId"] = schedulerPrincipal;
+        }
+    })
     .WithEnvironment("Messaging__Nats__Url", natsUrl)
     .WithEnvironment("Messaging__Nats__Token", natsToken ?? string.Empty)
     .WithEnvironment("ConnectionStrings__WellSiteAutoPilot", database.DatabaseConnectionString))
