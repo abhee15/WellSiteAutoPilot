@@ -48,7 +48,7 @@ public sealed partial class CygNetApiClient : ICygNetClient
             foreach (var page in wanted.Take(MaximumFacilities).Chunk(PageSize))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                foreach (dynamic record in client.ReadFacilityRecords(runtime.FacilityTagList(page), CancellationToken.None))
+                foreach (dynamic record in client.ReadFacilityRecords((dynamic)runtime.FacilityTagList(page), CancellationToken.None))
                     result.Add(new CygNetFacility((string)record.Tag.FacilityId, (string?)record.Description, (string?)record.Type, (string?)record.Category));
             }
             return new CygNetFacilityList(result, truncated);
