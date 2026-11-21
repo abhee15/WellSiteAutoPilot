@@ -59,6 +59,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     ResponseWriter = (context, report) => context.Response.WriteAsJsonAsync(new
     {
         status = report.Status.ToString(), runtime = "DotNet",
+        version = typeof(Program).Assembly.GetName().Version!.ToString(),
         moduleSdkVersion = typeof(WellSiteAutoPilot.ModuleSdk.ILogicModuleV1).Assembly.GetName().Version!.ToString(3)
     })
 });

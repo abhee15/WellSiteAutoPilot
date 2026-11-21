@@ -10,6 +10,9 @@ public sealed class PlatformInformationService(
     string integrationGatewayUrl,
     string dotNetWorkerUrl) : IPlatformInformationService
 {
+    /// <summary>Shown when a service is down or does not report its own version.</summary>
+    private const string UnreportedVersion = "unknown";
+
     public async Task<IReadOnlyCollection<PlatformComponent>> GetComponentsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -48,6 +51,7 @@ public sealed class PlatformInformationService(
                 cancellationToken);
 
             string? sdk = null;
+            string? reportedVersion = null;
             if (response.IsSuccessStatusCode && response.Content.Headers.ContentLength is null or < 8192)
             {
                 try
@@ -55,24 +59,26 @@ public sealed class PlatformInformationService(
                     using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
                     if (json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("moduleSdkVersion", out var version) &&
                         version.ValueKind == JsonValueKind.String && version.GetString() is { Length: <= 64 } text) sdk = text;
+                    if (json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("version", out var own) &&
+                        own.ValueKind == JsonValueKind.String && own.GetString() is { Length: > 0 and <= 64 } ownText) reportedVersion = ownText;
                 }
                 catch (JsonException) { /* Older health endpoints return plain text. */ }
             }
-            return new PlatformComponent(displayName, "installed", response.IsSuccessStatusCode
+            return new PlatformComponent(displayName, reportedVersion ?? UnreportedVersion, response.IsSuccessStatusCode
                 ? PlatformComponentStatus.Healthy : PlatformComponentStatus.Degraded, sdk);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return new PlatformComponent(
                 displayName,
-                "installed",
+                UnreportedVersion,
                 PlatformComponentStatus.Unavailable);
         }
         catch (HttpRequestException)
         {
             return new PlatformComponent(
                 displayName,
-                "installed",
+                UnreportedVersion,
                 PlatformComponentStatus.Unavailable);
         }
     }

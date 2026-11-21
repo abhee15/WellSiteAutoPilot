@@ -13,8 +13,9 @@ internal static class RuntimeReadinessChecks
         var worker = components.Single(c => c.Name == PlatformComponentNames.DotNetRuntime);
         var gateway = components.Single(c => c.Name == PlatformComponentNames.Gateway);
         if (worker.Status != PlatformComponentStatus.Healthy || worker.ModuleSdkVersion != "1.1.0" ||
-            gateway.Status != PlatformComponentStatus.Healthy || gateway.ModuleSdkVersion is not null)
-            throw new InvalidOperationException("Readiness lost the worker SDK or rejected legacy plain-text health.");
+            gateway.Status != PlatformComponentStatus.Healthy || gateway.ModuleSdkVersion is not null ||
+            worker.Version != "2.3.4.5" || gateway.Version != "unknown")
+            throw new InvalidOperationException("Readiness lost the worker SDK/version or mishandled legacy plain-text health.");
         Console.WriteLine("Worker SDK and legacy health response checks passed.");
     }
 
@@ -22,7 +23,7 @@ internal static class RuntimeReadinessChecks
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(
-                request.RequestUri!.Host == "worker" ? """{"status":"Healthy","runtime":"DotNet","moduleSdkVersion":"1.1.0"}""" : "Healthy",
+                request.RequestUri!.Host == "worker" ? """{"status":"Healthy","runtime":"DotNet","version":"2.3.4.5","moduleSdkVersion":"1.1.0"}""" : "Healthy",
                 Encoding.UTF8, "application/json") });
     }
 }
