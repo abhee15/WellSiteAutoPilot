@@ -33,6 +33,30 @@ internal static class HistoryChecks
             strokeRate.Samples.Count == 2 && strokeRate.Samples[0].Value == 10.3m && strokeRate.Samples[1].Value == 11.4m &&
             strokeRate.Samples.All(sample => sample.Unit == "SPM" && sample.Quality == "Unknown"),
             "Stroke-rate history lost its native quantity mapping, reported unit, quality or measured points.");
+        // Any catalogue field reads as history. Elapsed times trend in hours and counts carry no unit on real wells.
+        handler.Payload = """
+            [{"ErrorMessage":"Success","PointUDC":"IDLE","Units":"h","PointValues":[{"Timestamp":"2026-11-01T06:00:00Z","Value":1.5}]}]
+            """;
+        var idle = await provider.ReadHistoryAsync(request with { Quantity = "IdleTimeYesterday", MaximumSamples = 2 });
+        Check(handler.Body == "[\"IdleTimeYesterday\"]" && idle.Samples[0].Value == 5400m && idle.Samples[0].Unit == "s",
+            "Hours were not converted to the catalogue unit.");
+        handler.Payload = """
+            [{"ErrorMessage":"Success","PointUDC":"CYC","PointValues":[{"Timestamp":"2026-11-01T06:00:00Z","Value":12}]}]
+            """;
+        var cycles = await provider.ReadHistoryAsync(request with { Quantity = "CyclesToday", MaximumSamples = 2 });
+        Check(cycles.Samples[0].Unit == "count" && cycles.Samples[0].Value == 12m, "A unitless count was not read as a count.");
+        foreach (var (quantity, unit) in new[] { ("CyclesToday", "kg"), ("CurrentSPM", "Hz"), ("RunTimeToday", "min") })
+        {
+            handler.Payload = "[{\"ErrorMessage\":\"Success\",\"Units\":\"" + unit + "\",\"PointValues\":[{\"Timestamp\":\"2026-11-01T06:00:00Z\",\"Value\":1}]}]";
+            try { await provider.ReadHistoryAsync(request with { Quantity = quantity }); throw new InvalidOperationException("A unit that is not the catalogue's was accepted."); }
+            catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_UNIT_MISMATCH") { }
+        }
+        try { await provider.ReadHistoryAsync(request with { Quantity = "NotAField" }); throw new InvalidOperationException("An unknown field was accepted."); }
+        catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_QUANTITY_UNSUPPORTED") { }
+        var keys = ForeSiteAdapter.Descriptor.Operations!.Select(operation => operation.Key).ToHashSet();
+        Check(keys.Count(key => key.StartsWith("history.", StringComparison.Ordinal)) == ForeSiteSurveillanceCatalogue.All.Count &&
+            keys.Contains("history.pump-fillage") && keys.Contains("history.current-spm"), "Every surveillance field must be readable as history.");
+        Check(ForeSiteAdapter.Descriptor.OperationGroups!.All(group => group.Key != "well-trends"), "History must not have its own section.");
         handler.Payload = null;
         foreach (var bad in new[] { request with { EndUtc = start }, request with { EndUtc = start.AddDays(32) },
             request with { MaximumSamples = 0 }, request with { MaximumSamples = 1001 } })

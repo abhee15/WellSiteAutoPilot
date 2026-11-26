@@ -73,16 +73,7 @@ public static class ForeSiteAdapter
                     new("[].load", "decimal[]", true, "2–1024 loads paired by index with position.")
                 ], "array (maximum 16 cards)")
             },
-            HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
-                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
-                "Trend responses do not supply quality; returned quality is Unknown.") with
-            { Documentation = AdapterReferenceExamples.History("101", "PumpFillage", "%", "foresite:trends", "Unknown") with
-                { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentPumpFillage. Whole-second UTC bounds, no implicit aggregation." } },
-            HistoricalReadLimits.Operation("history.stroke-rate", "SPM", WellResourceKind, 6,
-                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
-                "Trend responses do not supply quality; returned quality is Unknown.") with
-            { Documentation = AdapterReferenceExamples.History("101", "SPM", "SPM", "foresite:trends", "Unknown") with
-                { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentSPM. Whole-second UTC bounds, no implicit aggregation." } },
+            .. ForeSiteSurveillanceOperations.History,
             ForeSiteDailyAverageReader.Operation,
             ForeSiteActiveAlarmReader.Operation,
             ForeSiteReference.ConfigurationOperation,
@@ -91,7 +82,7 @@ public static class ForeSiteAdapter
         ], OperationGroups:
         [
             new("surveillance", "Surveillance data", "Current controller surveillance measurements: the catalogued numeric fields of the ForeSite well-status document, in ForeSite's default (imperial) unit system.", "1.0",
-                ForeSiteSurveillanceOperations.Keys,
+                [.. ForeSiteSurveillanceOperations.Keys, .. ForeSiteSurveillanceOperations.HistoryKeys],
                 [new AdapterWorkflowGuide("applicable-surveillance", "Read an applicable surveillance quantity",
                     "Recommended ForeSite sequence; the installed current-value reader does not yet perform the AvailableQuantities precheck.",
                     "ReferenceOnly", ForeSiteSurveillanceOperations.Keys,
@@ -108,9 +99,8 @@ public static class ForeSiteAdapter
                             Requirement: "LastScanTime is only the last scan attempt, and retrieval time is not acquisition time.",
                             OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")
                     ])]),
-            new("daily-values", "Daily values", "Latest finished production-day values of the ForeSite daily record, in ForeSite's default (imperial) unit system.", "1.0", ForeSiteDailyOperations.Keys),
+            new("daily-values", "Daily values", "Latest finished production-day values of the ForeSite daily record, in ForeSite's default (imperial) unit system.", "1.0", [.. ForeSiteDailyOperations.Keys, ForeSiteDailyAverageReader.Operation.Key]),
             new("well-configuration", "Well configuration data", "Well identity and classification details and passive saved setpoint groups.", "1.0", ["configuration.well-details", ForeSiteSavedSetpointReader.Operation.Key]),
-            new("well-trends", "Well trend data", "Raw historical samples and provider-reported production-day values.", "1.0", ["history.pump-fillage", "history.stroke-rate", ForeSiteDailyAverageReader.Operation.Key]),
             new("well-test", "Well test", "Inspect the identity, dates and reported status of the latest test.", "1.0", [ForeSiteWellTestReference.Latest.Key]),
             new("alarms", "Alarms", "Current well alarms as reported by ForeSite.", "1.0", [ForeSiteActiveAlarmReader.Operation.Key]),
             new("cards", "Card data", "Structured CURRENT and FULL surface cards, preserving paired position/load arrays, source units and capture timestamps. Downhole cards are not exposed.", "1.0", ["current.surface-cards"])

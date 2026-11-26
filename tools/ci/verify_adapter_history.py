@@ -49,13 +49,13 @@ call("foresite", registered | {"input": read | {"quantity": "NotSupported"}}, st
 call("foresite", request | {"read": read | {"maximumSamples": 1001}}, status=400)
 call("foresite", request | {"read": read | {"endUtc": read["startUtc"]}}, status=400)
 call("foresite", request | {"read": read | {"quantity": "NotSupported"}}, status=503)
-stroke_rate = registered | {"input": read | {"quantity": "SPM", "maximumSamples": 2}}
-stroke_path = "reads/history.stroke-rate"
+stroke_rate = registered | {"input": read | {"quantity": "CurrentSPM", "maximumSamples": 2}}
+stroke_path = "reads/history.current-spm"
 call("foresite", stroke_rate, caller="worker", status=403, operation=stroke_path)
 call("foresite", registered, status=400, operation=stroke_path)
 call("foresite", stroke_rate, status=400, operation=registered_path)
 stroke_series = call("foresite", stroke_rate, operation=stroke_path)
-assert stroke_series["quantity"] == "SPM" and stroke_series["sourcePoint"] == "SIMULATED-SPSTRN", stroke_series
+assert stroke_series["quantity"] == "CurrentSPM" and stroke_series["sourcePoint"] == "SIMULATED-SPSTRN", stroke_series
 assert [(x["value"], x["unit"], x["quality"]) for x in stroke_series["samples"]] == [
     (10.3, "SPM", "Unknown"), (11.4, "SPM", "Unknown")], stroke_series
 cygnet = request | {"settings": {"domain": "1", "siteService": "SITE.UIS"},
