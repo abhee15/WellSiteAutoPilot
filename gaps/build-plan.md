@@ -129,3 +129,19 @@ Open before PR 1: draft PR not opened (gh missing); CI not run; web not re-check
 
 The main intent is Logic Modules that adjust setpoints, so wells without a SCADA connection add little value. Discovery should offer only the ForeSite assets that have a SCADA connection, instead of every well. Not prioritised yet; to be discussed first. Open points: how ForeSite exposes the SCADA link (to check in ForeSiteService), whether it is a filter on the scoped discovery call or a separate query, and how import treats wells whose connection is added later.
 
+
+## Finding: ForeSite user-configurable surveillance fields (UDCs), checked 26 Nov
+
+Source: ForeSiteService Trunk (ConfigurableUDCInfo.cs, SurveillanceService.Net10.cs, WellGroupStatusDTO.cs) and the saved well 1596 payload.
+
+- ForeSite keeps up to 60 optional field slots per well type. Each slot is an installation setting with Name (free text, for example "Daily Volume today Steam"), UDC (the CygNet point suffix, for example VOLSTEAMT), UnitKey, UnitCategory, CygNetPointType, an optional daily-average name (dailyAvgName) and three switches: UseForWellStatus, UseForWellTrend, UseForGroupStatus.
+- The status document carries the values as strings OptionalField01..OptionalField60. Slot N is described by OptionalFieldInfo[N]: Name, UDC, Unit and Present. Present says whether this well really has the point, so presence is per well, but the list of configured names and units is per well type and is known without any well.
+- The Units block already holds the unit per slot (well 1596: OptionalField01 bbl, 02 bbl, 03 bbl/d; 04..60 null). The configured names for those three slots are "Daily Volume today Steam", "Daily Steam yesterday" and "D steam average rate", all Present=false on that well.
+- Discovery routes that return the configured list without a well: POST Surveillance/OptionalQuantities/{wellType} (only Present, analog, UseForWellTrend entries) and GET Surveillance/OptionalPointFieldList/{wellType} (names only). The same slots feed the daily average through OptionalDailyAverageUDCDTO (matched by UDC) when getOptionalUDCs is true.
+
+Consequences for authoring:
+1. These are not free text. The author's list should include the configured optional fields (name plus unit) next to the fixed catalogue, per well type, read from ForeSite at authoring time. The fixed catalogue stays generated from source; the optional list is installation data and must be read from the connection.
+2. A module reads a slot by its Name, but the slot index can differ per well type and the Name is editable in ForeSite. The reader must resolve Name -> slot through OptionalFieldInfo at read time, check the unit, and fail closed if the name is missing or ambiguous.
+3. Values are strings, so parsing must be strict (invariant culture, empty is missing, never zero).
+4. A manual entry (name and unit) stays as the exception path. It is accepted only when the read can verify the unit against the live Units block.
+5. Open: whether OptionalQuantities needs a well type the author must pick, or can be merged across the well types of the connection.
