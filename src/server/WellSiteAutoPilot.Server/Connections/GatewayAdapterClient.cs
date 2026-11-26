@@ -59,7 +59,8 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         ArgumentNullException.ThrowIfNull(read);
         using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(read.AdapterKey)}/current");
         request.Content = JsonContent.Create(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,
-            read.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal), read.ExternalId, read.Quantity));
+            read.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal), read.ExternalId, read.Quantity,
+            read.Capability));
         using var response = await SendAsync(request, cancellationToken, allowErrorResponse: true);
         try
         {

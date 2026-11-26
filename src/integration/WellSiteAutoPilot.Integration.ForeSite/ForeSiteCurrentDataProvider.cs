@@ -15,6 +15,16 @@ public sealed class ForeSiteCurrentDataProvider(ForeSiteSession session) : ICurr
             _ => await ForeSiteLatestDailyValue.ReadAsync(session, assetExternalId, quantity, TimeProvider.System, cancellationToken)
         };
 
+    /// <summary>
+    /// A daily declaration reads the production-day record even when a controller field shares its name; any other
+    /// declaration keeps the name-based routing above.
+    /// </summary>
+    public async ValueTask<EngineeringValue> GetCurrentAsync(string assetExternalId, string quantity, string? capability,
+        CancellationToken cancellationToken = default) =>
+        capability == AdapterReadRules.EngineeringDailyCapability
+            ? await ForeSiteLatestDailyValue.ReadAsync(session, assetExternalId, quantity, TimeProvider.System, cancellationToken)
+            : await GetCurrentAsync(assetExternalId, quantity, cancellationToken);
+
     /// <summary>Read catalogued controller quantities from one native status document.</summary>
     public Task<IReadOnlyDictionary<string, EngineeringValue>> GetCurrentSnapshotAsync(
         string assetExternalId, IReadOnlyCollection<string> quantities,

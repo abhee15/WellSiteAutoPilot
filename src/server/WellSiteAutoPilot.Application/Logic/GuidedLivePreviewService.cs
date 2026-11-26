@@ -101,7 +101,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     {
         try
         {
-            var value = await ReadCurrentAsync(source, input.Quantity, cancellationToken);
+            var value = await ReadCurrentAsync(source, input.Quantity, cancellationToken, input.RequiredCapability);
             var structuredInput = input.RequiredCapability == AdapterReadRules.StructuredCurrentCapability;
             if ((value.StructuredValue is not null) != structuredInput)
                 return new(input.Id, input.Quantity, "Rejected", "EXECUTION_INPUT_SHAPE_UNSUPPORTED");
@@ -134,10 +134,12 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     private static bool SupportsCurrentInput(LogicModuleManifest manifest, PreviewSource source, LogicDataRequirement input) =>
         UnsupportedReason(manifest, source, input) is null;
 
-    private Task<EngineeringValue> ReadCurrentAsync(PreviewSource source, string quantity, CancellationToken cancellationToken) =>
+    private Task<EngineeringValue> ReadCurrentAsync(PreviewSource source, string quantity, CancellationToken cancellationToken,
+        string? capability = null) =>
         gateway.GetCurrentAsync(new(source.Connection.AdapterKey, source.Connection.Id, source.Connection.Revision,
             source.Binding.ExternalId, quantity,
-            source.Connection.Settings.ToDictionary(entry => entry.Key, entry => (string?)entry.Value, StringComparer.Ordinal)),
+            source.Connection.Settings.ToDictionary(entry => entry.Key, entry => (string?)entry.Value, StringComparer.Ordinal),
+            capability),
             cancellationToken);
 
     public async Task<HistoricalReadResult> ReadHistoryAsync(Guid draftId, int expectedRevision, Guid assetId, string inputId,

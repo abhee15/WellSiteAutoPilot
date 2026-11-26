@@ -3,17 +3,20 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Application.Logic.Rules;
 
 /// <summary>
 /// Turns an authored contract and its rules into the immutable package that is reviewed, approved and run.
-/// The package is a version 1 declarative module, so it reads current scalar values only; anything else is refused
+/// The package is a version 1 declarative module, so it reads scalar numbers only (current readings and, by capability,
+/// the latest production-day value); anything else is refused
 /// here, with a reason, instead of being packaged and failing at run time.
 /// </summary>
 public static class RulesPackageBuilder
 {
     private const string CurrentCapability = "engineering.current";
+    private const string DailyCapability = AdapterReadRules.EngineeringDailyCapability;
     private static readonly DateTimeOffset ZipEpoch = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
@@ -33,10 +36,9 @@ public static class RulesPackageBuilder
             throw Invalid("GUIDED_RULES_RULE_REQUIRED", "Add at least one rule before submitting.");
         foreach (var input in manifest.DataRequirements)
         {
-            if (input.Access != "Current" ||
-                (input.RequiredCapability is not null && input.RequiredCapability != CurrentCapability))
+            if (input.Access != "Current" || input.RequiredCapability is not (null or CurrentCapability or DailyCapability))
                 throw Invalid("GUIDED_RULES_INPUT_UNSUPPORTED",
-                    "Only current values can run in a module today. Remove '" + input.Quantity + "' or use a current reading.");
+                    "Only current and daily values can run in a module today. Remove '" + input.Quantity + "' or use one of those.");
         }
 
         var issues = RulesEngine.Validate(definition, manifest.DataRequirements.Select(input => input.Quantity).ToArray());
@@ -52,7 +54,11 @@ public static class RulesPackageBuilder
             OutputRequirements = null,
             CommandRequirements = [],
             DataRequirements = manifest.DataRequirements
-                .Select(input => input with { ValueSchema = null, RequiredCapability = null }).ToArray(),
+                .Select(input => input with
+                {
+                    ValueSchema = null,
+                    RequiredCapability = input.RequiredCapability == DailyCapability ? DailyCapability : null
+                }).ToArray(),
             ParameterSchema = schema.RootElement.Clone()
         };
         await LogicModuleManifestValidator.ValidateSchemasAsync(executable, cancellationToken);

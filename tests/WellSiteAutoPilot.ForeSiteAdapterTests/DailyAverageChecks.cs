@@ -93,7 +93,38 @@ internal static class DailyAverageChecks
         await Reject(Envelope(Row, "{}"), "FORESITE_DAILY_UNIT_MISSING");
         await Reject(Envelope(string.Join(',', Enumerable.Repeat(Row, 65))), "FORESITE_DAILY_ROW_LIMIT");
         await Reject(new string(' ', HistoricalReadLimits.MaximumSourceBytes + 1), "FORESITE_PAYLOAD_TOO_LARGE");
+        await DailyCapabilityRoutingAsync();
         Console.WriteLine("ForeSite daily averages: recorded shape, period boundaries, identity, malformed rows, units and source bounds passed.");
+    }
+
+    // MotorAmps is both a controller field and a production-day field: the declared capability, not the name, picks the read.
+    private static async Task DailyCapabilityRoutingAsync()
+    {
+        var end = DateTimeOffset.UtcNow.AddHours(-6);
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var finishedDay = "{\"Id\":8,\"WellId\":101,\"StartDateTime\":\"" + end.AddDays(-1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", culture) +
+            "\",\"EndDateTime\":\"" + end.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", culture) + "\",\"MotorAmps\":41.5}";
+        var routes = new List<string>();
+        using var client = new HttpClient(new Routes(routes, "{\"Units\":{\"MotorAmps\":{\"UnitKey\":\"A\"}},\"Values\":[" + finishedDay + "]}"))
+        { BaseAddress = new Uri("http://foresite.test/prefix/") };
+        var provider = new ForeSiteCurrentDataProvider(new(client));
+        var value = await provider.GetCurrentAsync("101", "MotorAmps", AdapterReadRules.EngineeringDailyCapability, CancellationToken.None);
+        if (value is not { Value: 41.5m, Unit: "A" } || value.TimestampKind != ForeSiteLatestDailyValue.TimestampKind ||
+            routes.Count != 1 || !routes[0].Contains("/DailyAverage/101/", StringComparison.Ordinal))
+            throw new InvalidOperationException("A daily declaration must read the production-day record even when a controller field shares its name.");
+    }
+
+    private sealed class Routes(List<string> seen, string daily) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/prefix/TokenService/CreateToken") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+            seen.Add(path);
+            return Task.FromResult(path.StartsWith("/prefix/Surveillance/Well/DailyAverage/101/", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(daily, Encoding.UTF8, "application/json") }
+                : throw new InvalidOperationException("A daily declaration must not read the controller document."));
+        }
     }
 
     private static string Envelope(string rows, string unit = Unit) => "{\"Units\":" + unit + ",\"Values\":[" + rows + "]}";

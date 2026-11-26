@@ -34,8 +34,8 @@ internal static class ScalarRuntimeChecks
             "A provider daily field was refused assignment.");
         Assert(!foresite.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringCurrentCapability, SchemaId),
             "A daily field was accepted as a current reading.");
-        Assert(!foresite.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringDailyCapability, null),
-            "A daily declaration without a schema identity was accepted.");
+        Assert(foresite.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringDailyCapability, null),
+            "A rules module declares a daily value by capability alone and must be accepted.");
         Assert(!foresite.AllowsCurrentRead("Gross Rate", AdapterReadRules.EngineeringDailyCapability, SchemaId),
             "A non-identifier daily name was accepted.");
         Assert(!cygnet.AllowsCurrentRead("GrossRate", AdapterReadRules.EngineeringDailyCapability, SchemaId),

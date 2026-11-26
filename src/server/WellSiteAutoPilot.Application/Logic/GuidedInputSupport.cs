@@ -40,8 +40,10 @@ public static class GuidedInputSupport
     public static bool ScalarDeclarationIsNumeric(LogicDataRequirement input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        return !AdapterReadRules.IsScalarCapability(input.RequiredCapability) ||
-            input.ValueSchema is { } schema && RootType(schema) == "number";
+        if (!AdapterReadRules.IsScalarCapability(input.RequiredCapability)) return true;
+        // A rules module declares a daily value by capability alone, so only that capability may omit the schema.
+        if (input.ValueSchema is null) return input.RequiredCapability == AdapterReadRules.EngineeringDailyCapability;
+        return RootType(input.ValueSchema) == "number";
     }
 
     /// <summary>A history preview reads a numeric series, so the input is either schema-less or declared as a plain number.</summary>
