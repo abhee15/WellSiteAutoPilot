@@ -25,3 +25,7 @@ Each one is triaged into a gap in `complex-module-poc-findings.md` or fixed on `
 ## O9 - Module authoring is a framework feature
 
 Sri: always look at module authoring as a framework feature, not a ForeSite feature. ForeSite is the first adapter; the authoring model, validation, expression helper, history/range operations, live preview and package contract must stay adapter-neutral and be driven by adapter capability catalogues (inputs, settings, history, daily, setpoints). Plan: review every new piece (daily registry, history catalogue, capability routing, expression checker) for ForeSite-specific assumptions; keep ForeSite names in the adapter, not in Application or web; add a second-adapter check (Wellflo or simulator) to prove neutrality.
+
+## O10 - Modules must be buildable outside the application
+
+Sri: make sure modules can be built from outside the application. Plan: the package contract (manifest, rules/code, tests) is the single artifact; the authoring kit/CLI validates, tests and packs it offline using the same checks as the app (including the expression checker, driven by an adapter capability catalogue file); import into any deployment through the existing package import path. Ties to O5 (outside-WSA mode) and O9 (framework feature). Verify with an end-to-end: author in a folder, validate and test with the kit, import, review, publish.
