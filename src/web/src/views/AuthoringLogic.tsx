@@ -265,6 +265,29 @@ function RecommendationFields({
           onChange={(event) => set({ maximumChange: numberOf(event.target.value) })}
         />
       </div>
+      <div className="authoring-card-body">
+        {(
+          [
+            ['minimumFrom', t('flow.minimumFrom')],
+            ['maximumFrom', t('flow.maximumFrom')],
+            ['maximumChangeFrom', t('flow.maximumChangeFrom')],
+          ] as const
+        ).map(([key, label]) => (
+          <SelectField
+            key={key}
+            label={label}
+            value={recommend[key] ?? ''}
+            onChange={(event) => set({ [key]: event.target.value || null })}
+          >
+            <option value="">{t('flow.limitFixed')}</option>
+            {names.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </SelectField>
+        ))}
+      </div>
     </>
   );
 }

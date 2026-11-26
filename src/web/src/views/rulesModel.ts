@@ -24,6 +24,9 @@ export interface RuleRecommendation {
   minimum: number | null;
   maximum: number | null;
   maximumChange: number | null;
+  minimumFrom: string | null;
+  maximumFrom: string | null;
+  maximumChangeFrom: string | null;
 }
 
 export interface RuleItem {
@@ -75,6 +78,9 @@ function recommendationOf(value: unknown): RuleRecommendation | null {
     minimum: numberOrNull(item.minimum),
     maximum: numberOrNull(item.maximum),
     maximumChange: numberOrNull(item.maximumChange),
+    minimumFrom: textOrNull(item.minimumFrom),
+    maximumFrom: textOrNull(item.maximumFrom),
+    maximumChangeFrom: textOrNull(item.maximumChangeFrom),
   };
 }
 
@@ -198,6 +204,9 @@ export const blankRecommendation: RuleRecommendation = {
   minimum: null,
   maximum: null,
   maximumChange: null,
+  minimumFrom: null,
+  maximumFrom: null,
+  maximumChangeFrom: null,
 };
 
 const outcomePattern = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -225,7 +234,8 @@ export function logicIncomplete(model: RulesModel, takenNames: string[]): boolea
     if (rule.when.trim() === '' || rule.reason.trim() === '' || !outcomePattern.test(rule.outcomeCode)) return true;
     const recommend = rule.recommend;
     if (recommend && (recommend.setpoint.trim() === '' || recommend.valueExpression.trim() === '')) return true;
-    if (recommend?.maximumChange != null && (recommend.maximumChange <= 0 || !recommend.currentValue)) return true;
+    if (recommend?.maximumChange != null && recommend.maximumChange <= 0 && !recommend.maximumChangeFrom) return true;
+    if ((recommend?.maximumChange != null || recommend?.maximumChangeFrom) && !recommend.currentValue) return true;
   }
   return false;
 }
