@@ -17,31 +17,93 @@ import {
   updateRule,
 } from './rulesModel';
 import type { RuleRecommendation, RulesModel } from './rulesModel';
+import { checkExpression } from './expressionCheck';
+import type { ExpressionIssue, ExpressionKind } from './expressionCheck';
+import type { MessageKey } from '../localization';
 
 const numberOf = (value: string) => (value === '' ? null : Number(value));
 
-/** An expression with the values and functions it may use, one click away. */
+const kindKey: Record<ExpressionKind, MessageKey> = {
+  number: 'flow.exprGivesNumber',
+  boolean: 'flow.exprGivesBoolean',
+  text: 'flow.exprGivesText',
+};
+
+/** The refusal in words, with the place it was found so a long expression is easy to fix. */
+function issueText(issue: ExpressionIssue, text: string): string {
+  const [first, second] = issue.detail.split('|');
+  const at = t('flow.exprAt', { position: issue.position + 1, text: text.slice(issue.position, issue.position + 12) });
+  const message = (() => {
+    switch (issue.code) {
+      case 'unknownName':
+        return t('flow.exprUnknownName', { name: first });
+      case 'unknownFunction':
+        return t('flow.exprUnknownFunction', { name: first });
+      case 'arguments':
+        return t('flow.exprArguments', { name: first, count: second });
+      case 'needs':
+        return t('flow.exprNeeds', {
+          what: first,
+          kind: second === 'number' ? t('flow.kindNumber') : t('flow.kindBoolean'),
+        });
+      case 'char':
+        return t('flow.exprChar', { text: first });
+      case 'unexpected':
+        return t('flow.exprUnexpected', { text: first });
+      case 'number':
+        return t('flow.exprNumber', { text: first });
+      case 'textOpen':
+        return t('flow.exprTextOpen');
+      case 'ends':
+        return t('flow.exprEnds');
+      case 'bracket':
+        return t('flow.exprBracket');
+      case 'call':
+        return t('flow.exprCall');
+      case 'chain':
+        return t('flow.exprChain');
+      case 'sameKind':
+        return t('flow.exprSameKind');
+      default:
+        return t('flow.exprIfKind');
+    }
+  })();
+  return message + ' ' + at;
+}
+
+/** An expression with the values and functions it may use, one click away, checked as it is typed. */
 function ExpressionField({
   label,
   value,
   names,
+  expect,
   error,
   onChange,
 }: {
   label: string;
   value: string;
   names: string[];
+  expect: ExpressionKind;
   error?: string;
   onChange: (next: string) => void;
 }) {
   const insert = (word: string) => onChange(value + (value === '' || value.endsWith(' ') ? '' : ' ') + word);
+  const checked = checkExpression(value, names);
+  const problem = checked
+    ? 'issue' in checked
+      ? issueText(checked.issue, value)
+      : checked.kind !== expect
+        ? t(expect === 'number' ? 'flow.exprMustBeNumber' : 'flow.exprMustBeBoolean')
+        : undefined
+    : undefined;
   return (
     <div className="authoring-expression">
       <TextField
         label={label}
         value={value}
         maxLength={512}
-        error={error}
+        error={problem ?? error}
+        helper={checked && 'kind' in checked && !problem ? t(kindKey[checked.kind]) : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
       <div className="authoring-palette" role="group" aria-label={t('flow.palette')}>
@@ -121,6 +183,7 @@ export function CalculationsEditor({
                 label={t('flow.expression')}
                 value={item.expression}
                 names={namesBefore(rules, inputNames, index)}
+                expect="number"
                 onChange={(next) => onChange(updateCalculation(rules, index, { expression: next }))}
               />
             </li>
@@ -166,6 +229,7 @@ function RecommendationFields({
         label={t('flow.suggestedValue')}
         value={recommend.valueExpression}
         names={names}
+        expect="number"
         onChange={(next) => set({ valueExpression: next })}
       />
       <div className="authoring-card-body">
@@ -254,6 +318,7 @@ export function RulesEditor({
                 label={t('flow.when')}
                 value={item.when}
                 names={names}
+                expect="boolean"
                 onChange={(next) => onChange(updateRule(rules, index, { when: next }))}
               />
               <div className="authoring-card-body">
