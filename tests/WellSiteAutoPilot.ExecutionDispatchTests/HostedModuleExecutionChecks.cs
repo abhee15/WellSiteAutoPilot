@@ -366,7 +366,7 @@ internal static class HostedModuleExecutionChecks
                 fixture.MeasurementReads++;
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(
                     fixture.Payload == "missing" ? "{\"Value\":{}}" :
-                    JsonSerializer.Serialize(new { Value = new {
+                    JsonSerializer.Serialize(new { Units = new { CurrentPumpFillage = new { UnitKey = "%" } }, Value = new {
                         CurrentPumpFillage = 99.6m,
                         LastScanTime = fixture.LastAttemptTime,
                         LastGoodScanTime = fixture.Payload == "invalid-time" ? null :

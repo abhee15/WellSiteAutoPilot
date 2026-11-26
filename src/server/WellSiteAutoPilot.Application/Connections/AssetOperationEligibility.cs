@@ -28,6 +28,16 @@ public static class AssetOperationEligibilityEvaluator
             return new AssetOperationEligibility(operation.Key, operation.ContractVersion, state, reason);
         }).ToArray();
 
+        bool AllowsRead(AdapterOperationDescriptor operation)
+        {
+            var rule = AdapterReadRules.Find(adapter.Key);
+            // A daily value has no schema identity of its own in the registry; the provider's daily record is the contract.
+            if (operation.CapabilityId == AdapterReadRules.EngineeringDailyCapability)
+                return rule?.ServesDaily(operation.Quantity, operation.CapabilityId) == true;
+            return rule?.AllowsCurrentRead(operation.Quantity,
+                operation.StructuredSchemaId is null ? null : operation.CapabilityId, operation.StructuredSchemaId) == true;
+        }
+
         (AssetOperationEligibilityState, string) Assess(AdapterOperationDescriptor operation)
         {
             if (readiness.State == "Disabled") return (AssetOperationEligibilityState.ConnectionDisabled, "The saved connection is disabled.");
@@ -40,8 +50,7 @@ public static class AssetOperationEligibilityEvaluator
             if (operation.ResourceKind is null || operation.ResourceKind != binding.ResourceKind)
                 return (AssetOperationEligibilityState.ResourceUnsupported, "This operation does not declare support for the imported resource kind.");
             if (operation.Capability == ProviderCapabilityKind.CurrentData &&
-                AdapterReadRules.Find(adapter.Key)?.AllowsCurrentRead(operation.Quantity,
-                    operation.StructuredSchemaId is null ? null : operation.CapabilityId, operation.StructuredSchemaId) != true)
+                !AllowsRead(operation))
                 return (AssetOperationEligibilityState.Unsupported, "The operation does not match this adapter's executable read contracts.");
             if (readiness.State == "Unknown") return (AssetOperationEligibilityState.ConnectionTestRequired, "Test the current Connection revision before checking this source.");
             if (readiness.State != "ConnectionReady") return (AssetOperationEligibilityState.ConnectionUnavailable, "The latest connection test did not establish readiness.");

@@ -323,7 +323,7 @@ for profile in profiles:
         assert capability["contractVersion"].startswith("1.") and capability["operationKeys"], capability
         assert set(capability["operationKeys"]).issubset(operation_keys), capability
     if profile["adapterKey"] == "foresite":
-        assert [capability["displayName"] for capability in profile["capabilities"]] == ["Surveillance data", "Well configuration data", "Well trend data", "Well test", "Alarms", "Card data"], profile
+        assert [capability["displayName"] for capability in profile["capabilities"]] == ["Surveillance data", "Daily values", "Well configuration data", "Well trend data", "Well test", "Alarms", "Card data"], profile
     assert ("configuration.saved-setpoints" in operation_keys) == (profile["adapterKey"] == "foresite"), profile
     assert ("alarms.active-well" in operation_keys) == (profile["adapterKey"] == "foresite"), profile
     assert ("well-test.latest-reported" in operation_keys) == (profile["adapterKey"] == "foresite"), profile
