@@ -29,3 +29,8 @@ Sri: always look at module authoring as a framework feature, not a ForeSite feat
 ## O10 - Modules must be buildable outside the application
 
 Sri: make sure modules can be built from outside the application. Plan: the package contract (manifest, rules/code, tests) is the single artifact; the authoring kit/CLI validates, tests and packs it offline using the same checks as the app (including the expression checker, driven by an adapter capability catalogue file); import into any deployment through the existing package import path. Ties to O5 (outside-WSA mode) and O9 (framework feature). Verify with an end-to-end: author in a folder, validate and test with the kit, import, review, publish.
+
+
+## O11 - Extend the ForeSite-style adapter work to WAMI
+
+Sri: the adapter work could also reach WAMI; the Wellflo repo has the solution that runs Weatherford.WAMI.Server. Plan: (1) research in the Wellflo repo (project memory, WAMI.Server host, its API, auth, data model for wells, current values, history and setpoint writes); (2) map WAMI onto the adapter capability catalogues (inputs, daily, history, setpoints) and list the gaps; (3) stand up WAMI.Server locally on this box and run it against real or simulated wells; (4) build a WAMI adapter POC on a feature branch as the second adapter that proves O9 neutrality (no WAMI names in Application or web); (5) run the same authoring, preview and setpoint flow against it. Sequenced after the current module-authoring CI fix and P118/P121 work. Output: a WAMI findings doc and a build plan before any adapter code.
