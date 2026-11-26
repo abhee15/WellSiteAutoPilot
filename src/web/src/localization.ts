@@ -1363,6 +1363,8 @@ export const englishMessages = {
   'flow.sourceCurrent': 'Current values',
   'flow.sourceDaily': 'Daily averages',
   'flow.dailyField': 'Daily field',
+  'flow.addDailyInput': 'Add a daily value',
+  'flow.otherField': 'Other field (enter name and unit)',
   'flow.dailyUnit': 'Unit',
   'flow.add': 'Add',
   'flow.addInput': 'Reading',
@@ -1454,8 +1456,8 @@ export const englishMessages = {
   'guided.portQuantityPrompt': 'Choose a registered quantity, or type one.',
   'guided.portIdentifierInvalid': 'Use letters, digits, dot, dash or underscore, starting with a letter or digit.',
   'guided.portAvailableFrom': 'Registered by: {adapters}',
-  'guided.portDailyField':
-    'A provider production-day field, read as the latest finished day. It carries no verified quality, so uncertain data is allowed.',
+  'guided.portCustomField':
+    'A field outside the registered list, read as the latest finished production day. Give its unit so the read can verify it.',
   'guided.useDailyField': 'Use as input (latest finished day)',
   'guided.portNoSource': 'No registered source provides this quantity yet. Choose a registered quantity to save this input.',
   'guided.portCapabilityHelper': 'Set from the registered source for this quantity.',

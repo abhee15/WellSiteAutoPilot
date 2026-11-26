@@ -26,6 +26,7 @@ import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
   addDailyInput,
+  dailyCapability,
   blankContractManifest,
   contractIsComplete,
   inputsOf,
@@ -40,6 +41,7 @@ import './authoringFlow.css';
 
 // Where a reading can come from. Each kind is added here once its readings can be listed and run.
 const inputSources = ['current', 'daily'] as const;
+const otherField = '__other';
 const sourceLabels = { current: 'flow.sourceCurrent', daily: 'flow.sourceDaily' } as const;
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
@@ -362,8 +364,20 @@ function InputsEditor({
   const [sourceKind, setSourceKind] = useState('');
   const [dailyField, setDailyField] = useState('');
   const [dailyUnit, setDailyUnit] = useState('');
+  const [dailyChoice, setDailyChoice] = useState('');
   const inputs = useMemo(() => inputsOf(manifest), [manifest]);
-  const offered = (options ?? []).filter((option) => !inputs.some((input) => input.quantity === option.quantity));
+  const offeredFor = (capabilityId: string) =>
+    (options ?? []).filter(
+      (option) =>
+        option.capabilityId === capabilityId &&
+        !inputs.some(
+          (input) =>
+            input.quantity === option.quantity &&
+            (input.requiredCapability === dailyCapability) === (capabilityId === dailyCapability),
+        ),
+    );
+  const offered = offeredFor('engineering.current');
+  const offeredDaily = offeredFor(dailyCapability);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -473,6 +487,29 @@ function InputsEditor({
             </SelectField>
           )}
           {sourceKind === 'daily' && (
+            <SelectField
+              label={t('flow.addDailyInput')}
+              value={dailyChoice}
+              onChange={(event) => {
+                const choice = event.target.value;
+                const option = offeredDaily.find((item) => item.quantity === choice);
+                if (option) {
+                  onEdit(addDailyInput(manifest, option.quantity, option.unit));
+                  setDailyChoice('');
+                  setSourceKind('');
+                } else setDailyChoice(choice);
+              }}
+            >
+              <option value="">{t('flow.chooseInput')}</option>
+              {offeredDaily.map((option) => (
+                <option key={option.quantity} value={option.quantity}>
+                  {option.unit ? option.quantity + ' (' + option.unit + ')' : option.quantity}
+                </option>
+              ))}
+              <option value={otherField}>{t('flow.otherField')}</option>
+            </SelectField>
+          )}
+          {sourceKind === 'daily' && dailyChoice === otherField && (
             <form
               className="authoring-flow-search"
               onSubmit={(event) => {
@@ -482,6 +519,7 @@ function InputsEditor({
                 onEdit(addDailyInput(manifest, field, dailyUnit.trim() || null));
                 setDailyField('');
                 setDailyUnit('');
+                setDailyChoice('');
                 setSourceKind('');
               }}
             >
