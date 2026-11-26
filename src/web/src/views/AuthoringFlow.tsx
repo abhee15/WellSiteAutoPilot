@@ -27,6 +27,7 @@ import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
   addDailyInput,
+  inputName,
   dailyCapability,
   blankContractManifest,
   contractIsComplete,
@@ -127,7 +128,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
 
   const provider = providers.find((item) => item.adapterKey === providerKey);
   const inputs = useMemo(() => (manifest ? inputsOf(manifest) : []), [manifest]);
-  const inputNames = useMemo(() => inputs.map((input) => String(input.quantity ?? '')), [inputs]);
+  const inputNames = useMemo(() => inputs.map(inputName), [inputs]);
   const counts: Record<Section, number> = {
     inputs: inputs.length,
     parameters: rules.parameters.length,
@@ -325,7 +326,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               draftId={draft?.id ?? null}
               revision={draft?.revision ?? null}
               saved={!dirty}
-              inputs={inputs.map((input) => ({ name: text(input.quantity), unit: text(input.canonicalUnit) }))}
+              inputs={inputs.map((input) => ({ name: inputName(input), unit: text(input.canonicalUnit) }))}
               rules={rules}
               scenarios={scenarios}
               onAddScenario={(scenario) => setScenarios((previous) => [...previous, scenario])}
@@ -410,7 +411,11 @@ function InputsEditor({
               <li key={id} className="authoring-flow-input">
                 <div className="authoring-card-head">
                   <span className="authoring-tag">{t('flow.tagWellData')}</span>
-                  <strong>{text(input.quantity)}</strong>
+                  <strong>{inputName(input)}</strong>
+                  <span className="authoring-card-unit">
+                    {t(input.requiredCapability === dailyCapability ? 'flow.sourceDaily' : 'flow.sourceCurrent')}
+                  </span>
+                  {text(input.alias) && <span className="authoring-card-unit">{text(input.quantity)}</span>}
                   {text(input.canonicalUnit) && (
                     <span className="authoring-card-unit">{text(input.canonicalUnit)}</span>
                   )}

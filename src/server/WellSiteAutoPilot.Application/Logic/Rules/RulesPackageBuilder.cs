@@ -17,6 +17,9 @@ public static class RulesPackageBuilder
 {
     private const string CurrentCapability = "engineering.current";
     private const string DailyCapability = AdapterReadRules.EngineeringDailyCapability;
+    private static readonly global::System.Text.RegularExpressions.Regex AliasPattern =
+        new("^[A-Za-z_][A-Za-z0-9_]*$", global::System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     private static readonly DateTimeOffset ZipEpoch = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
@@ -41,7 +44,15 @@ public static class RulesPackageBuilder
                     "Only current and daily values can run in a module today. Remove '" + input.Quantity + "' or use one of those.");
         }
 
-        var issues = RulesEngine.Validate(definition, manifest.DataRequirements.Select(input => input.Quantity).ToArray());
+        var names = manifest.DataRequirements.Select(input => input.Name).ToArray();
+        if (manifest.DataRequirements.Any(input => input.Alias is { } alias && !AliasPattern.IsMatch(alias)))
+            throw Invalid("GUIDED_RULES_INPUT_ALIAS_INVALID",
+                "An input name may use letters, digits and underscores, and must not start with a digit.");
+        if (names.Distinct(StringComparer.Ordinal).Count() != names.Length)
+            throw Invalid("GUIDED_RULES_INPUT_NAME_DUPLICATE",
+                "Two inputs share a name. Give one of them a different name, for example a Daily prefix.");
+
+        var issues = RulesEngine.Validate(definition, names);
         if (issues.Count != 0)
             throw Invalid(issues[0].Code, issues[0].Message);
 

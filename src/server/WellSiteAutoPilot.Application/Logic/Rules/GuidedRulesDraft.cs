@@ -25,7 +25,7 @@ public static class GuidedRulesDraft
             throw Invalid(ex.Code, ex.Message);
         }
 
-        var names = content.Manifest.DataRequirements.Select(input => input.Quantity).ToArray();
+        var names = content.Manifest.DataRequirements.Select(input => input.Name).ToArray();
         var issues = RulesEngine.Validate(definition, names);
         if (issues.Count != 0)
             throw Invalid(issues[0].Code, issues[0].Path.Length == 0 ? issues[0].Message : issues[0].Path + ": " + issues[0].Message);

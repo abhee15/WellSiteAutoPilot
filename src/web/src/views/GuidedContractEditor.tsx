@@ -272,6 +272,16 @@ function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
   };
 }
 
+/** The name a module's expressions use for an input: its alias when it has one, otherwise the quantity. */
+export function inputName(port: Record<string, unknown>): string {
+  return typeof port.alias === 'string' && port.alias !== '' ? port.alias : String(port.quantity ?? '');
+}
+
+/** An alias only when the quantity alone would clash with another input, for example a current and a daily reading of one field. */
+function aliasIfTaken(ports: Json[], quantity: string, prefix: string): Json {
+  return ports.some((port) => inputName(port) === quantity) ? { alias: prefix + quantity } : {};
+}
+
 /** Adds a registered current reading as an input, with its registered unit and capability already filled in. */
 export function addCurrentInput(manifestJson: string, option: SourceOption): string {
   const manifest = parseManifest(manifestJson);
@@ -283,6 +293,7 @@ export function addCurrentInput(manifestJson: string, option: SourceOption): str
     ...newPort(manifest, 'input', ports),
     quantity: option.quantity,
     requiredCapability: option.capabilityId,
+    ...aliasIfTaken(ports, option.quantity, 'Current'),
   };
   return JSON.stringify(
     withPorts(manifest, 'input', [...ports, option.unit ? { ...port, canonicalUnit: option.unit } : port]),
@@ -335,6 +346,7 @@ export function addDailyInput(manifestJson: string, quantity: string, unit: stri
     allowUncertainQuality: true,
     valueSchema: scalarSchema(id, 'number'),
     requiredCapability: dailyCapability,
+    ...aliasIfTaken(ports, quantity, 'Daily'),
   };
   return JSON.stringify(withPorts(manifest, 'input', [...ports, port]));
 }

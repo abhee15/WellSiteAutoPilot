@@ -4,9 +4,11 @@ import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
 import { loadAdapterOperations } from '../../src/views/adapterOperations';
 import { sampleCasesInRange } from '../../src/views/GuidedSampleCases';
 import {
+  addCurrentInput,
   addDailyInput,
   blankContractManifest,
   firstIncompletePort,
+  inputName,
   sourceOptionsFrom,
 } from '../../src/views/GuidedContractEditor';
 import {
@@ -293,14 +295,28 @@ it('lets an author choose where an input is read from, and saves it beside the c
       adapterKey: 'foresite',
       displayName: 'ForeSite',
       operations: [
-        { key: 'current.pump-fillage', displayName: 'Current pump fillage', ...operation('engineering.current', 'PumpFillage', '%') },
-        { key: 'history.stroke-rate', displayName: 'Stroke rate trend', ...operation('engineering.history', 'SPM', 'SPM') },
+        {
+          key: 'current.pump-fillage',
+          displayName: 'Current pump fillage',
+          ...operation('engineering.current', 'PumpFillage', '%'),
+        },
+        {
+          key: 'history.stroke-rate',
+          displayName: 'Stroke rate trend',
+          ...operation('engineering.history', 'SPM', 'SPM'),
+        },
       ],
     },
     {
       adapterKey: 'cygnet',
       displayName: 'CygNet',
-      operations: [{ key: 'current.pump-fillage', displayName: 'CygNet fillage', ...operation('engineering.current', 'PumpFillage', '%') }],
+      operations: [
+        {
+          key: 'current.pump-fillage',
+          displayName: 'CygNet fillage',
+          ...operation('engineering.current', 'PumpFillage', '%'),
+        },
+      ],
     },
   ] as never);
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
@@ -325,7 +341,11 @@ it('lets an author choose where an input is read from, and saves it beside the c
   // Only the sources the primary provider allows are offered.
   const choice = screen.getByLabelText<HTMLSelectElement>('External source');
   expect(choice.value).toBe('wami');
-  expect(within(choice).getAllByRole('option').map((item) => item.textContent)).toEqual(['WAMI']);
+  expect(
+    within(choice)
+      .getAllByRole('option')
+      .map((item) => item.textContent),
+  ).toEqual(['WAMI']);
 
   fireEvent.click(screen.getByRole('button', { name: 'Add output' }));
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'Result' } });
@@ -362,6 +382,27 @@ it('adds a discovered production-day field as an uncertain-quality daily input, 
   ).toHaveLength(2);
 });
 
+it('names a daily value apart from a current reading of the same field', () => {
+  const blank = blankContractManifest('Both');
+  const current = addCurrentInput(blank, {
+    capabilityId: 'engineering.current',
+    quantity: 'MotorAmps',
+    unit: 'A',
+  } as never);
+  const both = addDailyInput(current, 'MotorAmps', 'A');
+  const ports = (JSON.parse(both) as { dataRequirements: Record<string, unknown>[] }).dataRequirements;
+  expect(ports.map(inputName)).toEqual(['MotorAmps', 'DailyMotorAmps']);
+  expect(ports[1]).toMatchObject({ quantity: 'MotorAmps', alias: 'DailyMotorAmps' });
+  // A field with no clash keeps its plain name.
+  expect(addDailyInput(both, 'RunTime', 'h')).toContain('"quantity":"RunTime"');
+  expect(
+    inputName(
+      (JSON.parse(addDailyInput(both, 'RunTime', 'h')) as { dataRequirements: Record<string, unknown>[] })
+        .dataRequirements[2]!,
+    ),
+  ).toBe('RunTime');
+});
+
 it('keeps a name that is both a current reading and a daily value as two options', () => {
   const options = sourceOptionsFrom([
     {
@@ -376,7 +417,7 @@ it('keeps a name that is both a current reading and a daily value as two options
   ]);
 });
 
-it('offers only the chosen provider\'s starters and quantities, and says when a provider is current-values-only', async () => {
+it("offers only the chosen provider's starters and quantities, and says when a provider is current-values-only", async () => {
   registerCatalog();
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
   vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
@@ -430,10 +471,24 @@ it('copies a saved contract to a new draft for the other provider, without hints
   const source = JSON.parse(blankContractManifest('Fillage watch', 'foresite')) as Record<string, unknown>;
   source.moduleId = 'authoring.source';
   source.dataRequirements = [
-    { id: 'fillage', assetRole: 'asset', quantity: 'PumpFillage', access: 'Current', canonicalUnit: '%', maximumAgeSeconds: 60 },
+    {
+      id: 'fillage',
+      assetRole: 'asset',
+      quantity: 'PumpFillage',
+      access: 'Current',
+      canonicalUnit: '%',
+      maximumAgeSeconds: 60,
+    },
   ];
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
-    data: [{ id: 'src', revision: 3, manifestJson: JSON.stringify(source), sourceHints: [{ inputId: 'fillage', externalSource: 'wami' }] }],
+    data: [
+      {
+        id: 'src',
+        revision: 3,
+        manifestJson: JSON.stringify(source),
+        sourceHints: [{ inputId: 'fillage', externalSource: 'wami' }],
+      },
+    ],
   } as never);
   vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
     data: { id: 'copy', revision: 1, manifestJson: body.manifestJson },

@@ -67,7 +67,7 @@ public sealed record GuidedModuleDraft(
                 "This draft has no rules to submit.");
         var definition = Rules.RulesDefinition.Parse(json);
         var evidence = Rules.GuidedRulesCases.Run(definition,
-            Content.Manifest.DataRequirements.Select(input => input.Quantity).ToArray(), cases);
+            Content.Manifest.DataRequirements.Select(input => input.Name).ToArray(), cases);
         var artifact = await Rules.RulesPackageBuilder.BuildAsync(Content.Manifest, definition, cancellationToken);
         return new(Id, Revision, artifact, [], Rules.GuidedRulesCases.ToJson(evidence));
     }

@@ -61,6 +61,29 @@ internal static class RulesSubmissionChecks
             throw new InvalidOperationException("A daily input must keep its capability in the reviewed package.");
         await Reject(() => RulesPackageBuilder.BuildAsync(manifest,
             RulesDefinition.Parse(Rules.Replace("Shortfall > 0", "Missing > 0"))), "RULE_EXPRESSION_UNKNOWN_NAME");
+
+        // The same field read as current and as daily needs two names; the rules use the alias.
+        var both = manifest with
+        {
+            DataRequirements =
+            [
+                new("fillage", "well", "PumpFillage", "Current", "%", 3600, false),
+                new("fillage-daily", "well", "PumpFillage", "Current", "%", 3600, false, null, "engineering.daily", "DailyFillage")
+            ]
+        };
+        var aliased = await RulesPackageBuilder.BuildAsync(both,
+            RulesDefinition.Parse(Rules.Replace("Shortfall > 0", "Shortfall > 0 or DailyFillage < 40")));
+        if (aliased.Package.RulesModule is null ||
+            aliased.Package.Manifest.DataRequirements.Count(input => input.Alias == "DailyFillage") != 1)
+            throw new InvalidOperationException("An alias must survive packaging.");
+        await Reject(() => RulesPackageBuilder.BuildAsync(both with
+        {
+            DataRequirements = [both.DataRequirements.First(), both.DataRequirements.Last() with { Alias = null }]
+        }, definition), "GUIDED_RULES_INPUT_NAME_DUPLICATE");
+        await Reject(() => RulesPackageBuilder.BuildAsync(both with
+        {
+            DataRequirements = [both.DataRequirements.First(), both.DataRequirements.Last() with { Alias = "9 lives" }]
+        }, definition), "GUIDED_RULES_INPUT_ALIAS_INVALID");
     }
 
     private static async Task Reject(Func<object> action, string code) =>

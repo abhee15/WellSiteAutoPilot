@@ -52,10 +52,10 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
             Fail("MODULE_DECLARATIVE_CONTRACT_INVALID",
                 "A rules module requires one asset, current inputs with units, and a settings schema.");
 
-        var names = manifest.DataRequirements.Select(input => input.Quantity).ToArray();
+        var names = manifest.DataRequirements.Select(input => input.Name).ToArray();
         if (names.Distinct(StringComparer.Ordinal).Count() != names.Length ||
             manifest.DataRequirements.Select(input => input.AssetRole).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 1)
-            Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "Each input needs its own quantity name on the same asset.");
+            Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "Each input needs its own name on the same asset.");
 
         using var reader = new StreamReader(definition, leaveOpen: true);
         var json = await reader.ReadToEndAsync(cancellationToken);
@@ -96,7 +96,7 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
             if (matches.Length != 1)
                 Fail("MODULE_DECLARATIVE_INPUT_UNAVAILABLE", "A required input is unavailable.");
             LogicModuleInputValidation.Validate(matches[0], requirement, context.EvaluationTimeUtc);
-            values[requirement.Quantity] = matches[0].Value;
+            values[requirement.Name] = matches[0].Value;
         }
 
         var settings = new Dictionary<string, decimal>(StringComparer.Ordinal);
