@@ -12,11 +12,12 @@ import type {
   GuidedProviderResponse,
   GuidedSourceHintRequest,
 } from '../api/generated/v1/types.gen';
-import { ActionButton } from '../components/ActionButton';
+import { ActionButton, ActionLink } from '../components/ActionButton';
 import { NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { Section } from '../components/Section';
 import { t } from '../localization';
+import { hashFor } from '../routing';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
 import { TestsEditor, type Scenario } from './AuthoringTests';
@@ -154,6 +155,8 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
         ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
         : await createGuidedModuleDraft({ body });
     if (!data) throw new Error(detailOf(error));
+    // Point the address at the saved draft so a reload or a bookmark reopens it; replaceState does not remount the editor.
+    if (!draft?.id && data.id) window.history.replaceState(null, '', hashFor('authoring', 'draft:' + data.id));
     setDraft(data);
     setDirty(false);
     setSubmitted(false);
@@ -264,6 +267,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           <span>{provider?.displayName ?? providerKey}</span>
         </div>
         <div className="authoring-flow-actions">
+          <ActionLink href={hashFor('authoring')} label={t('flow.allDrafts')} variant="secondary" />
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{failed}</Notice>}
           {submitted && <Notice tone="success">{t('flow.submitted')}</Notice>}

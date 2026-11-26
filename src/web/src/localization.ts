@@ -1363,6 +1363,7 @@ export const englishMessages = {
   'flow.sourceCurrent': 'Current values',
   'flow.sourceDaily': 'Daily averages',
   'flow.dailyField': 'Daily field',
+  'flow.allDrafts': 'All drafts',
   'flow.addDailyInput': 'Add a daily value',
   'flow.otherField': 'Other field (enter name and unit)',
   'flow.dailyUnit': 'Unit',
