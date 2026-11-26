@@ -91,11 +91,17 @@ public static class RulesEngine
         var kind = Check(recommend.ValueExpression, kinds, path + ".valueExpression", issues);
         if (kind is { } found && found != RuleValueKind.Number)
             issues.Add(new("RULE_EXPRESSION_TYPE", path + ".valueExpression", "The suggested value must be a number."));
-        if (recommend.Minimum is { } min && recommend.Maximum is { } max && min > max)
+        foreach (var (name, field) in new[] { (recommend.MinimumFrom, "minimumFrom"), (recommend.MaximumFrom, "maximumFrom"), (recommend.MaximumChangeFrom, "maximumChangeFrom") })
+        {
+            if (!string.IsNullOrWhiteSpace(name) && (!kinds.TryGetValue(name, out var limitKind) || limitKind != RuleValueKind.Number))
+                issues.Add(new("RULE_EXPRESSION_UNKNOWN_NAME", path + "." + field, "A limit must name a number in this module, such as a setting."));
+        }
+
+        if (recommend.Minimum is { } min && recommend.Maximum is { } max && min > max && string.IsNullOrWhiteSpace(recommend.MinimumFrom) && string.IsNullOrWhiteSpace(recommend.MaximumFrom))
             issues.Add(new("RULES_LIMIT_INVALID", path, "The minimum limit is above the maximum limit."));
-        if (recommend.MaximumChange is { } change && change <= 0)
+        if (recommend.MaximumChange is { } change && change <= 0 && string.IsNullOrWhiteSpace(recommend.MaximumChangeFrom))
             issues.Add(new("RULES_LIMIT_INVALID", path + ".maximumChange", "The largest change must be above zero."));
-        if (recommend.MaximumChange is not null && string.IsNullOrWhiteSpace(recommend.CurrentValue))
+        if ((recommend.MaximumChange is not null || !string.IsNullOrWhiteSpace(recommend.MaximumChangeFrom)) && string.IsNullOrWhiteSpace(recommend.CurrentValue))
             issues.Add(new("RULES_CURRENT_VALUE_REQUIRED", path + ".currentValue",
                 "A largest change needs the current value to measure from."));
         if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) &&
@@ -146,23 +152,40 @@ public static class RulesEngine
         return new(RulesDefinition.NoMatchOutcome, null, null, null, calculated, trace);
     }
 
-    private static RulesProposal Propose(RulesRecommendation recommend, string reason,
+    /// <summary>The proposal, or nothing when the setpoint already holds the value the rule would suggest.</summary>
+    private static RulesProposal? Propose(RulesRecommendation recommend, string reason,
         Dictionary<string, RuleValue> values, List<RulesTraceStep> trace)
     {
         var requested = RuleEvaluator.Evaluate(RuleExpressionParser.Parse(recommend.ValueExpression), values).Number;
         var value = requested;
-        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && recommend.MaximumChange is { } change)
+        var maximumChange = Limit(recommend.MaximumChangeFrom, recommend.MaximumChange, values);
+        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && maximumChange is { } change)
         {
+            if (change <= 0)
+                throw new RuleExpressionException("RULES_LIMIT_INVALID", "The largest change must be above zero.");
             var current = values[recommend.CurrentValue].Number;
             value = Math.Min(Math.Max(value, current - change), current + change);
         }
 
-        if (recommend.Minimum is { } min) value = Math.Max(value, min);
-        if (recommend.Maximum is { } max) value = Math.Min(value, max);
+        var minimum = Limit(recommend.MinimumFrom, recommend.Minimum, values);
+        var maximum = Limit(recommend.MaximumFrom, recommend.Maximum, values);
+        if (minimum is { } min && maximum is { } top && min > top)
+            throw new RuleExpressionException("RULES_LIMIT_INVALID", "The minimum limit is above the maximum limit.");
+        if (minimum is { } low) value = Math.Max(value, low);
+        if (maximum is { } max) value = Math.Min(value, max);
         var limited = value != requested;
         trace.Add(new("limit", recommend.Setpoint, limited ? "held to the limits" : "within the limits"));
+        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && values[recommend.CurrentValue].Number == value)
+        {
+            trace.Add(new("setpoint", recommend.Setpoint, "already at " + value.ToString(CultureInfo.InvariantCulture) + ", no change proposed"));
+            return null;
+        }
+
         return new(recommend.Setpoint, requested, value, recommend.Unit, limited, reason);
     }
+
+    private static decimal? Limit(string? name, decimal? fixedValue, Dictionary<string, RuleValue> values) =>
+        string.IsNullOrWhiteSpace(name) ? fixedValue : values[name].Number;
 
     private static RuleValueKind? Check(string expression, Dictionary<string, RuleValueKind> kinds, string path,
         List<RulesIssue> issues)

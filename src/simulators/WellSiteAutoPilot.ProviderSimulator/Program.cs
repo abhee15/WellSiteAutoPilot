@@ -367,8 +367,11 @@ app.MapPost("/foresite/Surveillance/CygNetTrends/{wellId:long}/{start}/{end}",
     (long wellId, DateTimeOffset start, DateTimeOffset end, string[] quantities, HttpContext context, SimulatorState state) =>
     {
         if (!HasForeSiteSession(context)) return Results.Unauthorized();
-        if (wellId != 101 || quantities.Length != 1 || quantities[0] is not ("CurrentPumpFillage" or "CurrentSPM") || end <= start)
-            return Results.BadRequest();
+        if (wellId != 101 || quantities.Length != 1 || end <= start) return Results.BadRequest();
+        // Like the real provider, a point that is not trended for the well answers with a message and no values.
+        if (quantities[0] is not ("CurrentPumpFillage" or "CurrentSPM"))
+            return Results.Json(new[] { new { ErrorMessage = "No trend data found for the requested point.", Units = "", PointUDC = (string?)null, PointValues = Array.Empty<object>() } },
+                new System.Text.Json.JsonSerializerOptions());
         var strokeRate = quantities[0] == "CurrentSPM";
         return Results.Json(new[] { new {
             ErrorMessage = "Success", Units = strokeRate ? "SPM" : "%", PointUDC = strokeRate ? "SIMULATED-SPSTRN" : "SIMULATED-RRLPFILCUR",
