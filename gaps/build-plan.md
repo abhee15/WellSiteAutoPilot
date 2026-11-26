@@ -124,3 +124,8 @@ Each step is done only when: designed here, small PR, positive and negative test
 | 5 Remove old authoring | Not started |
 
 Open before PR 1: draft PR not opened (gh missing); CI not run; web not re-checked on the stack after restart.
+
+## Roadmap: limit ForeSite asset discovery to SCADA-connected wells (Sri, 26 Nov)
+
+The main intent is Logic Modules that adjust setpoints, so wells without a SCADA connection add little value. Discovery should offer only the ForeSite assets that have a SCADA connection, instead of every well. Not prioritised yet; to be discussed first. Open points: how ForeSite exposes the SCADA link (to check in ForeSiteService), whether it is a filter on the scoped discovery call or a separate query, and how import treats wells whose connection is added later.
+
