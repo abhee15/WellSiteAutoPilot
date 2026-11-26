@@ -50,6 +50,11 @@ well-test quantities remain unsupported by the surveillance catalogue; adding th
 requires an explicit field/date/unit mapping and tests.
 Their presence in the Surveillance response does not opt them into this rule.
 
+Daily values have their own provider-owned catalogue (`ForeSiteDailyCatalogue`):
+each field's time is its production day (start to end), never a scan time, and a
+catalogued field returned in a unit other than ForeSite's default (imperial) is
+refused with `FORESITE_UNIT_MISMATCH` rather than converted.
+
 ## Validation and deployment
 
 Adapter regressions cover both fields, inclusive numeric boundaries, explicit UTC
