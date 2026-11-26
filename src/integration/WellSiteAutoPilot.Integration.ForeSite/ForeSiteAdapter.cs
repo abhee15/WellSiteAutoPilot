@@ -54,7 +54,8 @@ public static class ForeSiteAdapter
             new DiscoveryField("lease", "Lease", "Unspecified lease")
         ], Operations:
         [
-            .. ForeSiteSurveillanceOperations.All,            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
+            .. ForeSiteSurveillanceOperations.All,
+            .. ForeSiteDailyOperations.All,            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
                 "SurfaceCards", WellResourceKind, null, "Oldest card acquisition time; each card also preserves its capture time. Retrieval time is separate.",
                 "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
             {
@@ -107,6 +108,7 @@ public static class ForeSiteAdapter
                             Requirement: "LastScanTime is only the last scan attempt, and retrieval time is not acquisition time.",
                             OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")
                     ])]),
+            new("daily-values", "Daily values", "Latest finished production-day values of the ForeSite daily record, in ForeSite's default (imperial) unit system.", "1.0", ForeSiteDailyOperations.Keys),
             new("well-configuration", "Well configuration data", "Well identity and classification details and passive saved setpoint groups.", "1.0", ["configuration.well-details", ForeSiteSavedSetpointReader.Operation.Key]),
             new("well-trends", "Well trend data", "Raw historical samples and provider-reported production-day values.", "1.0", ["history.pump-fillage", "history.stroke-rate", ForeSiteDailyAverageReader.Operation.Key]),
             new("well-test", "Well test", "Inspect the identity, dates and reported status of the latest test.", "1.0", [ForeSiteWellTestReference.Latest.Key]),

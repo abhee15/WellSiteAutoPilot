@@ -21,13 +21,13 @@ internal static partial class ForeSiteSurveillanceOperations
 
     private static string Words(string name) => Boundary().Replace(name, " $1");
 
-    private static string Label(string quantity)
+    internal static string Label(string quantity)
     {
         var words = Words(quantity);
         return words[..1] + words[1..].ToLowerInvariant();
     }
 
-    private static string Kebab(string quantity) => Words(quantity).ToLowerInvariant().Replace(' ', '-');
+    internal static string Kebab(string quantity) => Words(quantity).ToLowerInvariant().Replace(' ', '-');
 
     [GeneratedRegex("(?<=[a-z0-9])([A-Z])|(?<=[A-Z])([A-Z][a-z])")]
     private static partial Regex Boundary();

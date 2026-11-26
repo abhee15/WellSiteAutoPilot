@@ -46,7 +46,8 @@ internal static class AdapterOperationChecks
                 }
                 if (operation.Capability == ProviderCapabilityKind.CurrentData)
                     Check(AdapterReadRules.Find(adapter.Key)?.AllowsCurrentRead(operation.Quantity,
-                        operation.StructuredSchemaId is null ? null : operation.CapabilityId, operation.StructuredSchemaId) == true,
+                        operation.StructuredSchemaId is null && operation.CapabilityId != AdapterReadRules.EngineeringDailyCapability ? null : operation.CapabilityId,
+                        operation.StructuredSchemaId ?? (operation.CapabilityId == AdapterReadRules.EngineeringDailyCapability ? "daily-check" : null)) == true,
                         "Descriptor disagrees with executable current read rules.");
             }
         }
