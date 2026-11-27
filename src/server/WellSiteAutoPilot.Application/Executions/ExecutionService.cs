@@ -293,7 +293,9 @@ public sealed class ExecutionService(
                         : input.CanonicalUnit.Trim(),
                     input.MaximumAgeSeconds,
                     input.AllowUncertainQuality,
-                    NormalizeJson(input.ProviderMappingJson));
+                    NormalizeJson(input.ProviderMappingJson),
+                    string.IsNullOrWhiteSpace(input.RequiredCapability) ? null : input.RequiredCapability.Trim(),
+                    string.IsNullOrWhiteSpace(input.SchemaId) ? null : input.SchemaId.Trim());
             })
             .ToArray();
 
