@@ -424,9 +424,10 @@ lost = request("POST", "/connections/" + not_foresite["id"] + "/discover")
 assert lost["complete"] is False and lost["items"] == [] and lost["warnings"], lost
 down_find = request("POST", "/connections/" + down["id"] + "/discover")
 assert down_find["complete"] is False and down_find["items"] == [], down_find
-# Only managers may look, adapters that cannot list say so, and a disabled connection refuses.
+# Only managers may look, the simulator lists its wells, and a disabled connection refuses.
 request("POST", "/connections/" + stand_in["id"] + "/discover", OPERATOR, expected=403)
-request("POST", "/connections/" + created["id"] + "/discover", expected=409)
+sim_find = request("POST", "/connections/" + created["id"] + "/discover")
+assert sim_find["complete"] is True and [i["externalId"] for i in sim_find["items"]] == ["WELL-101", "WELL-102", "WELL-103", "WELL-104"], sim_find
 # Plan: the same discovery grouped as asked, with a fingerprint that identifies exactly this plan. Nothing is saved.
 plan_url = "/connections/" + stand_in["id"] + "/import/preview"
 preview = request("POST", plan_url, body={"levels": ["assetName", "wellType"]})
