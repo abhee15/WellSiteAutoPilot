@@ -187,13 +187,26 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
             throw new WellSiteAutoPilotException("SECURITY_REQUEST_SUBJECT_INVALID", FailureKind.Authorization, "An authenticated actor is required.");
         try
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            // Keep a consistent lock order across all View mutations and check both capabilities independently.
-            foreach (var required in new[] { WellSitePermissions.ConnectionsRead, permission }.Order(StringComparer.Ordinal))
-                await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, required, Time, cancellationToken);
-            await stage();
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            // Postgres asks Serializable callers to retry a transaction it aborted for a concurrent write.
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+                    // Keep a consistent lock order across all View mutations and check both capabilities independently.
+                    foreach (var required in new[] { WellSitePermissions.ConnectionsRead, permission }.Order(StringComparer.Ordinal))
+                        await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, required, Time, cancellationToken);
+                    await stage();
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                    return;
+                }
+                catch (Exception exception) when (attempt < MaxSerializationAttempts && exception.GetBaseException() is PostgresException
+                    { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
+                {
+                    dbContext.ChangeTracker.Clear();
+                }
+            }
         }
         catch (Exception exception) when (exception.GetBaseException() is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_asset_views_ConnectionId_NormalizedName" })
@@ -215,6 +228,8 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
         dbContext.AuditEvents.Add(new AuditEventEntity { Id = Guid.NewGuid(), OccurredAtUtc = Time.GetUtcNow(),
             ActorUserId = subject.UserId, ActorIdentity = actor.IdentityName, CorrelationId = actor.CorrelationId,
             Action = action, TargetType = "asset-view", TargetId = id.ToString(), DetailsJson = JsonSerializer.Serialize(details) });
+
+    private const int MaxSerializationAttempts = 3;
 
     private static string Normalize(string name) => name.Trim().ToUpperInvariant();
     private static WellSiteAutoPilotException NotFound() => new(AssetViewFailureCodes.NotFound, FailureKind.NotFound, "The View was not found.");
