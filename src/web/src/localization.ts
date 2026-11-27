@@ -1453,6 +1453,7 @@ export const englishMessages = {
   'flow.addScenario': 'Keep as scenario',
   'flow.scenarios': 'Scenarios',
   'flow.scenarioName': 'Scenario',
+  'flow.scenarioExpects': 'Expected outcome',
   'flow.removeScenario': 'Remove scenario',
   'flow.submit': 'Submit for review',
   'flow.submitted': 'Submitted for review.',

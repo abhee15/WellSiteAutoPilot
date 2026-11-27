@@ -331,6 +331,11 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               scenarios={scenarios}
               onAddScenario={(scenario) => setScenarios((previous) => [...previous, scenario])}
               onRemoveScenario={(index) => setScenarios((previous) => previous.filter((_, at) => at !== index))}
+              onChangeExpected={(index, expectedOutcome) =>
+                setScenarios((previous) =>
+                  previous.map((item, at) => (at === index ? { ...item, expectedOutcome } : item)),
+                )
+              }
             />
           )}
           {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
