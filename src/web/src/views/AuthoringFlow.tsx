@@ -122,7 +122,12 @@ export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; 
         setProviderKey(text(loaded.requiredAdapterKey));
         setManifest(data.manifestJson);
         setHints(data.sourceHints ?? []);
-        setRules(parseRules(data.rulesJson));
+        const stored = parseRules(data.rulesJson);
+        if (stored === null) {
+          setFailed(t('flow.cannotOpen'));
+          return;
+        }
+        setRules(stored);
         setScenarios(parseScenarios(data.scenariosJson));
         setDraft(data);
         setDirty(false);

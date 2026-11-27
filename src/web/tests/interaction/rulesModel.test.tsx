@@ -35,6 +35,15 @@ describe('setpoint limits from settings', () => {
   });
 });
 
+describe('stored rules that are not a definition', () => {
+  it('are reported, not read as an empty module that a save would overwrite them with', () => {
+    expect(parseRules('{ not json')).toBeNull();
+    expect(parseRules('[]')).toBeNull();
+    expect(parseRules('null')).toBeNull();
+    expect(parseRules('')).toEqual({ parameters: [], calculations: [], rules: [] });
+  });
+});
+
 describe('saved scenarios', () => {
   it('reads a saved list and ignores anything else', () => {
     const saved = [{ name: 'Scenario 1', values: [], settings: [], expectedOutcome: 'NONE' }];
