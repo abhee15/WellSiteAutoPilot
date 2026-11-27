@@ -23,8 +23,11 @@ public sealed partial class ExecutionRepository
             var asset = await dbContext.Assets.AsNoTracking().SingleOrDefaultAsync(a => a.Id == input.AssetId, ct);
             var simulatorOwned = asset?.OwnerConnectionId is { } ownerId && await dbContext.Connections.AsNoTracking()
                 .AnyAsync(c => c.Id == ownerId && c.AdapterKey == "simulator", ct);
-            if (AdapterReadRules.Find(input.ProviderId) is not null ||
-                asset?.OwnerConnectionId is not null && !simulatorOwned)
+            // A simulator asset without a source binding is the legacy path; a bound one is read like any provider.
+            var legacySimulator = input.ProviderId == "simulator" && (asset is null || asset.OwnerConnectionId is null || simulatorOwned &&
+                !await dbContext.SourceBindings.AsNoTracking().AnyAsync(b => b.AssetId == input.AssetId, ct));
+            if (!legacySimulator && (AdapterReadRules.Find(input.ProviderId) is not null ||
+                asset?.OwnerConnectionId is not null && !simulatorOwned))
             {
                 if (subject is null) throw ReadFailure("EXECUTION_READ_AUTHORITY_REQUIRED");
                 if (asset is null || !asset.IsActive || asset.OwnerConnectionId is not { } connectionId)
