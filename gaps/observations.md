@@ -99,3 +99,22 @@ ForeSite sends RunTime in hours with no unit. The daily catalogue marks it provi
 
 ## Env note - ForeSite 401 for the dev Windows account
 From about 20:18 local, ForeSite returns 401 for the Gateway Windows account on the Surveillance endpoints. This blocks live reads and the scheduled-run check until the account is accepted again.
+
+### Env note update - 401 diagnosis (2026-11-26 21:10)
+- Logon session 0x2de0a2 (started 18:46) is NEWER than the last password change (AD "Password last set" 09:30), so no full sign-out was needed. TGT was re-issued 20:47 (after the klist purge); HTTP/usdcfseappts004 service ticket retrieves fine. DC USDC2WFTADCPD09 responsive. No SPN is registered for HTTP/usdcfseappts004 (setspn -Q), so Negotiate falls back to NTLM-compatible auth on the host; this did not block access.
+- Re-probe with Windows auth: `GET /TokenService/CreateToken` returns 200 + session cookie on usdcfseappts004 and usdcfstappts010. With that cookie, `GET /Wells/UserAssets` returns 200 on both. Probing API paths WITHOUT the token cookie returns 401 by design (the 401 seen in earlier probes of Surveillance paths was this, plus the earlier real rejection around 20:18, which cleared after the TGT was re-issued; likely the purged/stale ticket cache during DC flakiness).
+- No ForeSite role problem observed for the account on UserAssets.
+- Lesson: the adapter authenticates in two steps (Windows auth -> cookie). Probe with a web session, not bare paths.
+
+## P130 - Rules could not send a command; Autonomous recorded empty runs (fixed in slice 1)
+A rules module declared no commands and returned advice only, so Autonomous mode (which acts on control intents alone) had nothing to apply. A rule's recommend may now name a command; the package declares it and the module emits a control intent. Autonomous is refused for modules that declare no commands.
+Review findings addressed with it: the step limit could be overridden by an absolute limit (now proposes nothing); the web model dropped the command on save (now kept and shown in review); a command's setpoint and unit are validated for one meaning per command.
+
+## P131 - Guided providers do not include the simulator
+The authoring provider list is ForeSite and CygNet. ForeSite setpoints are read-only and CygNet publishes no commands in the picker, so no authored rule can send a command to a provider that applies it today. The simulator publishes SET_SPEED (speed, spm) and PUMP_RUN (no unit) but is not a guided provider. Needed before Autonomous can be tested end to end.
+
+## P132 - Open design items from the apply-path review
+- The gate does not read the current value or enforce the catalogue's MaximumStep (ControlTargets.cs).
+- A policy limit with no unit skips the unit comparison.
+- Gateway command names match case-sensitively; authored names must come from the published catalogue (the picker does this).
+- The declarative entry point is not versioned for commands; older readers reject the manifest.
