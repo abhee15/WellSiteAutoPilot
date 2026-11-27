@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { approveGuidedModuleSubmission, getGuidedModuleSubmission } from '../api/generated/v1/sdk.gen';
 import type { GuidedModuleReviewResponse, GuidedPressureReadingRequest } from '../api/generated/v1/types.gen';
-import { ActionButton, ActionLink } from '../components/ActionButton';
+import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { AuthoringFlow } from './AuthoringFlow';
-import { AuthoringDrafts } from './AuthoringDrafts';
+import { AuthoringModules } from './AuthoringModules';
 import { RulesReview } from './AuthoringReview';
 import { TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -70,7 +70,8 @@ export function ModuleAuthoringWorkspace({
   const canReview = permissions.includes('logic.authoring.review');
   const showReviews = canReview && (Boolean(detail) || !canAuthor);
   const reviewReference = showReviews && detail !== 'reviews' ? (detail ?? '') : '';
-  if (canAuthor && detail === 'new') return <AuthoringFlow />;
+  if (canAuthor && (detail === 'new' || detail?.startsWith('new:')))
+    return <AuthoringFlow key={detail} initialProvider={detail.slice('new:'.length)} />;
   if (canAuthor && detail?.startsWith('draft:'))
     return <AuthoringFlow key={detail} draftId={detail.slice('draft:'.length)} />;
   return (
@@ -85,12 +86,7 @@ export function ModuleAuthoringWorkspace({
           ]}
         />
       )}
-      {canAuthor && !showReviews && (
-        <>
-          <ActionLink href={hashFor('authoring', 'new')} label={t('flow.startModule')} variant="primary" />
-          <AuthoringDrafts />
-        </>
-      )}
+      {canAuthor && !showReviews && <AuthoringModules />}
       {showReviews && (
         <ModuleReview
           key={reviewReference || 'reviews'}

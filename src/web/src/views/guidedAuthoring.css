@@ -39,7 +39,26 @@
   color: var(--color-text-link);
 }
 
-.authoring-drafts {
+.authoring-modules {
   display: grid;
   gap: var(--space-12);
+  padding-top: var(--space-16);
+}
+
+.authoring-modules-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.authoring-modules-head h2,
+.authoring-modules-head p {
+  margin: 0;
+}
+
+.authoring-modules-head > div {
+  display: grid;
+  gap: var(--space-4);
 }
