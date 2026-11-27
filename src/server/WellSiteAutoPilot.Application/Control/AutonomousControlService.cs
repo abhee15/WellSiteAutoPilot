@@ -45,6 +45,8 @@ public static class GateCodes
     public const string CommandNotInCatalog = "GATE_COMMAND_NOT_IN_CATALOG";
     public const string CommandNotEnabled = "GATE_COMMAND_NOT_ENABLED";
     public const string CatalogOutOfBounds = "GATE_CATALOG_OUT_OF_BOUNDS";
+    public const string StepTooLarge = "GATE_STEP_TOO_LARGE";
+    public const string CurrentValueUnknown = "GATE_CURRENT_VALUE_UNKNOWN";
 }
 
 /// <summary>
@@ -266,6 +268,28 @@ public sealed class AutonomousControlService(
         return target is null ? null : DispatchRequest(action, target);
     }
 
+    /// <summary>
+    /// Null when there is no step limit or the move is within it. A step limit that cannot be checked, because the
+    /// current value cannot be read, stops the command: nothing has been sent, so this is a block and not ambiguity.
+    /// </summary>
+    private static async Task<string?> StepRefusalAsync(
+        ControlDispatchRequest request, IControlCommandSink sink, CancellationToken cancellationToken)
+    {
+        if (request.Target?.Entry is not { MaximumStep: not null } entry || request.Value is not { } requested) return null;
+        ControlReadback current;
+        try
+        {
+            current = await sink.ReadbackAsync(request, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return GateCodes.CurrentValueUnknown;
+        }
+
+        if (current.ObservedValue is not { } observed) return GateCodes.CurrentValueUnknown;
+        return ConnectionCommandCatalogRules.StepAllowed(entry, observed, requested) ? null : GateCodes.StepTooLarge;
+    }
+
     private async Task DispatchClaimedAsync(ControlActionRecord action, IControlCommandSink sink, ControlTarget? target,
         CancellationToken cancellationToken)
     {
@@ -282,6 +306,14 @@ public sealed class AutonomousControlService(
         if (request is null)
         {
             await control.CompleteAsync(action.Id, ControlActionStatus.Blocked, GateCodes.TargetNotBound, null,
+                timeProvider.GetUtcNow(), CancellationToken.None);
+            return;
+        }
+
+        // The site's step limit is about the value on the equipment now, so it is read just before anything is sent.
+        if (await StepRefusalAsync(request, sink, cancellationToken) is { } stepRefusal)
+        {
+            await control.CompleteAsync(action.Id, ControlActionStatus.Blocked, stepRefusal, null,
                 timeProvider.GetUtcNow(), CancellationToken.None);
             return;
         }

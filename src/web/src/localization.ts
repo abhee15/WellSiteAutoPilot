@@ -1253,6 +1253,10 @@ export const englishMessages = {
   'control.gate.GATE_COMMAND_NOT_IN_CATALOG': "This connection's command catalog does not list the command.",
   'control.gate.GATE_COMMAND_NOT_ENABLED': 'The command is not switched on for this connection.',
   'control.gate.GATE_CATALOG_OUT_OF_BOUNDS': 'The value is outside the limits this connection allows for the command.',
+  'control.gate.GATE_STEP_TOO_LARGE':
+    'The change is larger than this connection allows in one step from the value now on the equipment. Nothing was sent.',
+  'control.gate.GATE_CURRENT_VALUE_UNKNOWN':
+    'The value now on the equipment could not be read, so the step limit could not be checked. Nothing was sent.',
   'control.gate.GATE_RATE_LIMITED': "The policy's rate limit has been reached. Try again later.",
   'control.gate.REAL_PROVIDER_WRITES_DISABLED':
     'Real provider writes are disabled. Only the simulator can be commanded.',

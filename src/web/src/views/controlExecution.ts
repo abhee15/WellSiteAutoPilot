@@ -7,12 +7,7 @@ import type { MessageKey } from '../localization';
 import { recommendationExpiryPassed } from './recommendationInbox';
 
 export type ControlExecutionErrorKind =
-  | 'invalid'
-  | 'accessDenied'
-  | 'notFound'
-  | 'conflict'
-  | 'unavailable'
-  | 'invalidResponse';
+  'invalid' | 'accessDenied' | 'notFound' | 'conflict' | 'unavailable' | 'invalidResponse';
 
 export class ControlExecutionError extends Error {
   constructor(public readonly kind: ControlExecutionErrorKind) {
@@ -40,14 +35,16 @@ export function recommendationIsExecutable(
   canExecute: boolean,
 ): boolean {
   const decidedBy = item.decisionBy ?? '';
-  return canExecute &&
+  return (
+    canExecute &&
     item.canDecide === true &&
     item.status === 'Approved' &&
     !item.controlActionId &&
     item.command !== ADVISORY_COMMAND &&
     decidedBy.trim().length > 0 &&
     !decidedBy.startsWith('system:') &&
-    !recommendationExpiryPassed(item, nowUtc);
+    !recommendationExpiryPassed(item, nowUtc)
+  );
 }
 
 /** One message per control action status the server can report. */
@@ -84,6 +81,8 @@ export const CONTROL_GATE_MESSAGES = {
   GATE_COMMAND_NOT_IN_CATALOG: 'control.gate.GATE_COMMAND_NOT_IN_CATALOG',
   GATE_COMMAND_NOT_ENABLED: 'control.gate.GATE_COMMAND_NOT_ENABLED',
   GATE_CATALOG_OUT_OF_BOUNDS: 'control.gate.GATE_CATALOG_OUT_OF_BOUNDS',
+  GATE_STEP_TOO_LARGE: 'control.gate.GATE_STEP_TOO_LARGE',
+  GATE_CURRENT_VALUE_UNKNOWN: 'control.gate.GATE_CURRENT_VALUE_UNKNOWN',
   GATE_RATE_LIMITED: 'control.gate.GATE_RATE_LIMITED',
   REAL_PROVIDER_WRITES_DISABLED: 'control.gate.REAL_PROVIDER_WRITES_DISABLED',
   GATE_SINK_UNAVAILABLE: 'control.gate.GATE_SINK_UNAVAILABLE',
@@ -131,10 +130,12 @@ export async function executeApprovedRecommendation(
 ): Promise<ControlExecutionResult> {
   if (!uuidPattern.test(recommendationId)) throw new ControlExecutionError('invalid');
 
-  const response = await fetcher(
-    `/api/v1/control/recommendations/${encodeURIComponent(recommendationId)}/execute`,
-    { method: 'POST', credentials: 'same-origin', cache: 'no-store', signal },
-  );
+  const response = await fetcher(`/api/v1/control/recommendations/${encodeURIComponent(recommendationId)}/execute`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    signal,
+  });
   if (response.status === 401 || response.status === 403) throw new ControlExecutionError('accessDenied');
   if (response.status === 404) throw new ControlExecutionError('notFound');
   if (response.status === 409) throw new ControlExecutionError('conflict');
@@ -162,10 +163,15 @@ function validateExecution(payload: unknown, recommendationId: string): ControlE
   }
   if (body.executed) {
     // An execution always names its action, and the action must be this recommendation's.
-    if (!action || typeof action !== 'object' || typeof action.id !== 'string' ||
-        typeof action.recommendationId !== 'string' ||
-        action.recommendationId.toLowerCase() !== recommendationId.toLowerCase() ||
-        typeof action.status !== 'string' || !action.status) {
+    if (
+      !action ||
+      typeof action !== 'object' ||
+      typeof action.id !== 'string' ||
+      typeof action.recommendationId !== 'string' ||
+      action.recommendationId.toLowerCase() !== recommendationId.toLowerCase() ||
+      typeof action.status !== 'string' ||
+      !action.status
+    ) {
       throw new ControlExecutionError('invalidResponse');
     }
     return { action, refusalCode: null };

@@ -411,6 +411,27 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
         Require(narrowedActions.Single(item => item.Value == 11m) is { Status: ControlActionStatus.Blocked, GateCode: GateCodes.CatalogOutOfBounds },
             "A value above a narrowed catalog must be blocked with the catalog code.");
 
+        // The catalog's step limit is checked against the value on the equipment just before sending.
+        foreach (var (name, current, expectedCode) in new (string, decimal?, string?)[]
+        {
+            ("a move within the step", 8.5m, null),
+            ("a move beyond the step", 5m, GateCodes.StepTooLarge),
+            ("a current value that cannot be read", null, GateCodes.CurrentValueUnknown)
+        })
+        {
+            var run = await ProviderPolicyAsync(9m);
+            stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target(step: 1));
+            providerSink.CurrentBefore = current;
+            before = providerSink.Requests.Count;
+            await providerGate.ProcessExecutionAsync(run.Execution);
+            var stepAction = (await controlRepository.ListActionsAsync(run.Logic, 10)).Single();
+            var expectedSent = expectedCode is null ? before + 1 : before;
+            Require(providerSink.Requests.Count == expectedSent
+                && (expectedCode is null ? stepAction.Status == ControlActionStatus.Verified : stepAction is { Status: ControlActionStatus.Blocked } && stepAction.GateCode == expectedCode),
+                $"{name}: expected {expectedCode ?? "a verified send"}, got {stepAction.Status}/{stepAction.GateCode}, sent {providerSink.Requests.Count - before}.");
+        }
+        providerSink.CurrentBefore = null;
+
         // An adapter taken off the list, or a connection that went away, stops the command before anything is sent.
         foreach (var (name, behavior, expectedCode) in new (string, ControlTargetResolution, string)[]
         {
