@@ -68,3 +68,8 @@ Sri: after the lifecycle (O14) check that the scheduling piece works: an approve
 ## O16 - UI refinements
 
 Sri: UI refinements. Treat as a polish pass after the authoring gaps: sentence-case copy, spacing, long chip lists, disabled buttons that say why, scenario table density, consistent landing. Judge each headed run and screenshot.
+
+
+## O17 - Authoring modes: Workflow and IDE
+
+Sri: the new authoring page must offer the different modes discussed - Workflow mode (guided, step by step) and IDE mode (code-first, expression/manifest editing with the same validation, preview and tests). The legacy page already has a Workflow/IDE switch (readEditorView); the new page has only the workbench. Plan: one draft, two views over the same model, switchable without loss, preference remembered; IDE view backed by the offline kit (O10) so the same module can be built outside the app. Part of the O5/O8 design brief.
