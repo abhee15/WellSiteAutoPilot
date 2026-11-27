@@ -1758,7 +1758,7 @@ v1.MapPut(
         if (request.Limits is null || request.Limits.Any(item => item is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "Command limits are required.");
         var policy = await control.SetPolicyAsync(configuredLogicId, request.Enabled,
-            WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
+            request.SinkKind ?? WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
             request.Limits.Select(item => new WellSiteAutoPilot.Domain.Control.AutonomyCommandLimit(item.Command, item.Unit, item.MinimumValue, item.MaximumValue)).ToArray(),
             request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName,
             request.AllowApprovedRecommendations, cancellationToken);
