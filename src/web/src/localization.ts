@@ -1586,7 +1586,8 @@ export const englishMessages = {
   'flow.scenarioExpects': 'Expected outcome',
   'flow.removeScenario': 'Remove scenario',
   'flow.submit': 'Submit for review',
-  'flow.submitted': 'Submitted for review.',
+  'flow.submitted':
+    'Submitted for review as revision {revision}. It is not approved or running yet: a reviewer must approve it first.',
   'flow.submitSaveFirst': 'Save your changes before submitting for review.',
   'flow.submitNeedRule': 'Add at least one rule before submitting for review.',
   'flow.submitNeedScenario': 'Add at least one test scenario before submitting for review.',
