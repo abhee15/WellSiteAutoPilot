@@ -2189,9 +2189,8 @@ static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
         definition is null ? null : new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
         draft.Content.SampleCases?.Select(item => new GuidedSampleCaseRequest(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray(),
         draft.Content.SourceHints?.Select(item => new GuidedSourceHintRequest(item.InputId, item.ExternalSource)).ToArray(),
-        draft.Content.RulesJson, draft.Content.ScenariosJson);
-}
-
+        draft.Content.RulesJson, draft.Content.ScenariosJson, draft.UpdatedAtUtc, draft.Submitted);
+        }
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
     assetType.Id,
     assetType.Key,
