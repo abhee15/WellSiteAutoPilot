@@ -472,6 +472,11 @@ function InputsEditor({
 
   return (
     <Section title={t('flow.inputsTitle')}>
+      {inputs.length === 0 && (
+        <Notice tone="info" announce={false}>
+          {t('flow.inputsGuide')}
+        </Notice>
+      )}
       {inputs.length > 0 && (
         <ul className="authoring-flow-inputs">
           {inputs.map((input) => {
