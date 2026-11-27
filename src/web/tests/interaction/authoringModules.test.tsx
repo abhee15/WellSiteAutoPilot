@@ -63,17 +63,20 @@ test('shows each module at its stage and keeps empty modules out of the default 
   expect(screen.getByRole('link', { name: 'Empty shell' })).toBeTruthy();
 });
 
-test('the provider select filters the list and starts a module for that provider', async () => {
+test('the provider filter and search narrow the list, and one provider preselects the new module', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [draft('d1', 'SPM optimizer', 'foresite'), draft('d5', 'Pump trim', 'simulator')],
   } as never);
   render(<AuthoringModules />);
-  fireEvent.change(await screen.findByRole('combobox', { name: 'Provider' }), { target: { value: 'foresite' } });
+  fireEvent.click(await screen.findByRole('button', { name: /Filters/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'ForeSite (1)' }));
   expect(screen.getByRole('link', { name: 'SPM optimizer' })).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'Pump trim' })).toBeNull();
   expect(screen.getByRole('link', { name: 'New ForeSite module' }).getAttribute('href')).toBe(
     '#authoring/new%3Aforesite',
   );
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search modules' }), { target: { value: 'nothing' } });
+  expect(screen.queryByRole('link', { name: 'SPM optimizer' })).toBeNull();
 });
 
 test('explains how to start when there are no modules', async () => {

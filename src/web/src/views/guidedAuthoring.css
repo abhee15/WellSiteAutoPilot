@@ -65,10 +65,6 @@
   gap: var(--space-12);
 }
 
-.authoring-modules-filter {
-  max-width: var(--layout-field-min);
-}
-
 .authoring-modules-head h2,
 .authoring-modules-head p {
   margin: 0;
