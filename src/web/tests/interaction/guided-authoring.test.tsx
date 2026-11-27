@@ -8,6 +8,8 @@ import {
   discoverGuidedModuleQuantities,
   getGuidedModuleSubmission,
   listGuidedModuleDrafts,
+  listGuidedModuleProviders,
+  listLogicModules,
   listPendingGuidedModuleSubmissions,
   previewGuidedModuleInputHistory,
   previewGuidedModuleProductionDays,
@@ -23,6 +25,8 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   discoverGuidedModuleQuantities: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
+  listGuidedModuleProviders: vi.fn(),
+  listLogicModules: vi.fn(),
   listPendingGuidedModuleSubmissions: vi.fn(),
   previewGuidedModuleInputHistory: vi.fn(),
   previewGuidedModuleProductionDays: vi.fn(),
@@ -39,7 +43,10 @@ async function atHash(hash: string, check: () => Promise<void> | void) {
   }
 }
 
-it('shows an author only the drafts list and a link to the new flow, never the legacy editor', async () => {
+it('shows an author only the modules list and a link to the new flow, never the legacy editor', async () => {
+  vi.mocked(listGuidedModuleProviders).mockResolvedValue({ data: [] } as never);
+  vi.mocked(listLogicModules).mockResolvedValue({ data: [] } as never);
+  vi.mocked(listPendingGuidedModuleSubmissions).mockResolvedValue({ data: [] } as never);
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [
       {
@@ -55,7 +62,7 @@ it('shows an author only the drafts list and a link to the new flow, never the l
     render(<ModuleAuthoringWorkspace permissions={['logic.authoring.manage']} onRefresh={async () => {}} />);
     expect(await screen.findByRole('link', { name: 'Existing draft' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'New module' }).getAttribute('href')).toBe('#authoring/new');
-    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'In progress (1)' })).toBeTruthy();
     expect(screen.queryByLabelText('Open draft')).toBeNull();
     expect(screen.queryByLabelText('Show drafts for provider')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Module details' })).toBeNull();

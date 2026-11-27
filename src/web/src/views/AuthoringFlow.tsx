@@ -78,10 +78,10 @@ const outline: {
  * Module authoring workbench. A module is created with a name and a provider, then edited here: an outline of the
  * parts of the module, and the editor for the selected part. Parts are added to the outline as they can be run.
  */
-export function AuthoringFlow({ draftId }: { draftId?: string }) {
+export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; initialProvider?: string }) {
   const [providers, setProviders] = useState<GuidedProviderResponse[]>([]);
   const [name, setName] = useState('');
-  const [providerKey, setProviderKey] = useState('');
+  const [providerKey, setProviderKey] = useState(initialProvider ?? '');
   const [manifest, setManifest] = useState('');
   const [hints, setHints] = useState<GuidedSourceHintRequest[]>([]);
   const [rules, setRules] = useState<RulesModel>(emptyRules);
@@ -316,7 +316,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           <span>{provider?.displayName ?? providerKey}</span>
         </div>
         <div className="authoring-flow-actions">
-          <ActionLink href={hashFor('authoring')} label={t('flow.allDrafts')} variant="secondary" />
+          <ActionLink href={hashFor('authoring')} label={t('flow.allModules')} variant="secondary" />
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{failed}</Notice>}
           {submitted !== null && <Notice tone="success">{t('flow.submitted', { revision: submitted })}</Notice>}
