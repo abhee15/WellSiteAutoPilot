@@ -95,6 +95,30 @@ internal static class RulesEngineChecks
         if (unreachable.OutcomeCode != "SLOW_PUMP" || unreachable.Proposal is not null)
             throw new InvalidOperationException("A limit outside the largest change must propose nothing.");
 
+        // A move smaller than the deadband is not worth a command; rounding snaps the value to the equipment's step.
+        var inDeadband = RulesEngine.Run(RulesDefinition.Parse(Json.Replace("\"maximumChange\": 1", "\"maximumChange\": 1, \"deadband\": 2")),
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+        if (inDeadband.OutcomeCode != "SLOW_PUMP" || inDeadband.Proposal is not null ||
+            !inDeadband.Trace.Any(step => step.Kind == "setpoint" && step.Detail.Contains("deadband", StringComparison.Ordinal)))
+            throw new InvalidOperationException("A move inside the deadband must propose nothing.");
+        var rounded = RulesEngine.Run(RulesDefinition.Parse(Json.Replace("\"maximumChange\": 1", "\"maximumChange\": 1, \"increment\": 0.5")),
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6.3m }, none);
+        if (rounded.Proposal is not { SuggestedValue: 5.5m })
+            throw new InvalidOperationException("The value must be rounded to the increment.");
+        ExpectIssue(Json.Replace("\"maximumChange\": 1", "\"maximumChange\": 1, \"deadband\": 0"), inputs, "RULES_LIMIT_INVALID");
+        ExpectIssue(Json.Replace("\"maximumChange\": 1", "\"maximumChange\": 1, \"increment\": -1"), inputs, "RULES_LIMIT_INVALID");
+
+        // A name the run did not supply is a coded failure, never an unhandled KeyNotFoundException.
+        try
+        {
+            RulesEngine.Run(RulesDefinition.Parse(Json.Replace("\"currentValue\": \"CurrentSpeed\"", "\"currentValue\": \"Ghost\"")),
+                new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+            throw new InvalidOperationException("A missing current value must fail.");
+        }
+        catch (RuleExpressionException ex) when (ex.Code == "RULES_VALUE_MISSING")
+        {
+        }
+
         try
         {
             RulesEngine.Run(definition, new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m },

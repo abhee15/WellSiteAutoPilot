@@ -106,6 +106,12 @@ public static class RulesEngine
 
         if (recommend.Minimum is { } min && recommend.Maximum is { } max && min > max && string.IsNullOrWhiteSpace(recommend.MinimumFrom) && string.IsNullOrWhiteSpace(recommend.MaximumFrom))
             issues.Add(new("RULES_LIMIT_INVALID", path, "The minimum limit is above the maximum limit."));
+        if (recommend.Deadband is <= 0)
+            issues.Add(new("RULES_LIMIT_INVALID", path + ".deadband", "The deadband must be above zero."));
+        if (recommend.Increment is <= 0)
+            issues.Add(new("RULES_LIMIT_INVALID", path + ".increment", "The increment must be above zero."));
+        if (recommend.Deadband is not null && string.IsNullOrWhiteSpace(recommend.CurrentValue))
+            issues.Add(new("RULES_CURRENT_VALUE_REQUIRED", path + ".currentValue", "A deadband needs the current value to measure from."));
         if (recommend.MaximumChange is { } change && change <= 0 && string.IsNullOrWhiteSpace(recommend.MaximumChangeFrom))
             issues.Add(new("RULES_LIMIT_INVALID", path + ".maximumChange", "The largest change must be above zero."));
         if ((recommend.MaximumChange is not null || !string.IsNullOrWhiteSpace(recommend.MaximumChangeFrom)) && string.IsNullOrWhiteSpace(recommend.CurrentValue))
@@ -170,7 +176,7 @@ public static class RulesEngine
         {
             if (change <= 0)
                 throw new RuleExpressionException("RULES_LIMIT_INVALID", "The largest change must be above zero.");
-            var current = values[recommend.CurrentValue].Number;
+            var current = Named(values, recommend.CurrentValue);
             value = Math.Min(Math.Max(value, current - change), current + change);
         }
 
@@ -180,16 +186,30 @@ public static class RulesEngine
             throw new RuleExpressionException("RULES_LIMIT_INVALID", "The minimum limit is above the maximum limit.");
         if (minimum is { } low) value = Math.Max(value, low);
         if (maximum is { } max) value = Math.Min(value, max);
+        if (recommend.Increment is { } increment)
+        {
+            value = Math.Round(value / increment, MidpointRounding.AwayFromZero) * increment;
+            // Rounding must not carry the value back outside the limits.
+            if (minimum is { } floor && value < floor) value = Math.Ceiling(floor / increment) * increment;
+            if (maximum is { } ceiling && value > ceiling) value = Math.Floor(ceiling / increment) * increment;
+        }
+
         // The largest change is a safety limit: a minimum or maximum that sits outside it must not push the value past it.
         if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && maximumChange is { } step &&
-            Math.Abs(value - values[recommend.CurrentValue].Number) > step)
+            Math.Abs(value - Named(values, recommend.CurrentValue)) > step)
         {
             trace.Add(new("setpoint", recommend.Setpoint, "the limits and the largest change cannot both hold, so no change is proposed"));
             return null;
         }
         var limited = value != requested;
         trace.Add(new("limit", recommend.Setpoint, limited ? "held to the limits" : "within the limits"));
-        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && values[recommend.CurrentValue].Number == value)
+        if (recommend.Deadband is { } deadband && Math.Abs(value - Named(values, recommend.CurrentValue!)) < deadband)
+        {
+            trace.Add(new("setpoint", recommend.Setpoint, "within the deadband of " + deadband.ToString(CultureInfo.InvariantCulture) + ", no change proposed"));
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && Named(values, recommend.CurrentValue) == value)
         {
             trace.Add(new("setpoint", recommend.Setpoint, "already at " + value.ToString(CultureInfo.InvariantCulture) + ", no change proposed"));
             return null;
@@ -200,7 +220,13 @@ public static class RulesEngine
     }
 
     private static decimal? Limit(string? name, decimal? fixedValue, Dictionary<string, RuleValue> values) =>
-        string.IsNullOrWhiteSpace(name) ? fixedValue : values[name].Number;
+        string.IsNullOrWhiteSpace(name) ? fixedValue : Named(values, name);
+
+    // A name the module declares but the run did not supply is a coded failure, not an unhandled KeyNotFoundException.
+    private static decimal Named(Dictionary<string, RuleValue> values, string name) =>
+        values.TryGetValue(name, out var value)
+            ? value.Number
+            : throw new RuleExpressionException("RULES_VALUE_MISSING", $"'{name}' has no value in this run.");
 
     private static RuleValueKind? Check(string expression, Dictionary<string, RuleValueKind> kinds, string path,
         List<RulesIssue> issues)
