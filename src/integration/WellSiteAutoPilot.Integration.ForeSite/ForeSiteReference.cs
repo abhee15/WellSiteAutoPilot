@@ -7,8 +7,12 @@ namespace WellSiteAutoPilot.Integration.ForeSite;
 internal static class ForeSiteReference
 {
     public static AdapterOperationDocumentation Current(string quantity) =>
-        AdapterReferenceExamples.Current("101", quantity, "%", "foresite:controller-scan", "Good", "ControllerScan") with
+        AdapterReferenceExamples.Current("101", quantity, ForeSiteMeasurements.Catalogued(quantity).Unit, "foresite:controller-scan", "Good", "ControllerScan") with
         { ProviderReference = "GET Surveillance/well/{wellId}; source field " + ForeSiteMeasurements.SourceField(quantity) + ". Timestamp: LastGoodScanTime." };
+
+    public static AdapterOperationDocumentation Daily(string quantity, string unit) =>
+        AdapterReferenceExamples.Current("101", quantity, unit, ForeSiteLatestDailyValue.Source, "Uncertain", ForeSiteLatestDailyValue.TimestampKind) with
+        { ProviderReference = "GET Surveillance/Well/DailyAverage; field " + quantity + " of the latest finished production day. Timestamp: production-day end." };
 
     public static AdapterOperationDocumentation Cards()
     {

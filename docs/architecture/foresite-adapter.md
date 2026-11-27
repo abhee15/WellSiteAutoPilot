@@ -55,8 +55,13 @@ changed source facts/paths and inconclusive absence, with explicit review before
 
 ## Current controller reads
 
-The saved-connection Shadow path reads CurrentPumpFillage and AveragePumpFillage
-through Surveillance. It uses LastGoodScanTime for successful datagroup acquisition,
+The saved-connection Shadow path reads the catalogued surveillance quantities
+(`ForeSiteSurveillanceCatalogue`: the numeric fields of the well-status document,
+for example CurrentPumpFillage, RunTimeYesterday and TubingPressure) through
+Surveillance. Values are read in ForeSite's default (imperial) unit system; the
+document's own unit for each field must match the catalogue or the read fails with
+`FORESITE_UNIT_MISMATCH`, and a value is never converted. The Integration Gateway's
+Windows account must have that unit system configured. It uses LastGoodScanTime for successful datagroup acquisition,
 with module freshness checked independently. ForeSite owns site-specific CygNet
 UDC mapping; AutoPilot addresses ForeSite field names. See
 [controller acquisition semantics](../implementation/foresite-controller-acquisition.md)

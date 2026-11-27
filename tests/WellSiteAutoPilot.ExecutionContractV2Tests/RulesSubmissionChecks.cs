@@ -44,6 +44,21 @@ internal static class RulesSubmissionChecks
 
         var daily = manifest with { DataRequirements = [new("fillage", "well", "PumpFillage", "Daily", "%", 3600, false)] };
         await Reject(() => RulesPackageBuilder.BuildAsync(daily, definition), "GUIDED_RULES_INPUT_UNSUPPORTED");
+        var unknownCapability = manifest with
+        {
+            DataRequirements = [new("fillage", "well", "PumpFillage", "Current", "%", 3600, false, null, "structured.current")]
+        };
+        await Reject(() => RulesPackageBuilder.BuildAsync(unknownCapability, definition), "GUIDED_RULES_INPUT_UNSUPPORTED");
+
+        // A production-day value runs in a rules module; the reviewed package keeps its capability so it is read as daily.
+        var productionDay = manifest with
+        {
+            DataRequirements = [new("fillage", "well", "PumpFillage", "Current", "%", 3600, false, null, "engineering.daily")]
+        };
+        var dailyArtifact = await RulesPackageBuilder.BuildAsync(productionDay, definition);
+        if (dailyArtifact.Package.Manifest.DataRequirements.Single().RequiredCapability != "engineering.daily" ||
+            dailyArtifact.Package.RulesModule is null)
+            throw new InvalidOperationException("A daily input must keep its capability in the reviewed package.");
         await Reject(() => RulesPackageBuilder.BuildAsync(manifest,
             RulesDefinition.Parse(Rules.Replace("Shortfall > 0", "Missing > 0"))), "RULE_EXPRESSION_UNKNOWN_NAME");
     }

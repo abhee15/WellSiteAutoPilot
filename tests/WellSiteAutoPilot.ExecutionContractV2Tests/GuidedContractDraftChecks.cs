@@ -128,7 +128,7 @@ internal static class GuidedContractDraftChecks
         Assert(foresite.AllowsScalarCurrentDeclaration("PumpFillage", "engineering.current", "number") &&
             cygnet.AllowsScalarCurrentDeclaration("CasingPressure", "engineering.current", "number"),
             "A registered scalar current quantity was not recognised for authoring.");
-        Assert(!foresite.AllowsScalarCurrentDeclaration("CasingPressure", "engineering.current", "number") &&
+        Assert(!foresite.AllowsScalarCurrentDeclaration("WaterCut", "engineering.current", "number") &&
             !foresite.AllowsScalarCurrentDeclaration("PumpFillage", "structured.current", "number") &&
             !foresite.AllowsScalarCurrentDeclaration("PumpFillage", "engineering.current", "string") &&
             !foresite.AllowsScalarCurrentDeclaration("SurfaceCards", "engineering.current", "number") &&

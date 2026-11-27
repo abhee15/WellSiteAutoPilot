@@ -15,7 +15,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
 
     public Task<EngineeringValue> ReadAsync(ConnectionMeasurementRequest request, CancellationToken cancellationToken) =>
         WithSessionAsync(request, async session => await new ForeSiteCurrentDataProvider(session.Session)
-            .GetCurrentAsync(request.ExternalId, request.Quantity, session.Token), cancellationToken);
+            .GetCurrentAsync(request.ExternalId, request.Quantity, request.Capability, session.Token), cancellationToken);
 
     /// <summary>
     /// An internal shared controller snapshot, not a new dynamic or author-accessible provider operation.
@@ -25,6 +25,11 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         ConnectionMeasurementRequest request, IReadOnlyCollection<string> quantities, CancellationToken cancellationToken) =>
         WithSessionAsync(request, async session => await new ForeSiteCurrentDataProvider(session.Session)
             .GetCurrentSnapshotAsync(request.ExternalId, quantities, session.Token), cancellationToken);
+
+    public Task<ForeSiteSurveillanceReport> ReadSurveillanceAsync(
+        ConnectionMeasurementRequest request, CancellationToken cancellationToken) =>
+        WithSessionAsync(request, session => ForeSiteSurveillanceSnapshot.DescribeAsync(
+            session.Session, request.ExternalId, session.Token), cancellationToken);
 
     public Task<HistoricalReadResult> ReadHistoryAsync(ConnectionHistoryRequest request, CancellationToken cancellationToken)
     {

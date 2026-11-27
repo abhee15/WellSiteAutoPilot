@@ -116,7 +116,7 @@ public sealed partial class ExecutionRepository
         await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead,
             targets, clock ?? TimeProvider.System, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new(connection.AdapterKey, connection.Id, connection.Revision, binding.ExternalId, input.Quantity, settings);
+        return new(connection.AdapterKey, connection.Id, connection.Revision, binding.ExternalId, input.Quantity, settings, input.RequiredCapability);
     }
 
     // Persisted only on the execution row, never in transport/public projections or module input.

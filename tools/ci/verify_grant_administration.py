@@ -323,7 +323,7 @@ for profile in profiles:
         assert capability["contractVersion"].startswith("1.") and capability["operationKeys"], capability
         assert set(capability["operationKeys"]).issubset(operation_keys), capability
     if profile["adapterKey"] == "foresite":
-        assert [capability["displayName"] for capability in profile["capabilities"]] == ["Surveillance data", "Well configuration data", "Well trend data", "Well test", "Alarms", "Card data"], profile
+        assert [capability["displayName"] for capability in profile["capabilities"]] == ["Surveillance data", "Daily values", "Well configuration data", "Well test", "Alarms", "Card data"], profile
     assert ("configuration.saved-setpoints" in operation_keys) == (profile["adapterKey"] == "foresite"), profile
     assert ("alarms.active-well" in operation_keys) == (profile["adapterKey"] == "foresite"), profile
     assert ("well-test.latest-reported" in operation_keys) == (profile["adapterKey"] == "foresite"), profile
@@ -753,8 +753,10 @@ request("POST", quantity_url, OTHER, dict(trend_body, capability="Unknown"), exp
 request("POST", quantity_url, OTHER, dict(trend_body, endUtc=trend_body["startUtc"]), expected=400)
 trend_quantities = request("POST", quantity_url, OTHER, trend_body)
 assert trend_quantities["supported"], trend_quantities
-assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantities["quantities"]} == {
-    ("PumpFillage", "%", "Observed"), ("SPM", "SPM", "Observed")}, trend_quantities
+# Every catalogued history field is probed; only the two the simulator trends for the well have values.
+assert {(row["quantity"], row["unit"]) for row in trend_quantities["quantities"] if row["status"] == "Observed"} == {
+    ("PumpFillage", "%"), ("CurrentSPM", "SPM")}, trend_quantities
+assert len(trend_quantities["quantities"]) > 2 and all(row["status"] in ("Observed", "NoSamples", "Unavailable") for row in trend_quantities["quantities"]), trend_quantities
 site_trend_body = dict(live_body, capability="WellTrend", siteWindow=site_window)
 assert request("POST", quantity_url, OTHER, site_trend_body) == trend_quantities
 request("POST", quantity_url, OTHER, dict(trend_body, siteWindow=site_window), expected=400)
@@ -774,7 +776,7 @@ try:
     for body in (trend_body, daily_body):
         empty_catalog = request("POST", quantity_url, OTHER, body)
         assert empty_catalog["supported"] and empty_catalog["quantities"], empty_catalog
-        assert all(row["status"] == "NoSamples" for row in empty_catalog["quantities"]), empty_catalog
+        assert all(row["status"] in ("NoSamples", "Unavailable") for row in empty_catalog["quantities"]), empty_catalog
 finally:
     foresite_scenario("rod-pump-normal")
 

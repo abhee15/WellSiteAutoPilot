@@ -13,4 +13,7 @@ public interface IGuidedHistoryGateway
 
     Task<LatestWellTestResult> ReadLatestWellTestAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
         LatestWellTestReadRequest read, CancellationToken cancellationToken = default);
+
+    Task<ForeSiteSurveillanceReport> ReadSurveillanceAsync(ConnectionRecord connection, string externalId,
+        CancellationToken cancellationToken = default);
 }

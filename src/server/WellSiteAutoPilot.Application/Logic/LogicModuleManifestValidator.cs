@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Application.Logic;
 
@@ -74,8 +75,10 @@ public static partial class LogicModuleManifestValidator
     {
         if (manifest.ManifestVersion == 1)
         {
+            // A rules module may read a daily value by capability alone; every other declaration is structured.
             if (manifest.OutputRequirements is not null || manifest.DataRequirements.Any(r =>
-                r.ValueSchema is not null || r.RequiredCapability is not null))
+                r.ValueSchema is not null ||
+                r.RequiredCapability is not null && r.RequiredCapability != AdapterReadRules.EngineeringDailyCapability))
                 Fail("MODULE_CONTRACT_INVALID", "Structured declarations require manifest version 2.");
             return;
         }

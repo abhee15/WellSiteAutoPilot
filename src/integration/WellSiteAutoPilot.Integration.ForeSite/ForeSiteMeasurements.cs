@@ -12,12 +12,10 @@ public static class ForeSiteMeasurements
         return values[quantity];
     }
 
-    internal static string SourceField(string quantity) => quantity switch
-    {
-        "PumpFillage" => "CurrentPumpFillage",
-        "AveragePumpFillage" => "AveragePumpFillage",
-        _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
-    };
+    internal static ForeSiteSurveillanceQuantity Catalogued(string quantity) =>
+        ForeSiteSurveillanceCatalogue.Find(quantity) ?? throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED");
+
+    internal static string SourceField(string quantity) => Catalogued(quantity).Field;
 }
 
 public sealed class ForeSiteMeasurementException(string code, string? detail = null) : Exception(detail ?? code)

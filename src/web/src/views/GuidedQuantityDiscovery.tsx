@@ -33,6 +33,7 @@ const quantityStatuses = {
   NoSamples: 'guided.quantityNoSamples',
   CurrentObserved: 'guided.quantityCurrentObserved',
   NoReading: 'guided.quantityNoReading',
+  UnitMismatch: 'guided.quantityUnitMismatch',
   Reported: 'guided.quantityReportedOnTest',
 } as const;
 

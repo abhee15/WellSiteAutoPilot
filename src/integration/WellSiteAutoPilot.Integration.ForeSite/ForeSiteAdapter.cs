@@ -54,15 +54,8 @@ public static class ForeSiteAdapter
             new DiscoveryField("lease", "Lease", "Unspecified lease")
         ], Operations:
         [
-            EngineeringOperationSchemas.Current("current.pump-fillage", "Pump fillage", "Current controller pump fillage.",
-                "PumpFillage", WellResourceKind, "%", "LastGoodScanTime: successful controller scan, never the latest attempted scan.",
-                "Good indicates successful acquisition of a valid controller value, not independent sensor validation.", 6) with
-            { Documentation = ForeSiteReference.Current("PumpFillage") },
-            EngineeringOperationSchemas.Current("current.average-pump-fillage", "Average pump fillage", "Controller average pump fillage.",
-                "AveragePumpFillage", WellResourceKind, "%", "LastGoodScanTime from the controller scan.",
-                "Good indicates successful acquisition of a valid controller value.", 6) with
-            { Documentation = ForeSiteReference.Current("AveragePumpFillage") },
-            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
+            .. ForeSiteSurveillanceOperations.All,
+            .. ForeSiteDailyOperations.All,            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
                 "SurfaceCards", WellResourceKind, null, "Oldest card acquisition time; each card also preserves its capture time. Retrieval time is separate.",
                 "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
             {
@@ -80,16 +73,7 @@ public static class ForeSiteAdapter
                     new("[].load", "decimal[]", true, "2–1024 loads paired by index with position.")
                 ], "array (maximum 16 cards)")
             },
-            HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
-                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
-                "Trend responses do not supply quality; returned quality is Unknown.") with
-            { Documentation = AdapterReferenceExamples.History("101", "PumpFillage", "%", "foresite:trends", "Unknown") with
-                { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentPumpFillage. Whole-second UTC bounds, no implicit aggregation." } },
-            HistoricalReadLimits.Operation("history.stroke-rate", "SPM", WellResourceKind, 6,
-                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
-                "Trend responses do not supply quality; returned quality is Unknown.") with
-            { Documentation = AdapterReferenceExamples.History("101", "SPM", "SPM", "foresite:trends", "Unknown") with
-                { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentSPM. Whole-second UTC bounds, no implicit aggregation." } },
+            .. ForeSiteSurveillanceOperations.History,
             ForeSiteDailyAverageReader.Operation,
             ForeSiteActiveAlarmReader.Operation,
             ForeSiteReference.ConfigurationOperation,
@@ -97,11 +81,11 @@ public static class ForeSiteAdapter
             ForeSiteWellTestReference.Latest
         ], OperationGroups:
         [
-            new("surveillance", "Surveillance data", "Current controller surveillance measurements. This adapter currently exposes the supported quantities listed here, not the entire ForeSite surveillance DTO.", "1.0",
-                ["current.pump-fillage", "current.average-pump-fillage"],
+            new("surveillance", "Surveillance data", "Current controller surveillance measurements: the catalogued numeric fields of the ForeSite well-status document, in ForeSite's default (imperial) unit system.", "1.0",
+                [.. ForeSiteSurveillanceOperations.Keys, .. ForeSiteSurveillanceOperations.HistoryKeys],
                 [new AdapterWorkflowGuide("applicable-surveillance", "Read an applicable surveillance quantity",
                     "Recommended ForeSite sequence; the installed current-value reader does not yet perform the AvailableQuantities precheck.",
-                    "ReferenceOnly", ["current.pump-fillage", "current.average-pump-fillage"],
+                    "ReferenceOnly", ForeSiteSurveillanceOperations.Keys,
                     [
                         new("applicable", "Discover the WellQuantity enum identifiers applicable to the exact well.",
                             "GET Surveillance/AvailableQuantities/{wellId}",
@@ -109,14 +93,14 @@ public static class ForeSiteAdapter
                             "If the quantity is not applicable, stop; do not fetch a value."),
                         new("status", "Fetch one well-status document and extract the supported quantity and source unit.",
                             "GET Surveillance/well/{wellId}",
-                            "The current reader supports PumpFillage and AveragePumpFillage only; a populated field is not itself proof of applicability.",
-                            "Missing, null or out-of-range values fail validation."),
+                            "The current reader supports the catalogued quantities; a populated field is not itself proof of applicability.",
+                            "Missing, null, out-of-range values or a unit other than the catalogue's fail validation."),
                         new("timestamp", "Use LastGoodScanTime to determine the age of successfully scanned controller data.",
                             Requirement: "LastScanTime is only the last scan attempt, and retrieval time is not acquisition time.",
                             OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")
                     ])]),
+            new("daily-values", "Daily values", "Latest finished production-day values of the ForeSite daily record, in ForeSite's default (imperial) unit system.", "1.0", [.. ForeSiteDailyOperations.Keys, ForeSiteDailyAverageReader.Operation.Key]),
             new("well-configuration", "Well configuration data", "Well identity and classification details and passive saved setpoint groups.", "1.0", ["configuration.well-details", ForeSiteSavedSetpointReader.Operation.Key]),
-            new("well-trends", "Well trend data", "Raw historical samples and provider-reported production-day values.", "1.0", ["history.pump-fillage", "history.stroke-rate", ForeSiteDailyAverageReader.Operation.Key]),
             new("well-test", "Well test", "Inspect the identity, dates and reported status of the latest test.", "1.0", [ForeSiteWellTestReference.Latest.Key]),
             new("alarms", "Alarms", "Current well alarms as reported by ForeSite.", "1.0", [ForeSiteActiveAlarmReader.Operation.Key]),
             new("cards", "Card data", "Structured CURRENT and FULL surface cards, preserving paired position/load arrays, source units and capture timestamps. Downhole cards are not exposed.", "1.0", ["current.surface-cards"])

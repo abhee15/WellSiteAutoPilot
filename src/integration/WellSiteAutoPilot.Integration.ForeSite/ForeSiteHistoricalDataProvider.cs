@@ -17,12 +17,10 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
             throw new ForeSiteMeasurementException("FORESITE_HISTORY_PRECISION_UNSUPPORTED");
         if (!long.TryParse(request.AssetExternalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
-        var sourceQuantity = request.Quantity switch
-        {
-            "PumpFillage" => "CurrentPumpFillage",
-            "SPM" => "CurrentSPM",
-            _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
-        };
+        // "SPM" is the name the first history operation used for CurrentSPM; modules written against it keep working.
+        var catalogued = ForeSiteSurveillanceCatalogue.Find(request.Quantity == "SPM" ? "CurrentSPM" : request.Quantity)
+            ?? throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED");
+        var sourceQuantity = catalogued.Field;
         static string Iso(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
         using var response = await session.PostAsync(
             $"Surveillance/CygNetTrends/{wellId}/{Iso(request.StartUtc)}/{Iso(request.EndUtc)}", new[] { sourceQuantity }, cancellationToken, HttpCompletionOption.ResponseHeadersRead);
@@ -52,8 +50,9 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
             if (item.ValueKind != JsonValueKind.Object || Text(item, "ErrorMessage") is not { } status ||
                 !string.Equals(status, "Success", StringComparison.OrdinalIgnoreCase))
                 throw new ForeSiteMeasurementException("FORESITE_TREND_FAILED");
-            var unit = Text(item, "Units");
-            if (string.IsNullOrWhiteSpace(unit) || unit.Length > 64) throw new ForeSiteMeasurementException("FORESITE_UNIT_MISSING");
+            var reported = Text(item, "Units");
+            if (reported is { Length: > 64 }) throw new ForeSiteMeasurementException("FORESITE_UNIT_MISSING");
+            var (unit, scale) = ReconcileUnit(catalogued, reported);
             if (!item.TryGetProperty("PointValues", out var points) || points.ValueKind != JsonValueKind.Array)
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
             var samples = new List<EngineeringValue>();
@@ -69,7 +68,7 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
                     throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_INVALID");
                 if (time < request.StartUtc || time >= request.EndUtc) continue;
                 // The recorded trend contract has no quality field. Do not invent Good.
-                samples.Add(new(request.Quantity, value, unit, time.ToUniversalTime(), "Unknown", "foresite:trends", retrieved, "HistorianSample"));
+                samples.Add(new(request.Quantity, value * scale, unit, time.ToUniversalTime(), "Unknown", "foresite:trends", retrieved, "HistorianSample"));
             }
             var ordered = samples.OrderBy(sample => sample.TimestampUtc).Take(request.MaximumSamples).ToArray();
             var truncated = samples.Count > ordered.Length;
@@ -89,6 +88,20 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
         var result = await ReadHistoryAsync(new(assetExternalId, quantity, startUtc, endUtc), cancellationToken);
         if (result.Truncated) throw new ForeSiteMeasurementException("FORESITE_HISTORY_TRUNCATED");
         return result.Samples;
+    }
+
+    /// <summary>
+    /// The trend reports its own unit, which must be the catalogue's so a history reads like the current value.
+    /// Observed on live wells: elapsed times trend in hours and counts carry no unit; anything else that differs is refused.
+    /// </summary>
+    private static (string Unit, decimal Scale) ReconcileUnit(ForeSiteSurveillanceQuantity catalogued, string? reported)
+    {
+        if (string.IsNullOrWhiteSpace(reported))
+            return catalogued.Unit == ForeSiteSurveillanceQuantity.CountUnit
+                ? (catalogued.Unit, 1m) : throw new ForeSiteMeasurementException("FORESITE_UNIT_MISSING");
+        if (reported == catalogued.Unit) return (reported, 1m);
+        if (reported == "h" && catalogued.Unit == "s") return ("s", 3600m);
+        throw new ForeSiteMeasurementException("FORESITE_UNIT_MISMATCH");
     }
 
     private static void RejectDuplicates(JsonElement value)

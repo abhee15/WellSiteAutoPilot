@@ -136,8 +136,15 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
             Value = day.Values is not null && day.Values.TryGetValue(quantity, out var value) ? value : null
         }).ToArray();
         string? unit = null;
-        if (days.Any(day => day.Value is not null) && result.UnitsByQuantity?.TryGetValue(quantity, out unit) != true)
+        var catalogued = ForeSiteDailyCatalogue.Find(quantity);
+        var hasValue = days.Any(day => day.Value is not null);
+        if (hasValue && catalogued?.Unit == ForeSiteDailyQuantity.CountUnit)
+            unit = catalogued.Unit;
+        else if (hasValue && result.UnitsByQuantity?.TryGetValue(quantity, out unit) != true)
             throw new ForeSiteMeasurementException("FORESITE_DAILY_UNIT_MISSING");
+        // A different unit system is refused rather than converted, as for surveillance values.
+        if (hasValue && catalogued is not null && unit != catalogued.Unit)
+            throw new ForeSiteMeasurementException("FORESITE_UNIT_MISMATCH");
         return result with { Quantity = quantity, Unit = unit, Days = days, ObservedQuantities = null };
     }
 

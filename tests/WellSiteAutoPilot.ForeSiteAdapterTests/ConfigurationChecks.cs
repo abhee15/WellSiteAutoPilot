@@ -88,7 +88,7 @@ internal static class ConfigurationChecks
             Check(request.Headers.Contains("Cookie"), "Configuration missed the ForeSite cookie");
             if (Expire) { Expire = false; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)); }
             if (request.RequestUri.AbsolutePath == "/prefix/Surveillance/well/42")
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"Value":{"CurrentPumpFillage":60,"LastGoodScanTime":"2026-01-15T12:00:00Z"}}""") });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"Units":{"CurrentPumpFillage":{"UnitKey":"%"}},"Value":{"CurrentPumpFillage":60,"LastGoodScanTime":"2026-01-15T12:00:00Z"}}""") });
             Check(request.RequestUri.AbsolutePath == "/prefix/Wells/Well/42", "Single-well route escaped its virtual directory");
             ConfigReads++;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = Chunked

@@ -3,7 +3,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
 import { loadAdapterOperations } from '../../src/views/adapterOperations';
 import { sampleCasesInRange } from '../../src/views/GuidedSampleCases';
-import { addDailyInput, blankContractManifest, firstIncompletePort } from '../../src/views/GuidedContractEditor';
+import {
+  addDailyInput,
+  blankContractManifest,
+  firstIncompletePort,
+  sourceOptionsFrom,
+} from '../../src/views/GuidedContractEditor';
 import {
   createGuidedModuleDraft,
   editGuidedModuleDraft,
@@ -355,6 +360,20 @@ it('adds a discovered production-day field as an uncertain-quality daily input, 
   expect(
     (JSON.parse(addDailyInput(added, 'RunTime', 'h')) as { dataRequirements: unknown[] }).dataRequirements,
   ).toHaveLength(2);
+});
+
+it('keeps a name that is both a current reading and a daily value as two options', () => {
+  const options = sourceOptionsFrom([
+    {
+      adapterKey: 'foresite',
+      displayName: 'ForeSite',
+      operations: [operation('engineering.current', 'THP', 'psia'), operation('engineering.daily', 'THP', 'psia')],
+    },
+  ] as never);
+  expect(options.map((option) => [option.capabilityId, option.quantity, option.unit])).toEqual([
+    ['engineering.current', 'THP', 'psia'],
+    ['engineering.daily', 'THP', 'psia'],
+  ]);
 });
 
 it('offers only the chosen provider\'s starters and quantities, and says when a provider is current-values-only', async () => {

@@ -40,17 +40,20 @@ export function sourceOptionsFrom(adapters: readonly AdapterOperationsResponse[]
     for (const operation of adapter.operations ?? []) {
       if (
         operation.capability !== 'CurrentData' ||
-        operation.capabilityId !== scalarCurrentCapability ||
+        (operation.capabilityId !== scalarCurrentCapability && operation.capabilityId !== dailyCapability) ||
         operation.structuredSchemaId != null ||
         !operation.quantity
       )
         continue;
+      const capabilityId = operation.capabilityId;
+      // The same name can be both a current reading and a daily value, so the capability is part of the key.
+      const key = `${capabilityId}|${operation.quantity}`;
       const unit = operation.unit ?? null;
-      const existing = byQuantity.get(operation.quantity);
+      const existing = byQuantity.get(key);
       if (!existing) {
-        byQuantity.set(operation.quantity, {
+        byQuantity.set(key, {
           quantity: operation.quantity,
-          capabilityId: scalarCurrentCapability,
+          capabilityId,
           unit,
           adapters: [adapterName],
           unitConflict: false,
@@ -433,7 +436,10 @@ export function GuidedContractEditor({
     catalog.status === 'ready'
       ? catalog.adapters.filter((adapter) => !providerKey || adapter.adapterKey?.toLowerCase() === providerKey)
       : [];
-  const options = catalog.status === 'ready' ? sourceOptionsFrom(providerAdapters) : [];
+  const allOptions = catalog.status === 'ready' ? sourceOptionsFrom(providerAdapters) : [];
+  // A daily input is matched against the daily list, anything else against current readings.
+  const wantedCapability = port?.requiredCapability === dailyCapability ? dailyCapability : scalarCurrentCapability;
+  const options = allOptions.filter((option) => option.capabilityId === wantedCapability);
   const structuredOptions = catalog.status === 'ready' ? structuredOptionsFrom(providerAdapters) : [];
   const matched = port ? options.find((option) => option.quantity === textValue(port.quantity)) : undefined;
   // Only scalar inputs take their capability from the registry; structured inputs keep what was saved.
@@ -456,7 +462,12 @@ export function GuidedContractEditor({
     if (textValue(port.quantity) === '') return { helper: t('guided.portQuantityPrompt') };
     if (!identifier.test(textValue(port.quantity))) return { error: t('guided.portIdentifierInvalid') };
     if (!registryInput) return {};
-    if (port.requiredCapability === dailyCapability) return { helper: t('guided.portDailyField') };
+    if (port.requiredCapability === dailyCapability)
+      return {
+        helper: matched
+          ? t('guided.portAvailableFrom', { adapters: matched.adapters.join(', ') })
+          : t('guided.portCustomField'),
+      };
     if (matched) return { helper: t('guided.portAvailableFrom', { adapters: matched.adapters.join(', ') }) };
     return catalog.status === 'ready' ? { error: t('guided.portNoSource') } : {};
   }

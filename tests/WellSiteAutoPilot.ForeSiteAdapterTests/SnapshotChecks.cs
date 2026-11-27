@@ -6,8 +6,14 @@ using WellSiteAutoPilot.IntegrationGateway.Providers;
 
 internal static class SnapshotChecks
 {
+    private const string Units = "\"Units\":{\"CurrentPumpFillage\":{\"UnitKey\":\"%\"},\"AveragePumpFillage\":{\"UnitKey\":\"%\"}," +
+        "\"RunTimeYesterday\":{\"UnitKey\":\"s\"},\"TubingPressure\":{\"UnitKey\":\"psia\"}},";
+
     private const string Complete = """
-        {"Value":{"CurrentPumpFillage":0,"AveragePumpFillage":100,
+        {"Units":{"CurrentPumpFillage":{"UnitKey":"%"},"AveragePumpFillage":{"UnitKey":"%"},
+            "RunTimeYesterday":{"UnitKey":"s"},"TubingPressure":{"UnitKey":"psia"}},
+         "Value":{"CurrentPumpFillage":0,"AveragePumpFillage":100,
+          "RunTimeYesterday":43200,"CyclesYesterday":310,"TubingPressure":-5.5,
           "LastGoodScanTime":"2026-10-27T00:00:00-05:00",
           "LastScanTime":"2026-10-27T08:30:00Z","CommStatus":"Failed",
           "WellTest_WaterCut":45}}
@@ -57,19 +63,54 @@ internal static class SnapshotChecks
             throw new InvalidOperationException("Snapshot accepted invalid requirement: " + code);
         }
 
+        // Any catalogued quantity is served with its own unit, in one acquisition; a count has no unit block.
+        var many = await pool.ReadSnapshotAsync(request,
+            ["RunTimeYesterday", "CyclesYesterday", "TubingPressure"], CancellationToken.None);
+        Check(many["RunTimeYesterday"] is { Value: 43200, Unit: "s" } && many["CyclesYesterday"] is { Value: 310, Unit: "count" } &&
+            many["TubingPressure"] is { Value: -5.5m, Unit: "psia" } &&
+            many.Values.Select(item => item.TimestampUtc).Distinct().Count() == 1,
+            "Catalogued quantities lost their unit, sign or shared acquisition time.");
+
         await RejectAsync([], "FORESITE_SNAPSHOT_QUANTITY_LIMIT", false);
-        await RejectAsync(["PumpFillage", "AveragePumpFillage", "Extra"], "FORESITE_SNAPSHOT_QUANTITY_LIMIT", false);
         await RejectAsync(["PumpFillage", "PumpFillage"], "FORESITE_SNAPSHOT_QUANTITY_DUPLICATE", false);
         await RejectAsync(["PumpFillage", "WaterCut"], "FORESITE_QUANTITY_UNSUPPORTED", false);
+        await RejectAsync(["PumpFillage", "Extra"], "FORESITE_QUANTITY_UNSUPPORTED", false);
 
-        backend.Payload = """{"Value":{"CurrentPumpFillage":80,"LastGoodScanTime":"2026-10-27T05:00:00Z"}}""";
+        // A quantity the document does not carry stays missing; it is never zero.
+        await RejectAsync(["MotorAmps"], "FORESITE_MEASUREMENT_MISSING", true);
+        // Another unit system is refused rather than converted, and so is a value with no stated unit.
+        backend.Payload = Complete.Replace("\"UnitKey\":\"psia\"", "\"UnitKey\":\"kPa\"");
+        await RejectAsync(["TubingPressure"], "FORESITE_UNIT_MISMATCH", true);
+        backend.Payload = Complete.Replace("\"TubingPressure\":{\"UnitKey\":\"psia\"}", "\"TubingPressure\":null");
+        await RejectAsync(["TubingPressure"], "FORESITE_UNIT_MISMATCH", true);
+        // Only percentages are bounded to 0-100.
+        backend.Payload = Complete.Replace("\"CurrentPumpFillage\":0", "\"CurrentPumpFillage\":100.5");
+        await RejectAsync(["PumpFillage"], "FORESITE_MEASUREMENT_INVALID", true);
+
+        backend.Payload = "{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"LastGoodScanTime\":\"2026-10-27T05:00:00Z\"}}";
         await RejectAsync(["PumpFillage", "AveragePumpFillage"], "FORESITE_MEASUREMENT_MISSING", true);
-        backend.Payload = """{"Value":{"CurrentPumpFillage":80,"AveragePumpFillage":101,"LastGoodScanTime":"2026-10-27T05:00:00Z"}}""";
+        backend.Payload = "{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"AveragePumpFillage\":101,\"LastGoodScanTime\":\"2026-10-27T05:00:00Z\"}}";
         await RejectAsync(["PumpFillage", "AveragePumpFillage"], "FORESITE_MEASUREMENT_INVALID", true);
-        backend.Payload = """{"Value":{"CurrentPumpFillage":80,"AveragePumpFillage":50,"LastScanTime":"2026-10-27T08:00:00Z"}}""";
+        backend.Payload = "{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"AveragePumpFillage\":50,\"LastScanTime\":\"2026-10-27T08:00:00Z\"}}";
         await RejectAsync(["PumpFillage", "AveragePumpFillage"], "FORESITE_TIMESTAMP_INVALID", true);
-        backend.Payload = """{"Value":{"CurrentPumpFillage":80,"AveragePumpFillage":50,"LastGoodScanTime":"2026-10-27T05:00:00"}}""";
+        backend.Payload = "{" + Units + "\"Value\":{\"CurrentPumpFillage\":80,\"AveragePumpFillage\":50,\"LastGoodScanTime\":\"2026-10-27T05:00:00\"}}";
         await RejectAsync(["PumpFillage", "AveragePumpFillage"], "FORESITE_TIMESTAMP_INVALID", true);
+
+        backend.Payload = Complete;
+        // Discovery reads the whole catalogue once and reports each field, so one gap never hides the others.
+        var before = backend.StatusCalls;
+        var report = await pool.ReadSurveillanceAsync(request, CancellationToken.None);
+        ForeSiteSurveillanceObservation Seen(string quantity) => report.Observations.Single(item => item.Quantity == quantity);
+        Check(backend.StatusCalls == before + 1 && report.AssetExternalId == "42" &&
+            report.Observations.Count == ForeSiteSurveillanceCatalogue.All.Count &&
+            Seen("PumpFillage") is { Status: "Observed", Unit: "%" } && Seen("TubingPressure") is { Status: "Observed", Unit: "psia" } &&
+            Seen("CyclesYesterday") is { Status: "Observed", Unit: "count" } && Seen("MotorAmps").Status == "NoValue",
+            "Discovery did not report observed, counted and missing fields from one read.");
+        backend.Payload = Complete.Replace("\"UnitKey\":\"psia\"", "\"UnitKey\":\"kPa\"")
+            .Replace("\"AveragePumpFillage\":100", "\"AveragePumpFillage\":101");
+        report = await pool.ReadSurveillanceAsync(request, CancellationToken.None);
+        Check(Seen("TubingPressure") is { Status: "UnitMismatch", Unit: "kPa" } && Seen("AveragePumpFillage").Status == "Invalid" &&
+            Seen("PumpFillage").Status == "Observed", "Discovery hid a unit mismatch or invalid value, or let it spoil other fields.");
 
         backend.Payload = Complete;
         var later = await pool.ReadSnapshotAsync(request with { ConnectionRevision = 2 },

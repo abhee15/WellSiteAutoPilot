@@ -38,7 +38,8 @@ public sealed record AdapterReadRule(
             // declared schema must also require a numeric root type (see AllowsScalarCurrentDeclaration).
             requiredCapability == AdapterReadRules.EngineeringCurrentCapability && schemaId is not null &&
                 CurrentQuantities.Contains(quantity) ||
-            schemaId is not null && ServesDaily(quantity, requiredCapability) ||
+            // A daily value is served by its capability alone: a V2 module adds a schema, a rules module declares none.
+            ServesDaily(quantity, requiredCapability) ||
             StructuredCurrentReads?.Any(read => read.Quantity == quantity && read.RequiredCapability == requiredCapability &&
                                                 read.SchemaId == schemaId) == true);
 }
@@ -70,7 +71,7 @@ public static class AdapterReadRules
 
     private static readonly AdapterReadRule[] Rules =
     [
-        new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal) { "PumpFillage", "AveragePumpFillage" },
+        new(ForeSiteKey, "foresite.well", ForeSiteSurveillanceCatalogue.Quantities,
             [new StructuredCurrentRead(ForeSiteSurfaceCard.Quantity, StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId)],
             ServesDailyQuantities: true),
         new(CygNetKey, CygNetResourceKind, CygNetQuantities)

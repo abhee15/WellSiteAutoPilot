@@ -248,6 +248,13 @@ v1.MapPost("/adapters/foresite/current",
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<EngineeringValue>(StatusCodes.Status200OK);
 
+v1.MapPost("/adapters/foresite/surveillance",
+    async (ConnectionMeasurementRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadSurveillanceAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedForeSiteSurveillance")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<ForeSiteSurveillanceReport>(StatusCodes.Status200OK);
+
 v1.MapPost("/adapters/cygnet/history",
     async (ConnectionHistoryRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
         Results.Ok(await provider.ReadHistoryAsync(request, cancellationToken)))

@@ -302,10 +302,10 @@ app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContex
 {
     if (!HasForeSiteSession(context)) return Results.Unauthorized();
     if (wellId == 102)
-        return Results.Json(new { Value = new { CurrentSPM = 5.5m, LastGoodScanTime = DateTimeOffset.UtcNow } },
+        return Results.Json(new { Units = new { CurrentSPM = new { UnitKey = "SPM" } }, Value = new { CurrentSPM = 5.5m, LastGoodScanTime = DateTimeOffset.UtcNow } },
             new System.Text.Json.JsonSerializerOptions());
     if (wellId != 101) return Results.NotFound();
-    return Results.Json(new { Value = new { CurrentPumpFillage = 82m, LastGoodScanTime = DateTimeOffset.UtcNow } },
+    return Results.Json(new { Units = new { CurrentPumpFillage = new { UnitKey = "%" } }, Value = new { CurrentPumpFillage = 82m, LastGoodScanTime = DateTimeOffset.UtcNow } },
         new System.Text.Json.JsonSerializerOptions());
 });
 

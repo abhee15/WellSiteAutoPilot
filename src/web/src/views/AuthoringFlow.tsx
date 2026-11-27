@@ -12,11 +12,12 @@ import type {
   GuidedProviderResponse,
   GuidedSourceHintRequest,
 } from '../api/generated/v1/types.gen';
-import { ActionButton } from '../components/ActionButton';
+import { ActionButton, ActionLink } from '../components/ActionButton';
 import { NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { Section } from '../components/Section';
 import { t } from '../localization';
+import { hashFor } from '../routing';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
 import { TestsEditor, type Scenario } from './AuthoringTests';
@@ -26,6 +27,7 @@ import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
   addDailyInput,
+  dailyCapability,
   blankContractManifest,
   contractIsComplete,
   inputsOf,
@@ -40,6 +42,7 @@ import './authoringFlow.css';
 
 // Where a reading can come from. Each kind is added here once its readings can be listed and run.
 const inputSources = ['current', 'daily'] as const;
+const otherField = '__other';
 const sourceLabels = { current: 'flow.sourceCurrent', daily: 'flow.sourceDaily' } as const;
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
@@ -152,6 +155,8 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
         ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
         : await createGuidedModuleDraft({ body });
     if (!data) throw new Error(detailOf(error));
+    // Point the address at the saved draft so a reload or a bookmark reopens it; replaceState does not remount the editor.
+    if (!draft?.id && data.id) window.history.replaceState(null, '', hashFor('authoring', 'draft:' + data.id));
     setDraft(data);
     setDirty(false);
     setSubmitted(false);
@@ -262,6 +267,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           <span>{provider?.displayName ?? providerKey}</span>
         </div>
         <div className="authoring-flow-actions">
+          <ActionLink href={hashFor('authoring')} label={t('flow.allDrafts')} variant="secondary" />
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{failed}</Notice>}
           {submitted && <Notice tone="success">{t('flow.submitted')}</Notice>}
@@ -362,8 +368,20 @@ function InputsEditor({
   const [sourceKind, setSourceKind] = useState('');
   const [dailyField, setDailyField] = useState('');
   const [dailyUnit, setDailyUnit] = useState('');
+  const [dailyChoice, setDailyChoice] = useState('');
   const inputs = useMemo(() => inputsOf(manifest), [manifest]);
-  const offered = (options ?? []).filter((option) => !inputs.some((input) => input.quantity === option.quantity));
+  const offeredFor = (capabilityId: string) =>
+    (options ?? []).filter(
+      (option) =>
+        option.capabilityId === capabilityId &&
+        !inputs.some(
+          (input) =>
+            input.quantity === option.quantity &&
+            (input.requiredCapability === dailyCapability) === (capabilityId === dailyCapability),
+        ),
+    );
+  const offered = offeredFor('engineering.current');
+  const offeredDaily = offeredFor(dailyCapability);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -473,6 +491,29 @@ function InputsEditor({
             </SelectField>
           )}
           {sourceKind === 'daily' && (
+            <SelectField
+              label={t('flow.addDailyInput')}
+              value={dailyChoice}
+              onChange={(event) => {
+                const choice = event.target.value;
+                const option = offeredDaily.find((item) => item.quantity === choice);
+                if (option) {
+                  onEdit(addDailyInput(manifest, option.quantity, option.unit));
+                  setDailyChoice('');
+                  setSourceKind('');
+                } else setDailyChoice(choice);
+              }}
+            >
+              <option value="">{t('flow.chooseInput')}</option>
+              {offeredDaily.map((option) => (
+                <option key={option.quantity} value={option.quantity}>
+                  {option.unit ? option.quantity + ' (' + option.unit + ')' : option.quantity}
+                </option>
+              ))}
+              <option value={otherField}>{t('flow.otherField')}</option>
+            </SelectField>
+          )}
+          {sourceKind === 'daily' && dailyChoice === otherField && (
             <form
               className="authoring-flow-search"
               onSubmit={(event) => {
@@ -482,6 +523,7 @@ function InputsEditor({
                 onEdit(addDailyInput(manifest, field, dailyUnit.trim() || null));
                 setDailyField('');
                 setDailyUnit('');
+                setDailyChoice('');
                 setSourceKind('');
               }}
             >
