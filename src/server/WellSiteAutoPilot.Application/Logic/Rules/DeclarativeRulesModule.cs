@@ -47,7 +47,7 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
             manifest.AssetRequirements.Single() is not { MinimumCount: 1, MaximumCount: 1 } ||
             manifest.DataRequirements.Count == 0 ||
             manifest.DataRequirements.Any(input => input is not { Access: "Current", CanonicalUnit.Length: > 0 }) ||
-            manifest.CommandRequirements.Count != 0 ||
+            manifest.CommandRequirements.Any(command => string.IsNullOrWhiteSpace(command.Command)) ||
             manifest.ParameterSchema is not { ValueKind: JsonValueKind.Object })
             Fail("MODULE_DECLARATIVE_CONTRACT_INVALID",
                 "A rules module requires one asset, current inputs with units, and a settings schema.");
@@ -73,6 +73,9 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
         if (issues.Count != 0)
             Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", issues[0].Message);
 
+        var declared = manifest.CommandRequirements.Select(command => command.Command).ToHashSet(StringComparer.Ordinal);
+        if (parsed.Rules.Any(rule => !string.IsNullOrWhiteSpace(rule.Recommend?.Command) && !declared.Contains(rule.Recommend!.Command!.Trim())))
+            Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "A rule sends a command the module does not declare.");
         await LogicModuleManifestValidator.ValidateParametersAsync(manifest, "{}", cancellationToken);
         return new(manifest, parsed);
     }
@@ -136,11 +139,14 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
         var results = run.Calculations.Where(pair => units.ContainsKey(pair.Key))
             .Select(pair => new EngineeringResultValue(pair.Key, asset.AssetId, pair.Key, pair.Value, units[pair.Key]))
             .ToArray();
-        RecommendationIntentDraft[] recommendations = run.Proposal is { } proposal
+        var control = run.Proposal is { Command: { } command } sent
+            ? new[] { new ControlIntentDraft(run.OutcomeCode, asset.AssetId, command, sent.Setpoint, sent.SuggestedValue, sent.Unit, run.OutcomeCode) }
+            : [];
+        RecommendationIntentDraft[] recommendations = run.Proposal is { Command: null } proposal
             ? [new RecommendationIntentDraft(run.OutcomeCode, asset.AssetId, run.Title ?? run.RuleId ?? run.OutcomeCode,
                 proposal.Reason, proposal.Setpoint, proposal.SuggestedValue, proposal.Unit)]
             : Array.Empty<RecommendationIntentDraft>();
-        return new(run.OutcomeCode, results, recommendations, [], new Dictionary<string, string>());
+        return new(run.OutcomeCode, results, recommendations, control, new Dictionary<string, string>());
     }
 
     /// <summary>The settings schema a module manifest needs for this definition: one optional number per setting.</summary>

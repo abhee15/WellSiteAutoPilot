@@ -63,7 +63,7 @@ public static class RulesPackageBuilder
             EntryPoint = RulesDefinition.EntryPoint,
             MinimumSdkVersion = "1.1.0",
             OutputRequirements = null,
-            CommandRequirements = [],
+            CommandRequirements = DeclaredCommands(manifest, definition),
             DataRequirements = manifest.DataRequirements
                 .Select(input => input with
                 {
@@ -93,6 +93,15 @@ public static class RulesPackageBuilder
         var inspected = await LogicModulePackageReader.ReadAsync(buffer, cancellationToken);
         return new DeclarativeThresholdArtifact(buffer.ToArray(), inspected);
     }
+
+    /// <summary>One declared command per distinct command a rule names, so the gate and a policy can see what the module may ask for.</summary>
+    private static LogicCommandRequirement[] DeclaredCommands(LogicModuleManifest manifest, RulesDefinition definition) =>
+        definition.Rules.Select(rule => rule.Recommend).Where(recommend => !string.IsNullOrWhiteSpace(recommend?.Command))
+            .GroupBy(recommend => recommend!.Command!.Trim(), StringComparer.Ordinal)
+            .Select(group => new LogicCommandRequirement(
+                "cmd-" + group.Key.ToLowerInvariant(), manifest.DataRequirements.First().AssetRole, group.Key,
+                group.First()!.Setpoint.Trim(), group.First()!.Unit!.Trim()))
+            .ToArray();
 
     private static WellSiteAutoPilotException Invalid(string code, string message) =>
         new(code, FailureKind.Validation, message);

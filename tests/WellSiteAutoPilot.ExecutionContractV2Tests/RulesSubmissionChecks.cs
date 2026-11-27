@@ -42,6 +42,15 @@ internal static class RulesSubmissionChecks
         await Reject(() => GuidedRulesCases.Run(definition, ["PumpFillage"], []), "GUIDED_RULES_CASES_INVALID");
         await Reject(() => GuidedRulesCases.Run(definition, ["PumpFillage"], [cases[0], cases[0]]), "GUIDED_RULES_CASES_INVALID");
 
+        // A rule that names a command is declared by the package, so the gate can see what the module may ask for.
+        var commanded = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
+            "\"recommend\": { \"setpoint\": \"PumpingSpeed\", \"valueExpression\": \"5\", \"unit\": \"spm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SetSpeed\" }"));
+        var commandArtifact = await RulesPackageBuilder.BuildAsync(manifest, commanded);
+        if (commandArtifact.Package.Manifest.CommandRequirements.Single() is not { Command: "SetSpeed", Quantity: "PumpingSpeed", CanonicalUnit: "spm" })
+            throw new InvalidOperationException("A rule's command must be declared in the package manifest.");
+        var noUnit = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
+            "\"recommend\": { \"setpoint\": \"PumpingSpeed\", \"valueExpression\": \"5\", \"unit\": null, \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SetSpeed\" }"));
+        await Reject(() => RulesPackageBuilder.BuildAsync(manifest, noUnit), "RULES_COMMAND_UNIT_REQUIRED");
         var daily = manifest with { DataRequirements = [new("fillage", "well", "PumpFillage", "Daily", "%", 3600, false)] };
         await Reject(() => RulesPackageBuilder.BuildAsync(daily, definition), "GUIDED_RULES_INPUT_UNSUPPORTED");
         var unknownCapability = manifest with

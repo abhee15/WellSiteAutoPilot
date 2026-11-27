@@ -15,7 +15,8 @@ public sealed record RulesProposal(
     decimal SuggestedValue,
     string? Unit,
     bool Limited,
-    string Reason);
+    string Reason,
+    string? Command = null);
 
 public sealed record RulesRunResult(
     string OutcomeCode,
@@ -88,6 +89,14 @@ public static class RulesEngine
     {
         if (string.IsNullOrWhiteSpace(recommend.Setpoint) || recommend.Setpoint.Length > 128)
             issues.Add(new("RULES_SETPOINT_REQUIRED", path + ".setpoint", "Name the setpoint to change."));
+        if (!string.IsNullOrWhiteSpace(recommend.Command))
+        {
+            if (!IsIdentifier(recommend.Command.Trim()) || recommend.Command.Trim().Length > 64)
+                issues.Add(new("RULES_COMMAND_INVALID", path + ".command", "A command is letters, digits and underscores, up to 64 characters."));
+            if (string.IsNullOrWhiteSpace(recommend.Unit))
+                issues.Add(new("RULES_COMMAND_UNIT_REQUIRED", path + ".unit", "A command needs the unit of the value it sends."));
+        }
+
         var kind = Check(recommend.ValueExpression, kinds, path + ".valueExpression", issues);
         if (kind is { } found && found != RuleValueKind.Number)
             issues.Add(new("RULE_EXPRESSION_TYPE", path + ".valueExpression", "The suggested value must be a number."));
@@ -181,7 +190,8 @@ public static class RulesEngine
             return null;
         }
 
-        return new(recommend.Setpoint, requested, value, recommend.Unit, limited, reason);
+        return new(recommend.Setpoint, requested, value, recommend.Unit, limited, reason,
+            string.IsNullOrWhiteSpace(recommend.Command) ? null : recommend.Command.Trim());
     }
 
     private static decimal? Limit(string? name, decimal? fixedValue, Dictionary<string, RuleValue> values) =>
