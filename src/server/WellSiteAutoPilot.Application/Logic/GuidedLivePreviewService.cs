@@ -355,15 +355,31 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 : initial.Connection.AdapterKey == "foresite" && item.Key == ForeSiteDailyAverageContract.OperationKey &&
                   item.ContractVersion == ForeSiteDailyAverageContract.Version)).ToArray() ?? [];
 
-        // Keep provider work bounded even if a later adapter registers a large number of historical reads.
+        // Keep provider work bounded: a catalogue-sized number of reads, a few at a time.
         const int maximumOperations = 256;
+        const int concurrentReads = 6;
         if (operations.Length > maximumOperations)
             throw new WellSiteAutoPilotException("GUIDED_QUANTITY_DISCOVERY_LIMIT", FailureKind.DependencyUnavailable,
                 "This adapter needs a bounded quantity catalog operation.");
-        var quantities = new List<GuidedDiscoveredQuantity>(operations.Length);
-        foreach (var operation in operations)
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        using var gate = new SemaphoreSlim(concurrentReads);
+        var probes = operations.Select(async operation =>
         {
-            await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                return await ProbeAsync(operation);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }).ToArray();
+        var quantities = (await Task.WhenAll(probes)).SelectMany(found => found).ToList();
+
+        async Task<List<GuidedDiscoveredQuantity>> ProbeAsync(AdapterOperationDescriptor operation)
+        {
+            var found = new List<GuidedDiscoveredQuantity>();
             try
             {
                 if (capability == "DailyAverages")
@@ -379,25 +395,26 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                         observed.Select(item => item.Quantity).Distinct(StringComparer.Ordinal).Count() != observed.Count)
                         throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID",
                             FailureKind.DependencyUnavailable, "The production-day quantity response was invalid.");
-                    quantities.Add(new(daily.Quantity, daily.Unit, daily.Days.Any(day => day.Value is not null)
+                    found.Add(new(daily.Quantity, daily.Unit, daily.Days.Any(day => day.Value is not null)
                         ? "Observed" : "NoSamples"));
-                    quantities.AddRange(observed.Select(item => new GuidedDiscoveredQuantity(item.Quantity, item.Unit, "Observed")));
+                    found.AddRange(observed.Select(item => new GuidedDiscoveredQuantity(item.Quantity, item.Unit, "Observed")));
                 }
                 else
                 {
                     var trend = await ReadHistoryOperationAsync(initial, operation, operation.Quantity!, startUtc, endUtc, 1, cancellationToken);
-                    quantities.Add(trend.Samples.Count > 0
+                    found.Add(trend.Samples.Count > 0
                         ? new(trend.Quantity, trend.Samples[0].Unit, "Observed")
                         : new(trend.Quantity, null, "NoSamples"));
                 }
             }
             catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
             {
-                quantities.Add(new(capability == "DailyAverages" ? ForeSiteDailyAverageContract.Quantity : operation.Quantity!,
+                found.Add(new(capability == "DailyAverages" ? ForeSiteDailyAverageContract.Quantity : operation.Quantity!,
                     null, "Unavailable"));
             }
-        }
 
+            return found;
+        }
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         return new(operations.Length > 0, quantities);
     }
