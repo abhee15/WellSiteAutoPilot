@@ -11,6 +11,12 @@ public static class GuidedRulesDraft
     public static void Validate(GuidedModuleDraftContent content)
     {
         ArgumentNullException.ThrowIfNull(content);
+        if (content.ScenariosJson is { } scenarios)
+        {
+            if (content.RulesJson is null || scenarios.Length > 65_536 || !IsJsonArray(scenarios))
+                throw Invalid("GUIDED_SCENARIOS_INVALID", "Scenarios must be a bounded list saved with rules.");
+        }
+
         if (content.RulesJson is not { } json) return;
         if (content.Definition is not null)
             throw Invalid("GUIDED_RULES_INVALID", "A draft holds either a threshold rule or rules, not both.");
@@ -29,6 +35,19 @@ public static class GuidedRulesDraft
         var issues = RulesEngine.Validate(definition, names);
         if (issues.Count != 0)
             throw Invalid(issues[0].Code, issues[0].Path.Length == 0 ? issues[0].Message : issues[0].Path + ": " + issues[0].Message);
+    }
+
+    private static bool IsJsonArray(string text)
+    {
+        try
+        {
+            using var document = global::System.Text.Json.JsonDocument.Parse(text);
+            return document.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Array;
+        }
+        catch (global::System.Text.Json.JsonException)
+        {
+            return false;
+        }
     }
 
     private static WellSiteAutoPilotException Invalid(string code, string message) =>

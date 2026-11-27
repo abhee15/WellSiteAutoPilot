@@ -21,6 +21,16 @@ export interface TestInput {
   unit: string;
 }
 
+export function parseScenarios(json: string | null | undefined): Scenario[] {
+  if (!json) return [];
+  try {
+    const value: unknown = JSON.parse(json);
+    return Array.isArray(value) ? (value as Scenario[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 const detailOf = (error: unknown) =>
   typeof error === 'object' && error !== null && typeof (error as { detail?: unknown }).detail === 'string'
     ? (error as { detail: string }).detail

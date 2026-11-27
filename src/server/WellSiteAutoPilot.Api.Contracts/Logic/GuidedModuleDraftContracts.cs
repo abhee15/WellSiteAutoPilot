@@ -7,7 +7,7 @@ public sealed record GuidedThresholdDefinitionRequest(string Parameter, decimal 
 /// <summary>A null Definition saves a contract-only draft: a typed manifest with no logic to preview or submit.</summary>
 public sealed record SaveGuidedModuleDraftRequest(string ManifestJson, GuidedThresholdDefinitionRequest? Definition, int? ExpectedRevision,
     IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null, IReadOnlyList<GuidedSourceHintRequest>? SourceHints = null,
-    string? RulesJson = null);
+    string? RulesJson = null, string? ScenariosJson = null);
 
 /// <summary>Where an author wants an input read from: a preference unless Required. Parameters is a JSON object as text.</summary>
 public sealed record GuidedSourceHintRequest(string InputId, string ExternalSource);
@@ -17,7 +17,7 @@ public sealed record GuidedSampleCaseRequest(string Name, decimal? Value, decima
 
 public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest? Definition,
     IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null, IReadOnlyList<GuidedSourceHintRequest>? SourceHints = null,
-    string? RulesJson = null);
+    string? RulesJson = null, string? ScenariosJson = null);
 
 public sealed record GuidedProviderResponse(string AdapterKey, string DisplayName, bool CurrentValuesOnly,
     IReadOnlyList<GuidedExternalSourceResponse> ExternalSources);

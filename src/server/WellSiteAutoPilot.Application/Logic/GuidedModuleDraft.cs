@@ -10,7 +10,7 @@ namespace WellSiteAutoPilot.Application.Logic;
 /// </summary>
 public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, ThresholdDefinition? Definition = null,
     IReadOnlyList<GuidedSampleCase>? SampleCases = null, IReadOnlyList<GuidedSourceHint>? SourceHints = null,
-    string? RulesJson = null)
+    string? RulesJson = null, string? ScenariosJson = null)
 {
     public bool IsContractOnly => Definition is null;
 }

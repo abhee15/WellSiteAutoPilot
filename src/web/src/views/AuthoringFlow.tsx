@@ -20,7 +20,7 @@ import { t } from '../localization';
 import { hashFor } from '../routing';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
-import { TestsEditor, type Scenario } from './AuthoringTests';
+import { TestsEditor, parseScenarios, type Scenario } from './AuthoringTests';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
 import { emptyRules, logicIncomplete, parseRules, serializeRules } from './rulesModel';
 import type { RulesModel } from './rulesModel';
@@ -90,6 +90,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [scenariosChanged, setScenariosChanged] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,6 +118,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
         setManifest(data.manifestJson);
         setHints(data.sourceHints ?? []);
         setRules(parseRules(data.rulesJson));
+        setScenarios(parseScenarios(data.scenariosJson));
         setDraft(data);
         setDirty(false);
       })
@@ -141,15 +143,23 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     contractIsComplete(manifest) &&
     !hasParameterProblems(rules, inputNames) &&
     !logicIncomplete(rules, inputNames) &&
-    dirty &&
+    (dirty || scenariosChanged) &&
     !busy;
 
-  const canSubmit = draft !== null && !dirty && rules.rules.length > 0 && scenarios.length > 0 && !busy && !submitted;
+  const canSubmit =
+    draft !== null &&
+    !dirty &&
+    rules.rules.length > 0 &&
+    scenarios.length > 0 &&
+    !scenariosChanged &&
+    !busy &&
+    !submitted;
 
   async function persist(body: {
     manifestJson: string;
     sourceHints: GuidedSourceHintRequest[];
     rulesJson: string | null;
+    scenariosJson: string | null;
   }) {
     const { data, error } =
       draft?.id && draft.revision
@@ -160,6 +170,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     if (!draft?.id && data.id) window.history.replaceState(null, '', hashFor('authoring', 'draft:' + data.id));
     setDraft(data);
     setDirty(false);
+    setScenariosChanged(false);
     setSubmitted(false);
   }
 
@@ -179,11 +190,18 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     manifestJson: JSON.stringify({ ...(parseManifest(current) ?? {}), displayName: name.trim() }),
     sourceHints: hints,
     rulesJson: serializeRules(rules),
+    scenariosJson: scenarios.length > 0 && rules.rules.length > 0 ? JSON.stringify(scenarios) : null,
   });
 
   function edit(next: string) {
     setManifest(next);
     setDirty(true);
+    setJustSaved(false);
+  }
+
+  function editScenarios(change: (previous: Scenario[]) => Scenario[]) {
+    setScenarios(change);
+    setScenariosChanged(true);
     setJustSaved(false);
   }
 
@@ -329,10 +347,10 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               inputs={inputs.map((input) => ({ name: inputName(input), unit: text(input.canonicalUnit) }))}
               rules={rules}
               scenarios={scenarios}
-              onAddScenario={(scenario) => setScenarios((previous) => [...previous, scenario])}
-              onRemoveScenario={(index) => setScenarios((previous) => previous.filter((_, at) => at !== index))}
+              onAddScenario={(scenario) => editScenarios((previous) => [...previous, scenario])}
+              onRemoveScenario={(index) => editScenarios((previous) => previous.filter((_, at) => at !== index))}
               onChangeExpected={(index, expectedOutcome) =>
-                setScenarios((previous) =>
+                editScenarios((previous) =>
                   previous.map((item, at) => (at === index ? { ...item, expectedOutcome } : item)),
                 )
               }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseScenarios } from '../../src/views/AuthoringTests';
 import { blankRecommendation, logicIncomplete, parseRules } from '../../src/views/rulesModel';
 
 const rules = (recommend: object) =>
@@ -21,5 +22,15 @@ describe('setpoint limits from settings', () => {
     const base = { ...blankRecommendation, setpoint: 'S', valueExpression: '1', maximumChangeFrom: 'MaxSpeed' };
     expect(logicIncomplete(rules(base), [])).toBe(true);
     expect(logicIncomplete(rules({ ...base, currentValue: 'MaxSpeed' }), [])).toBe(false);
+  });
+});
+
+describe('saved scenarios', () => {
+  it('reads a saved list and ignores anything else', () => {
+    const saved = [{ name: 'Scenario 1', values: [], settings: [], expectedOutcome: 'NONE' }];
+    expect(parseScenarios(JSON.stringify(saved))).toEqual(saved);
+    expect(parseScenarios('{}')).toEqual([]);
+    expect(parseScenarios('nope')).toEqual([]);
+    expect(parseScenarios(null)).toEqual([]);
   });
 });
