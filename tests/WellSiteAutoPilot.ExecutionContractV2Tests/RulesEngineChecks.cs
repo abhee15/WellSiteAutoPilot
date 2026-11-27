@@ -73,6 +73,22 @@ internal static class RulesEngineChecks
         if (atFloor.OutcomeCode != RulesDefinition.NoMatchOutcome)
             throw new InvalidOperationException("The rule must not match at the minimum speed.");
 
+        // A limit that holds the suggestion at the current value proposes nothing, but the rule still decided.
+        var held = RulesEngine.Run(RulesDefinition.Parse(Json.Replace("CurrentSpeed - SpeedStep * 4", "CurrentSpeed + 1").Replace("\"maximum\": 12", "\"maximum\": 6")),
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+        if (held.OutcomeCode != "SLOW_PUMP" || held.Proposal is not null ||
+            !held.Trace.Any(step => step.Kind == "setpoint" && step.Detail.Contains("no change", StringComparison.Ordinal)))
+            throw new InvalidOperationException("A suggestion equal to the current value must not be proposed.");
+
+        // A limit may name a number in the module, such as a setting, so each well can tune it.
+        var tuned = Json.Replace("\"maximum\": 12", "\"maximum\": null, \"maximumFrom\": \"MinSpeed\"");
+        var named = RulesEngine.Run(RulesDefinition.Parse(tuned),
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+        if (named.Proposal is not { SuggestedValue: 3m, Limited: true })
+            throw new InvalidOperationException("A named limit must hold the suggestion.");
+        ExpectIssue(Json.Replace("\"maximum\": 12", "\"maximum\": null, \"maximumFrom\": \"Missing\""), inputs,
+            "RULE_EXPRESSION_UNKNOWN_NAME");
+
         try
         {
             RulesEngine.Run(definition, new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m },

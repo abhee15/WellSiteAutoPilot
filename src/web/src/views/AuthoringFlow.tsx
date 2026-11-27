@@ -20,13 +20,15 @@ import { t } from '../localization';
 import { hashFor } from '../routing';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
-import { TestsEditor, type Scenario } from './AuthoringTests';
+import { GuidedLivePreview } from './GuidedLivePreview';
+import { TestsEditor, parseScenarios, type Scenario } from './AuthoringTests';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
 import { emptyRules, logicIncomplete, parseRules, serializeRules } from './rulesModel';
 import type { RulesModel } from './rulesModel';
 import {
   addCurrentInput,
   addDailyInput,
+  inputName,
   dailyCapability,
   blankContractManifest,
   contractIsComplete,
@@ -89,6 +91,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [scenariosChanged, setScenariosChanged] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,6 +119,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
         setManifest(data.manifestJson);
         setHints(data.sourceHints ?? []);
         setRules(parseRules(data.rulesJson));
+        setScenarios(parseScenarios(data.scenariosJson));
         setDraft(data);
         setDirty(false);
       })
@@ -127,7 +131,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
 
   const provider = providers.find((item) => item.adapterKey === providerKey);
   const inputs = useMemo(() => (manifest ? inputsOf(manifest) : []), [manifest]);
-  const inputNames = useMemo(() => inputs.map((input) => String(input.quantity ?? '')), [inputs]);
+  const inputNames = useMemo(() => inputs.map(inputName), [inputs]);
   const counts: Record<Section, number> = {
     inputs: inputs.length,
     parameters: rules.parameters.length,
@@ -140,15 +144,23 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     contractIsComplete(manifest) &&
     !hasParameterProblems(rules, inputNames) &&
     !logicIncomplete(rules, inputNames) &&
-    dirty &&
+    (dirty || scenariosChanged) &&
     !busy;
 
-  const canSubmit = draft !== null && !dirty && rules.rules.length > 0 && scenarios.length > 0 && !busy && !submitted;
+  const canSubmit =
+    draft !== null &&
+    !dirty &&
+    rules.rules.length > 0 &&
+    scenarios.length > 0 &&
+    !scenariosChanged &&
+    !busy &&
+    !submitted;
 
   async function persist(body: {
     manifestJson: string;
     sourceHints: GuidedSourceHintRequest[];
     rulesJson: string | null;
+    scenariosJson: string | null;
   }) {
     const { data, error } =
       draft?.id && draft.revision
@@ -159,6 +171,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     if (!draft?.id && data.id) window.history.replaceState(null, '', hashFor('authoring', 'draft:' + data.id));
     setDraft(data);
     setDirty(false);
+    setScenariosChanged(false);
     setSubmitted(false);
   }
 
@@ -178,11 +191,18 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     manifestJson: JSON.stringify({ ...(parseManifest(current) ?? {}), displayName: name.trim() }),
     sourceHints: hints,
     rulesJson: serializeRules(rules),
+    scenariosJson: scenarios.length > 0 && rules.rules.length > 0 ? JSON.stringify(scenarios) : null,
   });
 
   function edit(next: string) {
     setManifest(next);
     setDirty(true);
+    setJustSaved(false);
+  }
+
+  function editScenarios(change: (previous: Scenario[]) => Scenario[]) {
+    setScenarios(change);
+    setScenariosChanged(true);
     setJustSaved(false);
   }
 
@@ -325,12 +345,27 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               draftId={draft?.id ?? null}
               revision={draft?.revision ?? null}
               saved={!dirty}
-              inputs={inputs.map((input) => ({ name: text(input.quantity), unit: text(input.canonicalUnit) }))}
+              inputs={inputs.map((input) => ({ name: inputName(input), unit: text(input.canonicalUnit) }))}
               rules={rules}
               scenarios={scenarios}
-              onAddScenario={(scenario) => setScenarios((previous) => [...previous, scenario])}
-              onRemoveScenario={(index) => setScenarios((previous) => previous.filter((_, at) => at !== index))}
+              onAddScenario={(scenario) => editScenarios((previous) => [...previous, scenario])}
+              onRemoveScenario={(index) => editScenarios((previous) => previous.filter((_, at) => at !== index))}
+              onChangeExpected={(index, expectedOutcome) =>
+                editScenarios((previous) =>
+                  previous.map((item, at) => (at === index ? { ...item, expectedOutcome } : item)),
+                )
+              }
             />
+          )}
+          {selected === 'tests' && draft && !dirty && !scenariosChanged && rules.rules.length > 0 && (
+            <Section title={t('flow.liveTitle')}>
+              <GuidedLivePreview
+                rules
+                draftId={draft.id ?? ''}
+                revision={draft.revision ?? 0}
+                inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}
+              />
+            </Section>
           )}
           {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
           {selected === 'inputs' && (
@@ -410,7 +445,11 @@ function InputsEditor({
               <li key={id} className="authoring-flow-input">
                 <div className="authoring-card-head">
                   <span className="authoring-tag">{t('flow.tagWellData')}</span>
-                  <strong>{text(input.quantity)}</strong>
+                  <strong>{inputName(input)}</strong>
+                  <span className="authoring-card-unit">
+                    {t(input.requiredCapability === dailyCapability ? 'flow.sourceDaily' : 'flow.sourceCurrent')}
+                  </span>
+                  {text(input.alias) && <span className="authoring-card-unit">{text(input.quantity)}</span>}
                   {text(input.canonicalUnit) && (
                     <span className="authoring-card-unit">{text(input.canonicalUnit)}</span>
                   )}

@@ -30,6 +30,19 @@ internal static class GuidedRulesDraftChecks
         Reject(manifest, Rules.Replace("\"rules\": [", "\"rulez\": ["), "RULES_DEFINITION_INVALID");
         Reject(manifest, "not json", "RULES_DEFINITION_INVALID");
 
+        GuidedRulesDraft.Validate(new GuidedModuleDraftContent(manifest, RulesJson: Rules, ScenariosJson: "[]"));
+        foreach (var bad in new[] { "{}", "not json" })
+        {
+            try
+            {
+                GuidedRulesDraft.Validate(new GuidedModuleDraftContent(manifest, RulesJson: Rules, ScenariosJson: bad));
+                throw new InvalidOperationException("Scenarios that are not a list were accepted.");
+            }
+            catch (WellSiteAutoPilotException ex) when (ex.Code == "GUIDED_SCENARIOS_INVALID")
+            {
+            }
+        }
+
         var threshold = new ThresholdDefinition("threshold", 70, "LOW_FILLAGE", "Low", "Review.");
         try
         {

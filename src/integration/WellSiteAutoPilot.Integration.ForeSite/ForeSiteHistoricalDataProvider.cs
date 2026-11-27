@@ -47,6 +47,11 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
             if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() != 1)
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
             var item = root[0];
+            if (item.ValueKind == JsonValueKind.Object && Text(item, "ErrorMessage") is { } absent &&
+                absent.StartsWith("No trend data", StringComparison.OrdinalIgnoreCase))
+                // The point is not trended for this well. That is an empty series, not a provider failure.
+                return new HistoricalReadResult(request.Quantity, "foresite:trends", Text(item, "PointUDC"), "Raw",
+                    request.StartUtc.ToUniversalTime(), request.EndUtc.ToUniversalTime(), [], false, ["NO_TREND_DATA"]);
             if (item.ValueKind != JsonValueKind.Object || Text(item, "ErrorMessage") is not { } status ||
                 !string.Equals(status, "Success", StringComparison.OrdinalIgnoreCase))
                 throw new ForeSiteMeasurementException("FORESITE_TREND_FAILED");

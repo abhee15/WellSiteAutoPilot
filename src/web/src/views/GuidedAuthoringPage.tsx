@@ -39,6 +39,7 @@ import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedModuleContract } from './GuidedModuleContract';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { AuthoringFlow } from './AuthoringFlow';
+import { AuthoringDrafts } from './AuthoringDrafts';
 import { RulesReview } from './AuthoringReview';
 import { GuidedSampleCases, defaultSampleCases, sampleCasesInRange } from './GuidedSampleCases';
 import { normalizeHint } from './GuidedSourceHintFields';
@@ -217,6 +218,7 @@ export function ModuleAuthoringWorkspace({
       {canAuthor && !showReviews && (
         <ActionLink href={hashFor('authoring', 'new')} label={t('flow.startModule')} variant="primary" />
       )}
+      {canAuthor && !showReviews && <AuthoringDrafts />}
       <GuidedAuthoringPage
         key={reviewReference || (showReviews ? 'reviews' : 'drafts')}
         initialReviewReference={reviewReference}

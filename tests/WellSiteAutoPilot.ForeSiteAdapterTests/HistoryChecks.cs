@@ -51,6 +51,11 @@ internal static class HistoryChecks
             try { await provider.ReadHistoryAsync(request with { Quantity = quantity }); throw new InvalidOperationException("A unit that is not the catalogue's was accepted."); }
             catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_UNIT_MISMATCH") { }
         }
+        // A point that is not trended for the well is an empty series, not a failure.
+        handler.Payload = """[{"ErrorMessage":"No trend data found for the requested point.","Units":"","PointValues":[]}]""";
+        var absent = await provider.ReadHistoryAsync(request with { Quantity = "CurrentSPM" });
+        Check(absent.Samples.Count == 0 && !absent.Truncated && absent.Quantity == "CurrentSPM",
+            "A point with no trend data must read as an empty series.");
         try { await provider.ReadHistoryAsync(request with { Quantity = "NotAField" }); throw new InvalidOperationException("An unknown field was accepted."); }
         catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_QUANTITY_UNSUPPORTED") { }
         var keys = ForeSiteAdapter.Descriptor.Operations!.Select(operation => operation.Key).ToHashSet();

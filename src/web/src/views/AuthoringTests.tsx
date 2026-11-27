@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { previewGuidedModuleRules } from '../api/generated/v1/sdk.gen';
 import type { GuidedRulesPreviewResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
-import { NumberField } from '../components/FormFields';
+import { NumberField, SelectField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { Section } from '../components/Section';
 import { t } from '../localization';
@@ -21,6 +21,16 @@ export interface TestInput {
   unit: string;
 }
 
+export function parseScenarios(json: string | null | undefined): Scenario[] {
+  if (!json) return [];
+  try {
+    const value: unknown = JSON.parse(json);
+    return Array.isArray(value) ? (value as Scenario[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 const detailOf = (error: unknown) =>
   typeof error === 'object' && error !== null && typeof (error as { detail?: unknown }).detail === 'string'
     ? (error as { detail: string }).detail
@@ -36,6 +46,7 @@ export function TestsEditor({
   scenarios,
   onAddScenario,
   onRemoveScenario,
+  onChangeExpected,
 }: {
   draftId: string | null;
   revision: number | null;
@@ -45,6 +56,7 @@ export function TestsEditor({
   scenarios: Scenario[];
   onAddScenario: (scenario: Scenario) => void;
   onRemoveScenario: (index: number) => void;
+  onChangeExpected: (index: number, expectedOutcome: string) => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -141,8 +153,19 @@ export function TestsEditor({
               <strong>{item.name}</strong>
               <span className="authoring-card-unit">
                 {item.values.map((value) => value.name + ' ' + value.value).join(', ')}
-                {' → ' + (item.expectedOutcome === 'NONE' ? t('flow.testNoRule') : item.expectedOutcome)}
               </span>
+              <SelectField
+                label={t('flow.scenarioExpects')}
+                value={item.expectedOutcome}
+                onChange={(event) => onChangeExpected(index, event.target.value)}
+              >
+                <option value="NONE">{t('flow.testNoRule')}</option>
+                {[...new Set(rules.rules.map((rule) => rule.outcomeCode))].map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </SelectField>
               <ActionButton iconOnly label={t('flow.removeScenario')} onClick={() => onRemoveScenario(index)} />
             </div>
           ))}

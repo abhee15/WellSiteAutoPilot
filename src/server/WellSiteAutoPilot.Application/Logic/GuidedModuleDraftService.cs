@@ -155,7 +155,7 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         if (draft.Content.RulesJson is not { } json)
             throw new WellSiteAutoPilotException("GUIDED_RULES_MISSING", FailureKind.Validation,
                 "This draft has no rules to try.");
-        var inputs = draft.Content.Manifest.DataRequirements.Select(input => input.Quantity).ToArray();
+        var inputs = draft.Content.Manifest.DataRequirements.Select(input => input.Name).ToArray();
         if (inputs.Any(name => !values.ContainsKey(name)) || values.Keys.Any(name => !inputs.Contains(name, StringComparer.Ordinal)))
             throw new WellSiteAutoPilotException("GUIDED_RULES_VALUES_INVALID", FailureKind.Validation,
                 "Give a value for each input of the module, and no others.");
