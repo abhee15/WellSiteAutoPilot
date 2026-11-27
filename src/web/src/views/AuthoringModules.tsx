@@ -7,10 +7,12 @@ import {
 } from '../api/generated/v1';
 import type { GuidedModuleDraftResponse, GuidedProviderResponse } from '../api/generated/v1';
 import { ActionButton, ActionLink } from '../components/ActionButton';
+import { PanelHeader } from '../components/common';
 import { ContextLink } from '../components/ContextLink';
 import { DataTable } from '../components/DataTable';
 import { FilterToolbar } from '../components/FilterToolbar';
 import { MultiSelect } from '../components/MultiSelect';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Notice } from '../components/Notice';
 import { SectionTabs } from '../components/SectionTabs';
 import type { SectionTab } from '../components/SectionTabs';
@@ -157,14 +159,8 @@ export function AuthoringModules() {
   );
 
   return (
-    <section className="authoring-modules" aria-labelledby="authoring-modules-title">
-      <div className="authoring-modules-head">
-        <div>
-          <h2 id="authoring-modules-title">{t('flow.modulesTitle')}</h2>
-          <p>{t('flow.modulesPurpose')}</p>
-        </div>
-        {newModule}
-      </div>
+    <section className="panel" aria-label={t('flow.modulesTitle')}>
+      <PanelHeader title={t('flow.modulesTitle')} actions={newModule} />
       {failed && (
         <>
           <Notice tone="error">{t('flow.draftsFailed')}</Notice>
@@ -177,12 +173,11 @@ export function AuthoringModules() {
           />
         </>
       )}
-      {!failed && drafts === null && <p>{t('flow.draftsLoading')}</p>}
+      {!failed && drafts === null && <PanelLoading label={t('flow.draftsLoading')} />}
       {drafts?.length === 0 && (
-        <>
-          <h3>{t('flow.firstModuleTitle')}</h3>
-          <p>{t('flow.firstModuleBody')}</p>
-        </>
+        <Notice>
+          {t('flow.firstModuleTitle')}. {t('flow.firstModuleBody')}
+        </Notice>
       )}
       {drafts && drafts.length > 0 && (
         <>
@@ -229,7 +224,7 @@ export function AuthoringModules() {
           />
           <div id={panelId} role="tabpanel" aria-labelledby={`authoring-stage-tab-${stageFilter}`}>
             {visible.length === 0 ? (
-              <p>{t('flow.noModulesInView')}</p>
+              <Notice>{t('flow.noModulesInView')}</Notice>
             ) : (
               <DataTable label={t('flow.modulesTitle')}>
                 <thead>

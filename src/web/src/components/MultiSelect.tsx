@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { t } from '../localization';
 import { ChevronMark } from './Chevron';
+import { SearchInput } from './SearchInput';
 import './multiSelect.css';
 
 export type MultiSelectOption<T extends string> = { value: T; label: string };
@@ -69,9 +70,7 @@ export function MultiSelect<T extends string>({
         </summary>
         <div className="multi-select-menu" role="group" aria-labelledby={labelId}>
           {options.length > SEARCHABLE_FROM && (
-            <input
-              type="search"
-              className="multi-select-search"
+            <SearchInput
               value={query}
               aria-label={t('multiSelect.search', { label })}
               placeholder={t('multiSelect.searchPlaceholder')}

@@ -82,7 +82,7 @@ test('the provider filter and search narrow the list, and one provider preselect
 test('explains how to start when there are no modules', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
   render(<AuthoringModules />);
-  expect(await screen.findByText('Create your first module')).toBeTruthy();
+  expect(await screen.findByText(/Create your first module/)).toBeTruthy();
   expect(screen.getByRole('link', { name: 'New module' })).toBeTruthy();
 });
 

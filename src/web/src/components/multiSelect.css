@@ -15,7 +15,6 @@
   border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-8);
   max-height: var(--layout-popover-max); overflow-y: auto;
 }
-.multi-select-search { width: 100%; box-sizing: border-box; }
 .multi-select-menu label {
   display: flex; align-items: center; gap: var(--space-8); padding: var(--space-6) var(--space-8);
   border-radius: var(--radius-4); font-size: var(--font-size-body-small); font-weight: var(--font-weight-regular); color: var(--color-text-control);

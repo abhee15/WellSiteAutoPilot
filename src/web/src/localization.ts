@@ -1555,8 +1555,6 @@ export const englishMessages = {
     'Read-only: this reads a real well and shows what the module would do. Nothing is sent to the well.',
   'flow.liveNoChange': 'No change proposed.',
   'flow.modulesTitle': 'Your modules',
-  'flow.modulesPurpose':
-    'Rules that adjust equipment setpoints. Each module moves from in progress, to in review, to approved.',
   'flow.draftsLoading': 'Loading your modules…',
   'flow.draftsFailed': 'Your modules could not be loaded.',
   'flow.draftsRetry': 'Try again',
