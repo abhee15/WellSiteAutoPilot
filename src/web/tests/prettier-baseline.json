@@ -150,7 +150,6 @@
   "views/connections.ts",
   "views/controlActions.css",
   "views/controlActions.ts",
-  "views/controlExecution.ts",
   "views/controlKillSwitch.ts",
   "views/decisionBrief.css",
   "views/decisionBrief.ts",
