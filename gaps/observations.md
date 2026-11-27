@@ -73,3 +73,20 @@ Sri: UI refinements. Treat as a polish pass after the authoring gaps: sentence-c
 ## O17 - Authoring modes: Workflow and IDE
 
 Sri: the new authoring page must offer the different modes discussed - Workflow mode (guided, step by step) and IDE mode (code-first, expression/manifest editing with the same validation, preview and tests). The legacy page already has a Workflow/IDE switch (readEditorView); the new page has only the workbench. Plan: one draft, two views over the same model, switchable without loss, preference remembered; IDE view backed by the offline kit (O10) so the same module can be built outside the app. Part of the O5/O8 design brief.
+
+## O18 - ForeSite Autonomous Control (ASU/ACL) modes, for comparison
+
+Source: ForeSiteService `IWellAutoSetPointService` and `POP.DTOs/ASU`.
+
+- Mode is a per-well, per-logic setting: `AutoSetpointUpdateLogicMode` Recommendation=1, Autonomous=2 (`LogicEnabled` flag alongside, `ActiveLogicModule` chooses one module per well). ForeSite has no Shadow mode; ours adds it.
+- Every run writes workbench rows (`WellAutoSetPointWorkbenchDTO`): setpoint, previous value, `IsApplied`, `AppliedDateTime`, `UpdateStatus` message. So both modes produce a recommendation record; Autonomous differs only in that the apply happens without a person.
+- Apply path: `ApplyRecommendationForEachSetpoint` / `ApplyMultiple...` writes the value to SCADA (Cygnet). Statuses: Success, InvalidSCADA, InvalidDataElement, OtherError, CheckACLicenseOrEnableLogic, ScadaCommunicationFailure.
+- Gating: license seats per well type (`GetAutonomousControlCurrentLicenseUsage`) and logic-enabled; wells outside seats are skipped.
+- Scheduling: `ACLTaskDTO`/`ACLTaskSettingDTO`: well filter or asset list, start/end, recurrence pattern, interval + unit, enable/disable, run-now, per-task and per-well run logs, audit log by well and date range.
+- Logic is a script (base64, optionally encrypted) per logic id; run logs keep script output, errors and events.
+
+Implications for our adapter and UI:
+1. Recommendation mode maps to a ForeSite workbench record (read via `GetWellAutoSetPointWorkbenchRecordsFiltered`); approval maps to `ApplyRecommendationForEachSetpoint`.
+2. Autonomous apply must surface the ForeSite UpdateStatus values as our command outcomes, and respect the license/enable gate.
+3. Keep Shadow as our first stage; show previous value, applied flag and apply status on the recommendation page.
+4. Audit trail by well and date range is expected by ForeSite users.
