@@ -149,7 +149,9 @@ var server = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Server>("serve
     .WithEnvironment("Security__BootstrapAdministrators__0", bootstrapAdministrator)
     .WithEnvironment("Messaging__Nats__Url", natsUrl)
     .WithEnvironment("Messaging__Nats__Token", natsToken ?? string.Empty)
-    .WithEnvironment("ConnectionStrings__WellSiteAutoPilot", database.DatabaseConnectionString))
+    .WithEnvironment("ConnectionStrings__WellSiteAutoPilot", database.DatabaseConnectionString)
+    .WithEnvironment("Scheduler__ReadAuthority__ServicePrincipalUserId", Environment.GetEnvironmentVariable("WSA_DEV_SCHEDULER_PRINCIPAL") ?? string.Empty)
+    .WithEnvironment("Control__Autonomous__Enabled", Environment.GetEnvironmentVariable("WSA_DEV_AUTONOMOUS_ENABLED") ?? "false"))
     .WaitForCompletion(migrator)
     .WaitFor(gateway)
     .WaitFor(worker);

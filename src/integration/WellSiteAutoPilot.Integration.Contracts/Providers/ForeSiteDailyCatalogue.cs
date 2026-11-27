@@ -1,7 +1,11 @@
 namespace WellSiteAutoPilot.Integration.Contracts.Providers;
 
-/// <summary>One numeric field of a ForeSite daily average record, in ForeSite's default (imperial) unit system.</summary>
-public sealed record ForeSiteDailyQuantity(string Quantity, string Unit)
+/// <summary>
+/// One numeric field of a ForeSite daily average record, in ForeSite's default (imperial) unit system.
+/// <paramref name="ProviderFixedUnit"/> marks a field whose record never states a unit (ForeSite's daily
+/// record has no unit for RunTime, which it uses as hours of a 24 hour day), so the catalogue supplies it.
+/// </summary>
+public sealed record ForeSiteDailyQuantity(string Quantity, string Unit, bool ProviderFixedUnit = false)
 {
     public const string CountUnit = "count";
 
@@ -20,7 +24,7 @@ public static class ForeSiteDailyCatalogue
 {
     public static IReadOnlyList<ForeSiteDailyQuantity> All { get; } =
     [
-        new("RunTime", "s"),
+        new("RunTime", "h", ProviderFixedUnit: true),
         new("AllocatedGasVolume", "Mscf"),
         new("AllocatedOilVolume", "STB"),
         new("AllocatedWaterVolume", "STB"),
