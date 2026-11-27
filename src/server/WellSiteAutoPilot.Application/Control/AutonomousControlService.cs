@@ -477,7 +477,8 @@ public sealed class AutonomousControlService(
         if (limit is null) return GateCodes.CommandNotPermitted;
 
         if (recommendation.SuggestedValue is not { } value) return GateCodes.ValueRequired;
-        if (limit.Unit is not null && !string.Equals(limit.Unit, recommendation.Unit, StringComparison.Ordinal))
+        // A limit without a unit is not a licence for any unit: bounds only mean something in the unit they were set in.
+        if (!string.Equals(limit.Unit, recommendation.Unit, StringComparison.Ordinal))
             return GateCodes.UnitMismatch;
         if ((limit.MinimumValue is { } min && value < min) || (limit.MaximumValue is { } max && value > max))
             return GateCodes.OutOfBounds;

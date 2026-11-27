@@ -585,6 +585,13 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     var outOfBounds = await ApprovedRecommendationAsync(logic, 50m);
     await RequireRefusedAsync(outOfBounds, GateCodes.OutOfBounds, "Out-of-bounds value");
 
+    // A limit without a unit does not accept a value in some unit; bounds only mean something in their own unit.
+    await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator, [new AutonomyCommandLimit("SetSpeed", null, 5m, 12m)],
+        1, 3600, "admin", allowApprovedRecommendations: true);
+    await RequireRefusedAsync(approved, GateCodes.UnitMismatch, "Limit with no unit");
+    await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator, limits, 1, 3600, "admin",
+        allowApprovedRecommendations: true);
+
     // An approved recommendation older than the staleness limit describes a plant that has moved on.
     var staleLimit = gateOptions.ApprovedRecommendationMaxAge;
     clock.Advance(staleLimit + TimeSpan.FromMinutes(1));
