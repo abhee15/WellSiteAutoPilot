@@ -338,3 +338,31 @@
   border: var(--border-width-thin) solid var(--color-border-control);
   color: var(--color-text-link);
 }
+
+.authoring-drafts-list {
+  display: grid;
+  gap: var(--space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.authoring-drafts-list li {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.authoring-drafts-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.authoring-drafts-meta {
+  color: var(--color-text-muted);
+}
+
+.authoring-drafts {
+  display: grid;
+  gap: var(--space-12);
+}

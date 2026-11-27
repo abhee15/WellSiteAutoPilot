@@ -20,6 +20,7 @@ import { t } from '../localization';
 import { hashFor } from '../routing';
 import { loadAdapterOperations } from './adapterOperations';
 import { CalculationsEditor, RulesEditor } from './AuthoringLogic';
+import { GuidedLivePreview } from './GuidedLivePreview';
 import { TestsEditor, parseScenarios, type Scenario } from './AuthoringTests';
 import { ParametersEditor, hasParameterProblems } from './AuthoringParameters';
 import { emptyRules, logicIncomplete, parseRules, serializeRules } from './rulesModel';
@@ -355,6 +356,16 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
                 )
               }
             />
+          )}
+          {selected === 'tests' && draft && !dirty && !scenariosChanged && rules.rules.length > 0 && (
+            <Section title={t('flow.liveTitle')}>
+              <GuidedLivePreview
+                rules
+                draftId={draft.id ?? ''}
+                revision={draft.revision ?? 0}
+                inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}
+              />
+            </Section>
           )}
           {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
           {selected === 'inputs' && (

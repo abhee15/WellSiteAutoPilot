@@ -1388,16 +1388,23 @@ v1.MapPost("/guided-module-drafts/{id:guid}/rules-preview",
             request.Values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal),
             (request.Settings ?? []).ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal),
             access.Subject, cancellationToken);
-        return new GuidedRulesPreviewResponse(request.ExpectedRevision, result.OutcomeCode, result.RuleId, result.Title,
-            result.Proposal is { } proposal
-                ? new GuidedRulesProposalResponse(proposal.Setpoint, proposal.RequestedValue, proposal.SuggestedValue,
-                    proposal.Unit, proposal.Limited, proposal.Reason)
-                : null,
-            result.Calculations.Select(item => new GuidedRuleValue(item.Key, item.Value)).ToArray(),
-            result.Trace.Select(step => new GuidedRulesTraceResponse(step.Kind, step.Id, step.Detail)).ToArray());
+        return ToRulesPreview(request.ExpectedRevision, result);
     })
     .WithName("PreviewGuidedModuleRules").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedRulesPreviewResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/rules-live-preview",
+    async (Guid id, GuidedLivePreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preview.PreviewRulesAsync(id, request.ExpectedRevision, request.AssetId, access.Subject, cancellationToken);
+        return new GuidedRulesLivePreviewResponse(request.ExpectedRevision, result.FailureCode,
+            result.Result is null ? null : ToRulesPreview(request.ExpectedRevision, result.Result),
+            result.Readings.Select(item => new GuidedLiveReadingResponse(item.InputId, item.Quantity, item.Value,
+                item.Unit, item.TimestampUtc, item.Quality, item.TimestampKind)).ToArray());
+    })
+    .WithName("PreviewGuidedModuleRulesWithLiveInputs").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedRulesLivePreviewResponse>();
 
 v1.MapPost("/guided-module-drafts/{id:guid}/history-preview",
     async (Guid id, GuidedHistoryPreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
@@ -2161,6 +2168,15 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
         request.SampleCases?.Select(item => new GuidedSampleCase(item.Name, item.Value, item.CasingPsi, item.TubingPsi, item.ExpectedOutcome)).ToArray(),
         ToSourceHints(request.SourceHints));
 }
+
+static GuidedRulesPreviewResponse ToRulesPreview(int revision, WellSiteAutoPilot.Application.Logic.Rules.RulesRunResult result) =>
+    new(revision, result.OutcomeCode, result.RuleId, result.Title,
+        result.Proposal is { } proposal
+            ? new GuidedRulesProposalResponse(proposal.Setpoint, proposal.RequestedValue, proposal.SuggestedValue,
+                proposal.Unit, proposal.Limited, proposal.Reason)
+            : null,
+        result.Calculations.Select(item => new GuidedRuleValue(item.Key, item.Value)).ToArray(),
+        result.Trace.Select(step => new GuidedRulesTraceResponse(step.Kind, step.Id, step.Detail)).ToArray());
 
 static GuidedSourceHint[]? ToSourceHints(IReadOnlyList<GuidedSourceHintRequest>? hints) =>
     hints?.Select(item => new GuidedSourceHint(item.InputId, item.ExternalSource)).ToArray();

@@ -3,6 +3,7 @@ import {
   checkGuidedModuleAssetCompatibility,
   previewGuidedModuleInputHistory,
   previewGuidedModuleProductionDays,
+  previewGuidedModuleRulesWithLiveInputs,
   previewGuidedModuleSurfaceCards,
   previewGuidedModuleWithLiveInputs,
 } from '../api/generated/v1/sdk.gen';
@@ -11,6 +12,7 @@ import type {
   GuidedHistoryPreviewResponse,
   GuidedLivePreviewResponse,
   GuidedProductionDaysPreviewResponse,
+  GuidedRulesLivePreviewResponse,
   GuidedSurfaceCardsPreviewResponse,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
@@ -25,6 +27,7 @@ import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi'
 
 type AssetPreview =
   | { kind: 'current'; data: GuidedLivePreviewResponse }
+  | { kind: 'rules'; data: GuidedRulesLivePreviewResponse }
   | { kind: 'history'; data: GuidedHistoryPreviewResponse; siteWindow?: { endLocal: string; timeZoneId: string } }
   | { kind: 'historyTimeError'; message: 'guided.siteTimeUnresolved' | 'guided.siteZoneInvalid' }
   | { kind: 'productionDays'; data: GuidedProductionDaysPreviewResponse; quantity: string }
@@ -54,9 +57,12 @@ export function GuidedLivePreview({
   canRun = true,
   onUseDailyField,
   declaredDaily,
+  rules = false,
 }: {
   onUseDailyField?: (quantity: string, unit: string | null) => void;
   declaredDaily?: readonly string[];
+  /** Runs the saved rules on the well's live readings instead of a threshold. Read-only. */
+  rules?: boolean;
   /** False for a draft with no logic: inspection and compatibility stay available, running does not. */
   canRun?: boolean;
   draftId: string;
@@ -147,11 +153,19 @@ export function GuidedLivePreview({
     setFailed(false);
     setAssetPreview(null);
     try {
-      const { data } = await previewGuidedModuleWithLiveInputs({
+      const request = {
         path: { id: draftId },
         body: { expectedRevision: revision, assetId },
         signal: controller.signal,
-      });
+      };
+      if (rules) {
+        const { data } = await previewGuidedModuleRulesWithLiveInputs(request);
+        if (controller.signal.aborted) return;
+        if (!data) throw new Error();
+        setAssetPreview({ kind: 'rules', data });
+        return;
+      }
+      const { data } = await previewGuidedModuleWithLiveInputs(request);
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
       setAssetPreview({ kind: 'current', data });
@@ -487,6 +501,7 @@ export function GuidedLivePreview({
         )}
         {assetPreview?.kind === 'surfaceCards' && <GuidedSurfaceCardsPreview preview={assetPreview.data} />}
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
+        {assetPreview?.kind === 'rules' && <LiveRulesResult data={assetPreview.data} />}
         {result && (
           <Notice tone={result.failureCode ? 'warning' : 'info'}>
             <p>{outcomeLabel(result.outcomeCode ?? result.failureCode).text}</p>
@@ -510,5 +525,44 @@ export function GuidedLivePreview({
         )}
       </div>
     </details>
+  );
+}
+
+/** What the saved rules decided on a well's live readings, with each reading and why. Nothing is written back. */
+function LiveRulesResult({ data }: { data: GuidedRulesLivePreviewResponse }) {
+  const result = data.result;
+  const proposal = result?.proposal ?? null;
+  return (
+    <Notice tone={data.failureCode ? 'warning' : 'info'}>
+      <p>
+        {data.failureCode
+          ? outcomeLabel(data.failureCode).text
+          : result?.outcomeCode === 'NO_RULE_MATCHED'
+            ? t('flow.testNoRule')
+            : result?.outcomeCode}
+      </p>
+      {proposal && (
+        <p>
+          <strong>{proposal.setpoint}</strong>
+          {' → ' + proposal.suggestedValue + (proposal.unit ? ' ' + proposal.unit : '')}
+          {proposal.limited && ' (' + t('flow.testLimited') + ' ' + proposal.requestedValue + ')'}
+          {' — ' + proposal.reason}
+        </p>
+      )}
+      {result && !proposal && result.outcomeCode !== 'NO_RULE_MATCHED' && <p>{t('flow.liveNoChange')}</p>}
+      <ul>
+        {data.readings?.map((reading) => (
+          <li key={reading.inputId}>
+            {reading.quantity} · {reading.value == null ? t('guided.unavailable') : reading.value + ' ' + reading.unit}
+            {' · '}
+            {reading.quality} {' · '}
+            {formatTimestamp(reading.timestampUtc)}
+          </li>
+        ))}
+      </ul>
+      {(result?.calculations ?? []).length > 0 && (
+        <p>{(result?.calculations ?? []).map((item) => item.name + ' = ' + item.value).join(', ')}</p>
+      )}
+    </Notice>
   );
 }

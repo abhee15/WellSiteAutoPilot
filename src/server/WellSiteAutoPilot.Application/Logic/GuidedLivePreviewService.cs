@@ -66,6 +66,67 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
 
     }
 
+    /// <summary>
+    /// Reads each input of a rules draft from one authorized asset and runs the saved rules on what came back.
+    /// Read-only: nothing is saved and no setpoint is written. A missing or unusable reading is reported, not guessed.
+    /// </summary>
+    public async Task<GuidedRulesLivePreview> PreviewRulesAsync(Guid draftId, int expectedRevision, Guid assetId,
+        AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        var manifest = draft.Content.Manifest;
+        if (draft.Content.RulesJson is null)
+            throw new WellSiteAutoPilotException("GUIDED_RULES_MISSING", FailureKind.Validation, "This draft has no rules to try.");
+        var initial = await ReadContextAsync(subject, assetId, cancellationToken);
+        await RequireMatchingAssetAsync(manifest, initial, subject, cancellationToken);
+
+        var readings = new List<GuidedLiveReading>(manifest.DataRequirements.Count);
+        var values = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        string? failure = null;
+        foreach (var input in manifest.DataRequirements)
+        {
+            if (draft.Content.SourceHints?.Any(item => item.InputId == input.Id) == true)
+            {
+                failure ??= "GUIDED_LIVE_INPUT_EXTERNAL";
+                continue;
+            }
+
+            if (UnsupportedReason(manifest, initial, input) is { } reason)
+            {
+                failure ??= reason;
+                continue;
+            }
+
+            try
+            {
+                var value = await ReadCurrentAsync(initial, input.Quantity, cancellationToken, input.RequiredCapability);
+                readings.Add(new(input.Id, value.Quantity, value.Value, value.Unit, value.TimestampUtc, value.Quality, value.TimestampKind));
+                if (value.Value is not { } number || value.StructuredValue is not null)
+                    failure ??= "MODULE_DECLARATIVE_INPUT_UNAVAILABLE";
+                else if (value.TimestampKind == "UnverifiedScan")
+                    failure ??= "EXECUTION_INPUT_TIMESTAMP_UNVERIFIED";
+                else
+                {
+                    LogicModuleInputValidation.ValidateObservation(value.Quantity, value.Unit, value.TimestampUtc,
+                        value.Quality, input, clock.GetUtcNow());
+                    values[input.Name] = number;
+                }
+            }
+            catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.Validation or
+                FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
+            {
+                failure ??= exception.Code;
+            }
+        }
+
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        var result = failure is null
+            ? await drafts.PreviewRulesAsync(draftId, expectedRevision, values, new Dictionary<string, decimal>(), subject, cancellationToken)
+            : null;
+        return new(result, failure, readings);
+    }
+
     public async Task<IReadOnlyList<GuidedInputCompatibility>> CheckCompatibilityAsync(Guid draftId, int expectedRevision,
         Guid assetId, AccessSubject subject, CancellationToken cancellationToken = default)
     {
@@ -525,6 +586,7 @@ public sealed record GuidedDiscoveredQuantity(string Quantity, string? Unit, str
 
 public sealed record GuidedInputCompatibility(string InputId, string Quantity, string Status, string? ReasonCode);
 
+public sealed record GuidedRulesLivePreview(Rules.RulesRunResult? Result, string? FailureCode, IReadOnlyList<GuidedLiveReading> Readings);
 public sealed record GuidedLivePreview(DeclarativeThresholdEvidence Evidence, IReadOnlyList<GuidedLiveReading> Readings);
 public sealed record GuidedLiveReading(string InputId, string Quantity, decimal? Value, string Unit,
     DateTimeOffset TimestampUtc, string Quality, string? TimestampKind);

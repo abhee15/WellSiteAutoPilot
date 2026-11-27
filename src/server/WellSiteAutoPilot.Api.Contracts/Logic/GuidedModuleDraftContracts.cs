@@ -54,6 +54,9 @@ public sealed record GuidedAssetCompatibilityResponse(IReadOnlyList<GuidedInputC
 
 public sealed record GuidedInputCompatibilityResponse(string InputId, string Quantity, string Status, string? ReasonCode);
 
+public sealed record GuidedRulesLivePreviewResponse(int Revision, string? FailureCode, GuidedRulesPreviewResponse? Result,
+    IReadOnlyList<GuidedLiveReadingResponse> Readings);
+
 public sealed record GuidedLivePreviewResponse(int Revision, string PackageSha256, string? OutcomeCode, string? FailureCode,
     decimal? DifferentialPsi, IReadOnlyList<GuidedLiveReadingResponse> Readings);
 
