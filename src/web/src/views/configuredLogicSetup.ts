@@ -124,6 +124,7 @@ export function matchesSetupRevision(revision: ConfiguredLogicRevisionResponse, 
     items?.map(b => JSON.stringify([b.requirementId, b.assetId, b.providerId?.trim(),
       b.providerAssetExternalId?.trim(), json(b.providerMappingJson)])).sort();
   return json(revision.moduleManifestJson) === json(request.moduleManifestJson) &&
+    revision.mode === (request.mode ?? 'Shadow') &&
     json(revision.parametersJson) === json(request.parametersJson) &&
     JSON.stringify(bindings(revision.assetBindings)) === JSON.stringify(bindings(request.assetBindings)) &&
     JSON.stringify(data(revision.dataBindings)) === JSON.stringify(data(request.dataBindings)) &&

@@ -16,13 +16,13 @@ export function ConfiguredRevisionDetails({ revision, assets, owners = [] }: {
   return <div className="configured-revision-details">
     <dl className="logic-facts" aria-label={revision.view ? t('setup.revisionSettings') : undefined}>
       <div><dt>{t('configured.module')}</dt><dd>{revision.moduleId} v{revision.moduleVersion}</dd></div>
-      <div><dt>{t('logicDetail.mode')}</dt><dd>{revision.mode === 'Shadow' ? t('logicDetail.shadowMode') : revision.mode}</dd></div>
+      <div><dt>{t('logicDetail.mode')}</dt><dd>{revision.mode === 'Shadow' ? t('logicDetail.shadowMode') : revision.mode === 'Recommendation' ? t('logicDetail.recommendationMode') : t('logicDetail.autonomousMode')}</dd></div>
       <div><dt>{t('configured.schedule')}</dt><dd>{scheduleText(revision.schedule)}</dd></div>
       {revision.view && <div><dt>{t('setup.targetView')}</dt><dd>{t('setup.viewSnapshot', {
         revision: revision.view.revision ?? 0, count: revision.assetBindings?.filter(b => b.role?.toLowerCase() === revision.view?.role?.toLowerCase()).length ?? 0,
       })}</dd></div>}
     </dl>
-    {revision.mode === 'Shadow' && <p className="logic-detail-note">{t('logicDetail.shadowModeHint')}</p>}
+    <p className="logic-detail-note">{t(revision.mode === 'Shadow' ? 'logicDetail.shadowModeHint' : revision.mode === 'Recommendation' ? 'logicDetail.recommendationModeHint' : 'logicDetail.autonomousModeHint')}</p>
     <CollapsibleSection title={t('logicDetail.parameters', { count: lines.length })} open={lines.length <= 6}>
       {lines.length === 0 ? <p>{t('logicDetail.noParameters')}</p> : <dl className="revision-settings" aria-label={!revision.view ? t('setup.revisionSettings') : undefined}>
         {lines.map((line, index) => <div key={index}><dt>{line.label}</dt><dd className="parameter-value">{line.value}</dd></div>)}

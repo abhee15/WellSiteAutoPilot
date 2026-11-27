@@ -30,6 +30,16 @@ import { useUnsavedChangesGuard } from '../navigationGuard';
 
 /** The module picker is excluded from the unsaved-changes signal: picking one fills in defaults rather than entering work. */
 const MODULE_FIELD_ID = 'setup-module';
+const modeKeys = {
+  Shadow: 'logicDetail.shadowMode',
+  Recommendation: 'logicDetail.recommendationMode',
+  Autonomous: 'logicDetail.autonomousMode',
+} as const;
+const modeHintKeys = {
+  Shadow: 'logicDetail.shadowModeHint',
+  Recommendation: 'logicDetail.recommendationModeHint',
+  Autonomous: 'logicDetail.autonomousModeHint',
+} as const;
 
 type Props = {
   modules: LogicModuleResponse[]; assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[];
@@ -66,6 +76,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
   const module = approved.find(m => JSON.stringify([m.moduleId, m.version]) === moduleKey);
   const manifest = module ? setupManifest(module) : null;
   const [name, setName] = useState(configuration?.name ?? '');
+  const [mode, setMode] = useState<NonNullable<SetupRequest['mode']>>(revision?.mode ?? 'Shadow');
   const [parameters, setParameters] = useState(revision?.parametersJson ?? '{}');
   // Modules that describe their settings get typed fields; anything the form cannot show stays JSON.
   const paramFields = useMemo(() => manifest?.parameterSchema && typeof manifest.parameterSchema === 'object'
@@ -198,6 +209,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     const body: SetupRequest = { name: name.trim(), moduleManifestJson: module.manifestJson,
       parametersJson, assetBindings, dataBindings,
       schedule: scheduleResult.schedule ?? undefined,
+      mode,
       view: viewRef ?? undefined };
     pending.current = true; setBusy(true); setError(null);
     const request = new AbortController(); controller.current = request;
@@ -235,7 +247,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
   return <section className="setup-panel" aria-label={t('setup.heading')}>
     {showHeading && <h3>{editDraft ? t('draftEditor.edit', { number: revision?.revisionNumber ?? '—' }) : configuration ? t('setup.newRevision') : t('setup.heading')}</h3>}
     {configuration && <p>{t(editDraft ? 'draftEditor.editHint' : 'draftEditor.copyHint', { number: revision?.revisionNumber ?? '—' })}</p>}
-    <p>{t('setup.shadowOnly')}</p>
+    <p>{t('setup.modeIntro')}</p>
     {initialViewId && !configuration && <Notice announce={false}>{t('assignment.selectedView', { name: views.find(view => view.id === initialViewId)?.name ?? initialViewId })}</Notice>}
     {initialAssetId && !configuration && <Notice announce={false}>{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</Notice>}
     {approved.length === 0 && <Notice tone="warning">{t('setup.noModules')}</Notice>}
@@ -344,12 +356,19 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           </p>)}
         </CollapsibleSection>
         {manifest?.executionProfile === 'ScheduledOneShot' && <AssignmentScheduleEditor value={scheduleDraft} onChange={setScheduleDraft} />}
+        <SelectField label={t('setup.runMode')} value={mode} disabled={busy}
+          onChange={e => { setMode(e.target.value as typeof mode); setEdited(true); }}>
+          <option value="Shadow">{t('logicDetail.shadowMode')}</option>
+          <option value="Recommendation">{t('logicDetail.recommendationMode')}</option>
+          <option value="Autonomous">{t('logicDetail.autonomousMode')}</option>
+        </SelectField>
+        <p>{t(modeHintKeys[mode])}</p>
         {Object.values(bindings).some(ids => ids.length > detailLimit) && <ActionButton label={t('setup.moreTargets')} onClick={() => setDetailLimit(limit => limit + 20)} />}
         {manifest && !mappingPending && !mappingError && <section className="assignment-review" aria-label={t('assignment.review')}>
           <h4>{t('assignment.review')}</h4>
           <p>{module?.displayName} · {module?.version}</p>
           <p>{t('assignment.reviewCount', { count: new Set(Object.values(bindings).flat()).size })}</p>
-          <p>{t('logicDetail.shadowMode')}</p>
+          <p>{t(modeKeys[mode])}</p>
           <p>{t(scheduleDraft.scheduled ? 'assignment.scheduled' : 'assignment.onDemand')}</p>
           {scheduleDraft.scheduled && <p>{scheduleDraft.every} {scheduleDraft.unit} · {scheduleDraft.date} {scheduleDraft.time} · {scheduleDraft.timeZone}</p>}
         </section>}
