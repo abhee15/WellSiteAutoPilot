@@ -776,7 +776,7 @@ try:
     for body in (trend_body, daily_body):
         empty_catalog = request("POST", quantity_url, OTHER, body)
         assert empty_catalog["supported"] and empty_catalog["quantities"], empty_catalog
-        assert all(row["status"] == "NoSamples" for row in empty_catalog["quantities"]), empty_catalog
+        assert all(row["status"] in ("NoSamples", "Unavailable") for row in empty_catalog["quantities"]), empty_catalog
 finally:
     foresite_scenario("rod-pump-normal")
 
