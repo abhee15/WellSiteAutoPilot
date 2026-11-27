@@ -390,13 +390,20 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               }
             />
           )}
-          {selected === 'tests' && draft && !dirty && !scenariosChanged && rules.rules.length > 0 && (
+          {selected === 'tests' && (
             <Section title={t('flow.liveTitle')}>
-              <GuidedLivePreview
-                draftId={draft.id ?? ''}
-                revision={draft.revision ?? 0}
-                inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}
-              />
+              <p className="connection-help">{t('flow.liveReadOnly')}</p>
+              {draft && !dirty && !scenariosChanged && rules.rules.length > 0 ? (
+                <GuidedLivePreview
+                  draftId={draft.id ?? ''}
+                  revision={draft.revision ?? 0}
+                  inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}
+                />
+              ) : (
+                <Notice tone="info" announce={false}>
+                  {t('flow.liveNeedsSaved')}
+                </Notice>
+              )}
             </Section>
           )}
           {selected === 'rules' && (
