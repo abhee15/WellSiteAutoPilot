@@ -34,3 +34,12 @@ Sri: make sure modules can be built from outside the application. Plan: the pack
 ## O11 - Extend the ForeSite-style adapter work to WAMI
 
 Sri: the adapter work could also reach WAMI; the Wellflo repo has the solution that runs Weatherford.WAMI.Server. Plan: (1) research in the Wellflo repo (project memory, WAMI.Server host, its API, auth, data model for wells, current values, history and setpoint writes); (2) map WAMI onto the adapter capability catalogues (inputs, daily, history, setpoints) and list the gaps; (3) stand up WAMI.Server locally on this box and run it against real or simulated wells; (4) build a WAMI adapter POC on a feature branch as the second adapter that proves O9 neutrality (no WAMI names in Application or web); (5) run the same authoring, preview and setpoint flow against it. Sequenced after the current module-authoring CI fix and P118/P121 work. Output: a WAMI findings doc and a build plan before any adapter code.
+
+
+### O11 research findings
+
+- WellFlo checkout: D:\P4\WFT_Services\WellFlo\WellFlo_R2_Release, solution WellFloAPI.sln (Weatherford.WAMI.Server plus Hosts, Core, Interfaces).
+- WAMI is a WCF net.tcp router (port 5656, Windows auth, WCFAllowedGroups) fronting worker processes (max 10, no queue, COM-based WellFlo components). Needs the installed, licensed WellFlo stack, so it cannot run from a plain dev checkout.
+- It is a well-analysis/model service (nodal analysis, model data get/set, operating-point overrides for rod lift, ESP, PCP, gas lift, plunger lift). No asset discovery, current values, history or daily values, and its setters change the calculation session, not stored well setpoints.
+- Consequence: WAMI is not a second telemetry adapter. It fits as a calculation provider: a module input or calculation backed by a WAMI model run on a ForeSite-sourced model (ForeSite ModelFiles/CurrentWellModel/{wellId}). Existing design: D:\WellSiteAutoPilot\wt-wami-provider\docs\design\wami-provider-and-multi-provider-logic.md.
+- New framework gap P127: authoring has no concept of a calculation provider (inputs that are computed by an external engine, with run cost, licence and latency limits). Needs a capability kind alongside current/daily/history. Next: read the wt-wami-provider design, then decide plan; a true second telemetry adapter for O9 should be Wellflo/simulator instead.
