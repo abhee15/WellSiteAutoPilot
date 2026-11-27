@@ -80,15 +80,15 @@ it('collapses the side panel to an icon rail, remembers it, and keeps every link
 });
 
 it.each([
-  ['logic.authoring.manage', '#authoring', 'New threshold module'],
-  ['logic.authoring.review', '#logic/authoring%3Adraft-2%2F3', 'Open submitted revision'],
-])('opens the dedicated workspace for %s without Logic setup access', async (permission, hash, action) => {
+  ['logic.authoring.manage', '#authoring', 'link', 'New module'],
+  ['logic.authoring.review', '#logic/authoring%3Adraft-2%2F3', 'button', 'Open submitted revision'],
+] as const)('opens the dedicated workspace for %s without Logic setup access', async (permission, hash, role, action) => {
   window.location.hash = hash;
   signIn([permission]);
   render(<App />);
   expect((await screen.findByRole('link', { name: 'Module authoring' })).getAttribute('aria-current')).toBe('page');
   expect(screen.queryByRole('link', { name: 'Logic setup' })).toBeNull();
-  expect(await screen.findByRole('button', { name: action })).toBeTruthy();
+  expect(await screen.findByRole(role, { name: action })).toBeTruthy();
   if (permission === 'logic.authoring.review') {
     expect(screen.getByLabelText<HTMLInputElement>('Review reference').value).toBe('draft-2/3');
     expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();

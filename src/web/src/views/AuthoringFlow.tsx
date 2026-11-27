@@ -39,8 +39,8 @@ import {
   removeInput,
   setInputMaximumAge,
   sourceOptionsFrom,
-} from './GuidedContractEditor';
-import type { SourceOption } from './GuidedContractEditor';
+} from './contractManifest';
+import type { SourceOption } from './contractManifest';
 import { GuidedSourceHintFields } from './GuidedSourceHintFields';
 import './authoringFlow.css';
 
@@ -393,7 +393,6 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           {selected === 'tests' && draft && !dirty && !scenariosChanged && rules.rules.length > 0 && (
             <Section title={t('flow.liveTitle')}>
               <GuidedLivePreview
-                rules
                 draftId={draft.id ?? ''}
                 revision={draft.revision ?? 0}
                 inputs={inputs.map((input) => ({ id: text(input.id), quantity: text(input.quantity) }))}

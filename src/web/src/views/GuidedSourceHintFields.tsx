@@ -2,11 +2,6 @@ import type { GuidedExternalSourceResponse, GuidedSourceHintRequest } from '../a
 import { CheckboxField, SelectField } from '../components/FormFields';
 import { t } from '../localization';
 
-/** The same shape and key order the server returns, so an unchanged hint never looks edited. */
-export function normalizeHint(hint: GuidedSourceHintRequest): GuidedSourceHintRequest {
-  return { inputId: hint.inputId, externalSource: hint.externalSource };
-}
-
 /**
  * Every input is read from the module's primary provider unless it is marked external. An external input names the
  * system it comes from; only the sources the primary provider allows are offered, and none means no choice is shown.

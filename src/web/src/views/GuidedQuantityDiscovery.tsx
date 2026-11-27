@@ -52,8 +52,6 @@ export function GuidedQuantityDiscovery({
   busy,
   onHistory,
   onDaily,
-  onUseDailyField,
-  declaredDaily = [],
   onChange,
 }: {
   draftId: string;
@@ -63,9 +61,6 @@ export function GuidedQuantityDiscovery({
   busy: boolean;
   onHistory: (inputId: string, bounds: HistoryBounds) => void;
   onDaily: (bounds: UtcWindow, quantity: string) => void;
-  /** Offered for a discovered production-day field when the draft can take new inputs. */
-  onUseDailyField?: (quantity: string, unit: string | null) => void;
-  declaredDaily?: readonly string[];
   onChange: () => void;
 }) {
   const [capability, setCapability] = useState<Capability | ''>('');
@@ -234,13 +229,6 @@ export function GuidedQuantityDiscovery({
               </option>
             ))}
           </SelectField>
-        )}
-        {capability === 'DailyAverages' && selected && onUseDailyField && (
-          <ActionButton
-            label={t('guided.useDailyField')}
-            disabled={busy || declaredDaily.includes(selected.quantity)}
-            onClick={() => onUseDailyField(selected.quantity, selected.unit ?? null)}
-          />
         )}
         {selected &&
           canPreview &&

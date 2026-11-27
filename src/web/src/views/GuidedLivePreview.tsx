@@ -5,12 +5,10 @@ import {
   previewGuidedModuleProductionDays,
   previewGuidedModuleRulesWithLiveInputs,
   previewGuidedModuleSurfaceCards,
-  previewGuidedModuleWithLiveInputs,
 } from '../api/generated/v1/sdk.gen';
 import type {
   GuidedAssetCompatibilityResponse,
   GuidedHistoryPreviewResponse,
-  GuidedLivePreviewResponse,
   GuidedProductionDaysPreviewResponse,
   GuidedRulesLivePreviewResponse,
   GuidedSurfaceCardsPreviewResponse,
@@ -26,7 +24,6 @@ import { GuidedSurfaceCardsPreview } from './GuidedSurfaceCardsPreview';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
 
 type AssetPreview =
-  | { kind: 'current'; data: GuidedLivePreviewResponse }
   | { kind: 'rules'; data: GuidedRulesLivePreviewResponse }
   | { kind: 'history'; data: GuidedHistoryPreviewResponse; siteWindow?: { endLocal: string; timeZoneId: string } }
   | { kind: 'historyTimeError'; message: 'guided.siteTimeUnresolved' | 'guided.siteZoneInvalid' }
@@ -50,21 +47,12 @@ const compatibilityLabels = {
   External: 'guided.assetInputExternal',
 } as const;
 
+/** Previews a saved draft's rules on a well's live readings and inspects what the provider can supply. Read-only. */
 export function GuidedLivePreview({
   draftId,
   revision,
   inputs = [],
-  canRun = true,
-  onUseDailyField,
-  declaredDaily,
-  rules = false,
 }: {
-  onUseDailyField?: (quantity: string, unit: string | null) => void;
-  declaredDaily?: readonly string[];
-  /** Runs the saved rules on the well's live readings instead of a threshold. Read-only. */
-  rules?: boolean;
-  /** False for a draft with no logic: inspection and compatibility stay available, running does not. */
-  canRun?: boolean;
   draftId: string;
   revision: number;
   inputs?: readonly { id: string; quantity: string }[];
@@ -153,22 +141,14 @@ export function GuidedLivePreview({
     setFailed(false);
     setAssetPreview(null);
     try {
-      const request = {
+      const { data } = await previewGuidedModuleRulesWithLiveInputs({
         path: { id: draftId },
         body: { expectedRevision: revision, assetId },
         signal: controller.signal,
-      };
-      if (rules) {
-        const { data } = await previewGuidedModuleRulesWithLiveInputs(request);
-        if (controller.signal.aborted) return;
-        if (!data) throw new Error();
-        setAssetPreview({ kind: 'rules', data });
-        return;
-      }
-      const { data } = await previewGuidedModuleWithLiveInputs(request);
+      });
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
-      setAssetPreview({ kind: 'current', data });
+      setAssetPreview({ kind: 'rules', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -280,7 +260,6 @@ export function GuidedLivePreview({
   const historyResult = assetPreview?.kind === 'history' ? assetPreview : null;
   const history = historyResult?.data;
 
-  const result = assetPreview?.kind === 'current' ? assetPreview.data : null;
   // An asset with no single active source fails every read, so nothing further is offered for it.
   const sourceUnavailable = compatibility?.kind === 'sourceUnavailable';
   const productionDays = assetPreview?.kind === 'productionDays' ? assetPreview.data : null;
@@ -400,17 +379,15 @@ export function GuidedLivePreview({
             compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkAsset(assetId)} />
         )}
-        {canRun && (
-          <ActionButton
-            label={t('guided.runLive')}
-            disabled={busy || !assetId || sourceUnavailable}
-            onClick={() => void preview()}
-          />
-        )}
+        <ActionButton
+          label={t('guided.runLive')}
+          disabled={busy || !assetId || sourceUnavailable}
+          onClick={() => void preview()}
+        />
         {assetId && !sourceUnavailable && (
           <GuidedQuantityDiscovery
             key={`${draftId}:${revision}:${assetId}`}
-            {...{ draftId, revision, assetId, inputs, busy, onUseDailyField, declaredDaily }}
+            {...{ draftId, revision, assetId, inputs, busy }}
             onHistory={(inputId, bounds) => void previewHistory(inputId, bounds)}
             onDaily={(window, quantity) => void previewProductionDays(window, quantity)}
             onChange={() => {
@@ -502,27 +479,6 @@ export function GuidedLivePreview({
         {assetPreview?.kind === 'surfaceCards' && <GuidedSurfaceCardsPreview preview={assetPreview.data} />}
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
         {assetPreview?.kind === 'rules' && <LiveRulesResult data={assetPreview.data} />}
-        {result && (
-          <Notice tone={result.failureCode ? 'warning' : 'info'}>
-            <p>{outcomeLabel(result.outcomeCode ?? result.failureCode).text}</p>
-            {result.differentialPsi != null && (
-              <p>
-                {t('guided.difference')} {result.differentialPsi} psi
-              </p>
-            )}
-            <ul>
-              {result.readings?.map((reading) => (
-                <li key={reading.inputId}>
-                  {reading.quantity} ·{' '}
-                  {reading.value == null ? t('guided.unavailable') : reading.value + ' ' + reading.unit}
-                  {' · '}
-                  {reading.quality} {' · '}
-                  {formatTimestamp(reading.timestampUtc)}
-                </li>
-              ))}
-            </ul>
-          </Notice>
-        )}
       </div>
     </details>
   );
