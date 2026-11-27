@@ -45,7 +45,6 @@
   "format.ts",
   "live/LiveUpdates.tsx",
   "live/changeSignal.ts",
-  "localization.ts",
   "main.tsx",
   "navigationGuard.ts",
   "routing.ts",
