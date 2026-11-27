@@ -58,3 +58,8 @@ Sri: are you checking the UI as it is being built? Practice from here: every web
 ## O14 - Full lifecycle from module authoring
 
 Sri: from module authoring I must be able to create a logic module, send it for review, have it approved, map it to an asset, and test it in shadow, recommendation and autonomous modes. This is the acceptance scenario for the feature; verify each step headed against well 776 (RPOC_00016+9077) and log every break as a gap.
+
+
+## O15 - Scheduling must work end to end
+
+Sri: after the lifecycle (O14) check that the scheduling piece works: an approved module mapped to an asset actually runs on its schedule in shadow, recommendation and autonomous modes, and the runs appear on the Runs page. Verify against well 776; log gaps.
