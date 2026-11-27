@@ -1,6 +1,6 @@
 import { Section } from '../components/Section';
 import { t } from '../localization';
-import { parseRules } from './rulesModel';
+import { emptyRules, parseRules } from './rulesModel';
 
 interface ScenarioEvidence {
   name: string;
@@ -22,7 +22,7 @@ function evidenceOf(json: string | null | undefined): ScenarioEvidence[] {
 
 /** What a reviewer reads before approving a rules module: its rules, then what the author's scenarios did. */
 export function RulesReview({ rulesJson, evidenceJson }: { rulesJson: string; evidenceJson?: string | null }) {
-  const rules = parseRules(rulesJson);
+  const rules = parseRules(rulesJson) ?? emptyRules;
   const scenarios = evidenceOf(evidenceJson);
   return (
     <>

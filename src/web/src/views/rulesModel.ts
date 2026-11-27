@@ -90,10 +90,12 @@ function recommendationOf(value: unknown): RuleRecommendation | null {
   };
 }
 
-export function parseRules(json: string | null | undefined): RulesModel {
+/** Null when stored text is not a rules definition, so a caller can refuse it rather than save an empty one over it. */
+export function parseRules(json: string | null | undefined): RulesModel | null {
   if (!json) return emptyRules;
   try {
-    const value = JSON.parse(json) as Record<string, unknown>;
+    const value = JSON.parse(json) as Record<string, unknown> | null;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
     const parameters = Array.isArray(value.parameters) ? (value.parameters as Record<string, unknown>[]) : [];
     return {
       parameters: parameters.map((item) => ({
@@ -119,7 +121,7 @@ export function parseRules(json: string | null | undefined): RulesModel {
       })),
     };
   } catch {
-    return emptyRules;
+    return null;
   }
 }
 
