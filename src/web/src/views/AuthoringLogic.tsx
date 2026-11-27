@@ -17,6 +17,7 @@ import {
   updateRule,
 } from './rulesModel';
 import type { RuleRecommendation, RulesModel } from './rulesModel';
+import type { AdapterCommandResponse } from '../api/generated/v1/types.gen';
 import { checkExpression } from './expressionCheck';
 import type { ExpressionIssue, ExpressionKind } from './expressionCheck';
 import type { MessageKey } from '../localization';
@@ -202,26 +203,63 @@ export function CalculationsEditor({
 function RecommendationFields({
   recommend,
   names,
+  commands,
   onChange,
 }: {
   recommend: RuleRecommendation;
   names: string[];
+  commands: AdapterCommandResponse[];
   onChange: (next: RuleRecommendation) => void;
 }) {
   const set = (patch: Partial<RuleRecommendation>) => onChange({ ...recommend, ...patch });
+  const sends = recommend.command !== null;
+  const known = commands.some((item) => item.name === recommend.command);
+  // A command fixes the setpoint and unit, so the control gate and the provider see the same quantity.
+  const choose = (name: string) => {
+    const command = commands.find((item) => item.name === name);
+    set(
+      command
+        ? { command: name, setpoint: command.quantity ?? recommend.setpoint, unit: command.unit ?? null }
+        : { command: null },
+    );
+  };
   return (
     <>
+      {(commands.length > 0 || sends) && (
+        <SelectField
+          label={t('flow.sendCommand')}
+          value={recommend.command ?? ''}
+          onChange={(event) => choose(event.target.value)}
+        >
+          <option value="">{t('flow.sendCommandAdvice')}</option>
+          {sends && !known && (
+            <option value={recommend.command ?? ''}>
+              {t('flow.sendCommandMissing', { command: recommend.command ?? '' })}
+            </option>
+          )}
+          {commands.map((item) => (
+            <option key={item.name} value={item.name ?? ''}>
+              {item.displayName ?? item.name}
+            </option>
+          ))}
+        </SelectField>
+      )}
+      <p className="authoring-result-line">
+        {commands.length === 0 && !sends ? t('flow.sendCommandNone') : t('flow.sendCommandHint')}
+      </p>
       <div className="authoring-card-body">
         <TextField
           label={t('flow.setpoint')}
           value={recommend.setpoint}
           maxLength={128}
+          disabled={sends}
           onChange={(event) => set({ setpoint: event.target.value })}
         />
         <TextField
           label={t('flow.parameterUnit')}
           value={recommend.unit ?? ''}
           maxLength={32}
+          disabled={sends}
           onChange={(event) => set({ unit: event.target.value || null })}
         />
       </div>
@@ -296,10 +334,12 @@ function RecommendationFields({
 export function RulesEditor({
   rules,
   inputNames,
+  commands = [],
   onChange,
 }: {
   rules: RulesModel;
   inputNames: string[];
+  commands?: AdapterCommandResponse[];
   onChange: (next: RulesModel) => void;
 }) {
   const names = namesBefore(rules, inputNames, null);
@@ -379,6 +419,7 @@ export function RulesEditor({
                 <RecommendationFields
                   recommend={item.recommend}
                   names={names}
+                  commands={commands}
                   onChange={(next) => onChange(updateRule(rules, index, { recommend: next }))}
                 />
               )}

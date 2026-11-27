@@ -17,7 +17,7 @@ public sealed record RulesParameter(
 public sealed record RulesCalculation(string Id, string Expression, string? Unit);
 
 /// <summary>
-/// A proposal to change a setpoint. The value is worked out by an expression and then held inside the limits:
+/// A proposal to change a setpoint. A named Command makes it a control request the module declares and the gate can apply; without one it is advice only. The value is worked out by an expression and then held inside the limits:
 /// never below Minimum, never above Maximum, and never further from the current value than MaximumChange. Each limit is either a fixed
 /// number or the name of a number in the module, usually a setting, so it can be tuned per well; a named limit wins.
 /// </summary>
@@ -31,7 +31,8 @@ public sealed record RulesRecommendation(
     decimal? MaximumChange,
     string? MinimumFrom = null,
     string? MaximumFrom = null,
-    string? MaximumChangeFrom = null);
+    string? MaximumChangeFrom = null,
+    string? Command = null);
 
 /// <summary>One ordered rule. The first rule whose condition is true decides the outcome.</summary>
 public sealed record RulesRule(

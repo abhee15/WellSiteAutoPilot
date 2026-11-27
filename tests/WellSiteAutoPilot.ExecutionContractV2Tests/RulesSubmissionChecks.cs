@@ -42,6 +42,32 @@ internal static class RulesSubmissionChecks
         await Reject(() => GuidedRulesCases.Run(definition, ["PumpFillage"], []), "GUIDED_RULES_CASES_INVALID");
         await Reject(() => GuidedRulesCases.Run(definition, ["PumpFillage"], [cases[0], cases[0]]), "GUIDED_RULES_CASES_INVALID");
 
+        // A rule that names a command is declared by the package, so the gate can see what the module may ask for.
+        var commanded = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
+            "\"recommend\": { \"setpoint\": \"speed\", \"valueExpression\": \"5\", \"unit\": \"spm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SET_SPEED\" }"));
+        var commandArtifact = await RulesPackageBuilder.BuildAsync(manifest, commanded);
+        if (commandArtifact.Package.Manifest.CommandRequirements.Single() is not { Command: "SET_SPEED", Quantity: "speed", CanonicalUnit: "spm" })
+            throw new InvalidOperationException("A rule's command must be declared in the package manifest.");
+        // Run as the platform would: the commanded rule yields a control intent (not advice), the others stay advisory.
+        var assetId = Guid.NewGuid();
+        var now = new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero);
+        var commandModule = commandArtifact.Package.RulesModule ?? throw new InvalidOperationException("Missing rules module.");
+        var ran = await commandModule.ExecuteAsync(new global::WellSiteAutoPilot.ModuleSdk.LogicModuleExecutionContext(Guid.NewGuid(),
+            commandModule.Identity, "test", now, "{}", [new("well", assetId, "{}")],
+            [new("fillage", assetId, "PumpFillage", 50m, "%", now, "Good", "test")]));
+        if (ran.OutcomeCode != "LOW_FILLAGE" || ran.Recommendations.Count != 0 ||
+            ran.ControlIntents.Single() is not { Command: "SET_SPEED", Quantity: "speed", RequestedValue: 5m, Unit: "spm" } intent ||
+            intent.AssetId != assetId)
+            throw new InvalidOperationException("A commanded rule must produce one control intent and no advice.");
+        var advised = await first.Package.RulesModule!.ExecuteAsync(new global::WellSiteAutoPilot.ModuleSdk.LogicModuleExecutionContext(Guid.NewGuid(),
+            first.Package.RulesModule.Identity, "test", now, "{}", [new("well", assetId, "{}")],
+            [new("fillage", assetId, "PumpFillage", 50m, "%", now, "Good", "test")]));
+        if (advised.ControlIntents.Count != 0)
+            throw new InvalidOperationException("A rule with no command must not produce a control intent.");
+        var conflict = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
+            "\"recommend\": { \"setpoint\": \"speed\", \"valueExpression\": \"5\", \"unit\": \"spm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SET_SPEED\" }")
+            .Replace("\"rules\": [", "\"rules\": [ { \"id\": \"Other\", \"when\": \"PumpFillage > 99\", \"reason\": \"r\", \"outcomeCode\": \"OTHER\", \"title\": null, \"recommend\": { \"setpoint\": \"speed\", \"valueExpression\": \"4\", \"unit\": \"rpm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SET_SPEED\" } },"));
+        await Reject(() => RulesPackageBuilder.BuildAsync(manifest, conflict), "GUIDED_RULES_COMMAND_CONFLICT");
         var daily = manifest with { DataRequirements = [new("fillage", "well", "PumpFillage", "Daily", "%", 3600, false)] };
         await Reject(() => RulesPackageBuilder.BuildAsync(daily, definition), "GUIDED_RULES_INPUT_UNSUPPORTED");
         var unknownCapability = manifest with

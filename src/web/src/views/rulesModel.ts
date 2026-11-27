@@ -27,6 +27,7 @@ export interface RuleRecommendation {
   minimumFrom: string | null;
   maximumFrom: string | null;
   maximumChangeFrom: string | null;
+  command: string | null;
 }
 
 export interface RuleItem {
@@ -81,6 +82,7 @@ function recommendationOf(value: unknown): RuleRecommendation | null {
     minimumFrom: textOrNull(item.minimumFrom),
     maximumFrom: textOrNull(item.maximumFrom),
     maximumChangeFrom: textOrNull(item.maximumChangeFrom),
+    command: textOrNull(item.command),
   };
 }
 
@@ -207,6 +209,7 @@ export const blankRecommendation: RuleRecommendation = {
   minimumFrom: null,
   maximumFrom: null,
   maximumChangeFrom: null,
+  command: null,
 };
 
 const outcomePattern = /^[A-Z][A-Z0-9_]{0,127}$/;

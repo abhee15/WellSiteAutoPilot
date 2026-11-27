@@ -15,7 +15,8 @@ public sealed record RulesProposal(
     decimal SuggestedValue,
     string? Unit,
     bool Limited,
-    string Reason);
+    string Reason,
+    string? Command = null);
 
 public sealed record RulesRunResult(
     string OutcomeCode,
@@ -88,6 +89,12 @@ public static class RulesEngine
     {
         if (string.IsNullOrWhiteSpace(recommend.Setpoint) || recommend.Setpoint.Length > 128)
             issues.Add(new("RULES_SETPOINT_REQUIRED", path + ".setpoint", "Name the setpoint to change."));
+        if (!string.IsNullOrWhiteSpace(recommend.Command))
+        {
+            if (!IsIdentifier(recommend.Command.Trim()) || recommend.Command.Trim().Length > 64)
+                issues.Add(new("RULES_COMMAND_INVALID", path + ".command", "A command is letters, digits and underscores, up to 64 characters."));
+        }
+
         var kind = Check(recommend.ValueExpression, kinds, path + ".valueExpression", issues);
         if (kind is { } found && found != RuleValueKind.Number)
             issues.Add(new("RULE_EXPRESSION_TYPE", path + ".valueExpression", "The suggested value must be a number."));
@@ -173,6 +180,13 @@ public static class RulesEngine
             throw new RuleExpressionException("RULES_LIMIT_INVALID", "The minimum limit is above the maximum limit.");
         if (minimum is { } low) value = Math.Max(value, low);
         if (maximum is { } max) value = Math.Min(value, max);
+        // The largest change is a safety limit: a minimum or maximum that sits outside it must not push the value past it.
+        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && maximumChange is { } step &&
+            Math.Abs(value - values[recommend.CurrentValue].Number) > step)
+        {
+            trace.Add(new("setpoint", recommend.Setpoint, "the limits and the largest change cannot both hold, so no change is proposed"));
+            return null;
+        }
         var limited = value != requested;
         trace.Add(new("limit", recommend.Setpoint, limited ? "held to the limits" : "within the limits"));
         if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && values[recommend.CurrentValue].Number == value)
@@ -181,7 +195,8 @@ public static class RulesEngine
             return null;
         }
 
-        return new(recommend.Setpoint, requested, value, recommend.Unit, limited, reason);
+        return new(recommend.Setpoint, requested, value, recommend.Unit, limited, reason,
+            string.IsNullOrWhiteSpace(recommend.Command) ? null : recommend.Command.Trim());
     }
 
     private static decimal? Limit(string? name, decimal? fixedValue, Dictionary<string, RuleValue> values) =>

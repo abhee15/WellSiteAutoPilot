@@ -52,6 +52,14 @@ public static class RulesPackageBuilder
             throw Invalid("GUIDED_RULES_INPUT_NAME_DUPLICATE",
                 "Two inputs share a name. Give one of them a different name, for example a Daily prefix.");
 
+        var conflicting = definition.Rules.Select(rule => rule.Recommend).Where(recommend => !string.IsNullOrWhiteSpace(recommend?.Command))
+            .GroupBy(recommend => recommend!.Command!.Trim(), StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Select(recommend => (recommend!.Setpoint.Trim(),
+                string.IsNullOrWhiteSpace(recommend.Unit) ? null : recommend.Unit.Trim())).Distinct().Count() > 1);
+        if (conflicting is not null)
+            throw Invalid("GUIDED_RULES_COMMAND_CONFLICT",
+                "The command '" + conflicting.Key + "' is sent with different setpoints or units. Use one setpoint and unit for each command.");
+
         var issues = RulesEngine.Validate(definition, names);
         if (issues.Count != 0)
             throw Invalid(issues[0].Code, issues[0].Message);
@@ -63,7 +71,7 @@ public static class RulesPackageBuilder
             EntryPoint = RulesDefinition.EntryPoint,
             MinimumSdkVersion = "1.1.0",
             OutputRequirements = null,
-            CommandRequirements = [],
+            CommandRequirements = DeclaredCommands(manifest, definition),
             DataRequirements = manifest.DataRequirements
                 .Select(input => input with
                 {
@@ -93,6 +101,15 @@ public static class RulesPackageBuilder
         var inspected = await LogicModulePackageReader.ReadAsync(buffer, cancellationToken);
         return new DeclarativeThresholdArtifact(buffer.ToArray(), inspected);
     }
+
+    /// <summary>One declared command per distinct command a rule names, so the gate and a policy can see what the module may ask for.</summary>
+    private static LogicCommandRequirement[] DeclaredCommands(LogicModuleManifest manifest, RulesDefinition definition) =>
+        definition.Rules.Select(rule => rule.Recommend).Where(recommend => !string.IsNullOrWhiteSpace(recommend?.Command))
+            .GroupBy(recommend => recommend!.Command!.Trim(), StringComparer.Ordinal)
+            .Select(group => new LogicCommandRequirement(
+                "cmd-" + group.Key.ToLowerInvariant(), manifest.DataRequirements.First().AssetRole, group.Key,
+                group.First()!.Setpoint.Trim(), string.IsNullOrWhiteSpace(group.First()!.Unit) ? null : group.First()!.Unit!.Trim()))
+            .ToArray();
 
     private static WellSiteAutoPilotException Invalid(string code, string message) =>
         new(code, FailureKind.Validation, message);

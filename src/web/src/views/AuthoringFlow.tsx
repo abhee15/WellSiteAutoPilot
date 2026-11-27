@@ -6,8 +6,10 @@ import {
   submitGuidedModuleRules,
   getGuidedModuleDraft,
   listGuidedModuleProviders,
+  listConnectionAdapters,
 } from '../api/generated/v1/sdk.gen';
 import type {
+  AdapterCommandResponse,
   GuidedModuleDraftResponse,
   GuidedProviderResponse,
   GuidedSourceHintRequest,
@@ -92,6 +94,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [scenariosChanged, setScenariosChanged] = useState(false);
+  const [commands, setCommands] = useState<AdapterCommandResponse[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,6 +131,21 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
       });
     return () => controller.abort();
   }, [draftId]);
+
+  useEffect(() => {
+    if (!providerKey) return;
+    const controller = new AbortController();
+    void listConnectionAdapters({ signal: controller.signal })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return;
+        const adapter = data?.find((item) => item.key?.toLowerCase() === providerKey.toLowerCase());
+        setCommands(adapter?.commands ?? []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCommands([]);
+      });
+    return () => controller.abort();
+  }, [providerKey]);
 
   const provider = providers.find((item) => item.adapterKey === providerKey);
   const inputs = useMemo(() => (manifest ? inputsOf(manifest) : []), [manifest]);
@@ -382,7 +400,9 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
               />
             </Section>
           )}
-          {selected === 'rules' && <RulesEditor rules={rules} inputNames={inputNames} onChange={editRules} />}
+          {selected === 'rules' && (
+            <RulesEditor rules={rules} inputNames={inputNames} commands={commands} onChange={editRules} />
+          )}
           {selected === 'inputs' && (
             <InputsEditor
               providerKey={providerKey}

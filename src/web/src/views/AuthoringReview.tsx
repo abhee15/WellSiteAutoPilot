@@ -31,6 +31,9 @@ export function RulesReview({ rulesJson, evidenceJson }: { rulesJson: string; ev
           {rules.rules.map((rule) => (
             <li key={rule.id}>
               <span>{rule.id}</span> {rule.when} <span>{rule.outcomeCode + ' — ' + rule.reason}</span>
+              {rule.recommend?.command && (
+                <strong>{' · ' + t('review.sendsCommand', { command: rule.recommend.command })}</strong>
+              )}
             </li>
           ))}
         </ol>
