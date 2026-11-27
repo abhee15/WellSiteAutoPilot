@@ -7,9 +7,9 @@ import {
 } from '../api/generated/v1';
 import type { GuidedModuleDraftResponse, GuidedProviderResponse } from '../api/generated/v1';
 import { ActionButton, ActionLink } from '../components/ActionButton';
-import { SummaryCard } from '../components/common';
 import { ContextLink } from '../components/ContextLink';
 import { DataTable } from '../components/DataTable';
+import { SelectField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { SectionTabs } from '../components/SectionTabs';
 import type { SectionTab } from '../components/SectionTabs';
@@ -175,42 +175,26 @@ export function AuthoringModules() {
         <>
           <h3>{t('flow.firstModuleTitle')}</h3>
           <p>{t('flow.firstModuleBody')}</p>
-          {providers.length > 0 && (
-            <div className="summary-grid" role="group" aria-label={t('flow.providerFilter')}>
-              {providers.map((item) => (
-                <SummaryCard
-                  key={item.adapterKey}
-                  label={providerName(item)}
-                  value={t('flow.startWithProvider')}
-                  detail=""
-                  href={hashFor('authoring', `new:${item.adapterKey}`)}
-                />
-              ))}
-            </div>
-          )}
         </>
       )}
       {drafts && drafts.length > 0 && (
         <>
           {providers.length > 1 && (
-            <div className="summary-grid" role="group" aria-label={t('flow.providerFilter')}>
-              <SummaryCard
-                label={t('flow.allProviders')}
-                value={String(started.length)}
-                detail=""
-                selected={providerKey === null}
-                onSelect={() => setProviderKey(null)}
-              />
-              {providers.map((item) => (
-                <SummaryCard
-                  key={item.adapterKey}
-                  label={providerName(item)}
-                  value={String(countFor(item.adapterKey))}
-                  detail=""
-                  selected={providerKey === item.adapterKey}
-                  onSelect={() => setProviderKey(providerKey === item.adapterKey ? null : (item.adapterKey ?? null))}
-                />
-              ))}
+            <div className="authoring-modules-filter">
+              <SelectField
+                label={t('flow.provider')}
+                value={providerKey ?? ''}
+                onChange={(event) => setProviderKey(event.target.value || null)}
+              >
+                <option value="">
+                  {t('flow.allProviders')} ({started.length})
+                </option>
+                {providers.map((item) => (
+                  <option key={item.adapterKey} value={item.adapterKey ?? ''}>
+                    {providerName(item)} ({countFor(item.adapterKey)})
+                  </option>
+                ))}
+              </SelectField>
             </div>
           )}
           <SectionTabs

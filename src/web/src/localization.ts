@@ -1561,7 +1561,6 @@ export const englishMessages = {
   'flow.firstModuleTitle': 'Create your first module',
   'flow.firstModuleBody':
     'Pick the provider whose data the module will use. You can describe the rules in plain steps.',
-  'flow.startWithProvider': 'Start a module',
   'flow.untitled': 'Untitled module',
   'flow.draftColName': 'Module',
   'flow.draftColProvider': 'Provider',
@@ -1573,7 +1572,6 @@ export const englishMessages = {
   'flow.stageInProgress': 'In progress',
   'flow.stageReview': 'In review',
   'flow.stageApproved': 'Approved',
-  'flow.providerFilter': 'Filter by provider',
   'flow.allProviders': 'All providers',
   'flow.noModulesInView': 'No modules at this stage.',
   'flow.newProviderModule': 'New {provider} module',
