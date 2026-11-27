@@ -44,13 +44,14 @@ internal static class RulesSubmissionChecks
 
         // A rule that names a command is declared by the package, so the gate can see what the module may ask for.
         var commanded = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
-            "\"recommend\": { \"setpoint\": \"PumpingSpeed\", \"valueExpression\": \"5\", \"unit\": \"spm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SetSpeed\" }"));
+            "\"recommend\": { \"setpoint\": \"speed\", \"valueExpression\": \"5\", \"unit\": \"spm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SET_SPEED\" }"));
         var commandArtifact = await RulesPackageBuilder.BuildAsync(manifest, commanded);
-        if (commandArtifact.Package.Manifest.CommandRequirements.Single() is not { Command: "SetSpeed", Quantity: "PumpingSpeed", CanonicalUnit: "spm" })
+        if (commandArtifact.Package.Manifest.CommandRequirements.Single() is not { Command: "SET_SPEED", Quantity: "speed", CanonicalUnit: "spm" })
             throw new InvalidOperationException("A rule's command must be declared in the package manifest.");
-        var noUnit = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
-            "\"recommend\": { \"setpoint\": \"PumpingSpeed\", \"valueExpression\": \"5\", \"unit\": null, \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SetSpeed\" }"));
-        await Reject(() => RulesPackageBuilder.BuildAsync(manifest, noUnit), "RULES_COMMAND_UNIT_REQUIRED");
+        var conflict = RulesDefinition.Parse(Rules.Replace("\"recommend\": null",
+            "\"recommend\": { \"setpoint\": \"speed\", \"valueExpression\": \"5\", \"unit\": \"spm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SET_SPEED\" }")
+            .Replace("\"rules\": [", "\"rules\": [ { \"id\": \"Other\", \"when\": \"PumpFillage > 99\", \"reason\": \"r\", \"outcomeCode\": \"OTHER\", \"title\": null, \"recommend\": { \"setpoint\": \"speed\", \"valueExpression\": \"4\", \"unit\": \"rpm\", \"currentValue\": null, \"minimum\": null, \"maximum\": null, \"maximumChange\": null, \"command\": \"SET_SPEED\" } },"));
+        await Reject(() => RulesPackageBuilder.BuildAsync(manifest, conflict), "GUIDED_RULES_COMMAND_CONFLICT");
         var daily = manifest with { DataRequirements = [new("fillage", "well", "PumpFillage", "Daily", "%", 3600, false)] };
         await Reject(() => RulesPackageBuilder.BuildAsync(daily, definition), "GUIDED_RULES_INPUT_UNSUPPORTED");
         var unknownCapability = manifest with

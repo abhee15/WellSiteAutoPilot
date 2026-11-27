@@ -1489,6 +1489,7 @@ export const englishMessages = {
   'flow.submitNeedRule': 'Add at least one rule before submitting for review.',
   'flow.submitNeedScenario': 'Add at least one test scenario before submitting for review.',
   'review.rules': 'Rules',
+  'review.sendsCommand': 'Sends the command {command} to the control gate',
   'review.scenarios': 'Scenarios the author ran',
   'flow.testLimited': 'held to the limits from',
   'flow.removeInput': 'Remove input',

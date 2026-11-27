@@ -73,8 +73,10 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
         if (issues.Count != 0)
             Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", issues[0].Message);
 
-        var declared = manifest.CommandRequirements.Select(command => command.Command).ToHashSet(StringComparer.Ordinal);
-        if (parsed.Rules.Any(rule => !string.IsNullOrWhiteSpace(rule.Recommend?.Command) && !declared.Contains(rule.Recommend!.Command!.Trim())))
+        if (parsed.Rules.Any(rule => !string.IsNullOrWhiteSpace(rule.Recommend?.Command) &&
+                !manifest.CommandRequirements.Any(command => string.Equals(command.Command, rule.Recommend!.Command!.Trim(), StringComparison.Ordinal) &&
+                    string.Equals(command.Quantity, rule.Recommend.Setpoint.Trim(), StringComparison.Ordinal) &&
+                    string.Equals(command.CanonicalUnit, string.IsNullOrWhiteSpace(rule.Recommend.Unit) ? null : rule.Recommend.Unit.Trim(), StringComparison.Ordinal))))
             Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "A rule sends a command the module does not declare.");
         await LogicModuleManifestValidator.ValidateParametersAsync(manifest, "{}", cancellationToken);
         return new(manifest, parsed);

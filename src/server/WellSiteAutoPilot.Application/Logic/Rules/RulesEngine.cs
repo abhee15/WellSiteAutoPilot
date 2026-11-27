@@ -93,8 +93,6 @@ public static class RulesEngine
         {
             if (!IsIdentifier(recommend.Command.Trim()) || recommend.Command.Trim().Length > 64)
                 issues.Add(new("RULES_COMMAND_INVALID", path + ".command", "A command is letters, digits and underscores, up to 64 characters."));
-            if (string.IsNullOrWhiteSpace(recommend.Unit))
-                issues.Add(new("RULES_COMMAND_UNIT_REQUIRED", path + ".unit", "A command needs the unit of the value it sends."));
         }
 
         var kind = Check(recommend.ValueExpression, kinds, path + ".valueExpression", issues);
@@ -182,6 +180,13 @@ public static class RulesEngine
             throw new RuleExpressionException("RULES_LIMIT_INVALID", "The minimum limit is above the maximum limit.");
         if (minimum is { } low) value = Math.Max(value, low);
         if (maximum is { } max) value = Math.Min(value, max);
+        // The largest change is a safety limit: a minimum or maximum that sits outside it must not push the value past it.
+        if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && maximumChange is { } step &&
+            Math.Abs(value - values[recommend.CurrentValue].Number) > step)
+        {
+            trace.Add(new("setpoint", recommend.Setpoint, "the limits and the largest change cannot both hold, so no change is proposed"));
+            return null;
+        }
         var limited = value != requested;
         trace.Add(new("limit", recommend.Setpoint, limited ? "held to the limits" : "within the limits"));
         if (!string.IsNullOrWhiteSpace(recommend.CurrentValue) && values[recommend.CurrentValue].Number == value)

@@ -34,3 +34,14 @@ describe('saved scenarios', () => {
     expect(parseScenarios(null)).toEqual([]);
   });
 });
+
+describe('commands on a rule', () => {
+  it('keeps the command a rule sends when it is read and saved again', () => {
+    const json = JSON.stringify({
+      parameters: [],
+      calculations: [],
+      rules: [{ id: 'R', when: 'x > 1', reason: 'r', outcomeCode: 'O', title: null, recommend: { ...blankRecommendation, setpoint: 'speed', valueExpression: '5', unit: 'spm', command: 'SET_SPEED' } }],
+    });
+    expect(parseRules(json).rules[0]?.recommend?.command).toBe('SET_SPEED');
+  });
+});

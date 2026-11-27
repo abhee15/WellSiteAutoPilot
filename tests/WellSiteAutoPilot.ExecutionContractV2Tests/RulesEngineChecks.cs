@@ -83,11 +83,17 @@ internal static class RulesEngineChecks
         // A limit may name a number in the module, such as a setting, so each well can tune it.
         var tuned = Json.Replace("\"maximum\": 12", "\"maximum\": null, \"maximumFrom\": \"MinSpeed\"");
         var named = RulesEngine.Run(RulesDefinition.Parse(tuned),
-            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 4m }, none);
         if (named.Proposal is not { SuggestedValue: 3m, Limited: true })
             throw new InvalidOperationException("A named limit must hold the suggestion.");
         ExpectIssue(Json.Replace("\"maximum\": 12", "\"maximum\": null, \"maximumFrom\": \"Missing\""), inputs,
             "RULE_EXPRESSION_UNKNOWN_NAME");
+
+        // A maximum below the reachable window must not push the value past the largest change: nothing is proposed.
+        var unreachable = RulesEngine.Run(RulesDefinition.Parse(Json.Replace("\"maximum\": 12", "\"maximum\": 2")),
+            new Dictionary<string, decimal> { ["PumpFillage"] = 55m, ["CurrentSpeed"] = 6m }, none);
+        if (unreachable.OutcomeCode != "SLOW_PUMP" || unreachable.Proposal is not null)
+            throw new InvalidOperationException("A limit outside the largest change must propose nothing.");
 
         try
         {
