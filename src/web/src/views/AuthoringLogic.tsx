@@ -303,6 +303,20 @@ function RecommendationFields({
           min={0}
           onChange={(event) => set({ maximumChange: numberOf(event.target.value) })}
         />
+        <NumberField
+          label={t('flow.limitDeadband')}
+          value={recommend.deadband ?? ''}
+          step="any"
+          min={0}
+          onChange={(event) => set({ deadband: numberOf(event.target.value) })}
+        />
+        <NumberField
+          label={t('flow.limitIncrement')}
+          value={recommend.increment ?? ''}
+          step="any"
+          min={0}
+          onChange={(event) => set({ increment: numberOf(event.target.value) })}
+        />
       </div>
       <div className="authoring-card-body">
         {(

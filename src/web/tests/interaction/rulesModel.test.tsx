@@ -23,6 +23,16 @@ describe('setpoint limits from settings', () => {
     expect(logicIncomplete(rules(base), [])).toBe(true);
     expect(logicIncomplete(rules({ ...base, currentValue: 'MaxSpeed' }), [])).toBe(false);
   });
+
+  it('keeps a deadband and increment, and needs a current value to measure a deadband from', () => {
+    const base = { ...blankRecommendation, setpoint: 'S', valueExpression: '1', deadband: 0.2, increment: 0.5 };
+    const kept = rules(base).rules[0].recommend;
+    expect(kept?.deadband).toBe(0.2);
+    expect(kept?.increment).toBe(0.5);
+    expect(logicIncomplete(rules(base), [])).toBe(true);
+    expect(logicIncomplete(rules({ ...base, currentValue: 'MaxSpeed' }), [])).toBe(false);
+    expect(logicIncomplete(rules({ ...base, currentValue: 'MaxSpeed', increment: 0 }), [])).toBe(true);
+  });
 });
 
 describe('saved scenarios', () => {
@@ -40,7 +50,22 @@ describe('commands on a rule', () => {
     const json = JSON.stringify({
       parameters: [],
       calculations: [],
-      rules: [{ id: 'R', when: 'x > 1', reason: 'r', outcomeCode: 'O', title: null, recommend: { ...blankRecommendation, setpoint: 'speed', valueExpression: '5', unit: 'spm', command: 'SET_SPEED' } }],
+      rules: [
+        {
+          id: 'R',
+          when: 'x > 1',
+          reason: 'r',
+          outcomeCode: 'O',
+          title: null,
+          recommend: {
+            ...blankRecommendation,
+            setpoint: 'speed',
+            valueExpression: '5',
+            unit: 'spm',
+            command: 'SET_SPEED',
+          },
+        },
+      ],
     });
     expect(parseRules(json).rules[0]?.recommend?.command).toBe('SET_SPEED');
   });

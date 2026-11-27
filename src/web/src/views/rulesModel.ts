@@ -28,6 +28,8 @@ export interface RuleRecommendation {
   maximumFrom: string | null;
   maximumChangeFrom: string | null;
   command: string | null;
+  deadband: number | null;
+  increment: number | null;
 }
 
 interface RuleItem {
@@ -83,6 +85,8 @@ function recommendationOf(value: unknown): RuleRecommendation | null {
     maximumFrom: textOrNull(item.maximumFrom),
     maximumChangeFrom: textOrNull(item.maximumChangeFrom),
     command: textOrNull(item.command),
+    deadband: numberOrNull(item.deadband),
+    increment: numberOrNull(item.increment),
   };
 }
 
@@ -210,6 +214,8 @@ export const blankRecommendation: RuleRecommendation = {
   maximumFrom: null,
   maximumChangeFrom: null,
   command: null,
+  deadband: null,
+  increment: null,
 };
 
 const outcomePattern = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -239,6 +245,8 @@ export function logicIncomplete(model: RulesModel, takenNames: string[]): boolea
     if (recommend && (recommend.setpoint.trim() === '' || recommend.valueExpression.trim() === '')) return true;
     if (recommend?.maximumChange != null && recommend.maximumChange <= 0 && !recommend.maximumChangeFrom) return true;
     if ((recommend?.maximumChange != null || recommend?.maximumChangeFrom) && !recommend.currentValue) return true;
+    if (recommend?.deadband != null && (recommend.deadband <= 0 || !recommend.currentValue)) return true;
+    if (recommend?.increment != null && recommend.increment <= 0) return true;
   }
   return false;
 }

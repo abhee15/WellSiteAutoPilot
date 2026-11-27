@@ -1549,6 +1549,8 @@ export const englishMessages = {
   'flow.limitMinimum': 'Lowest allowed',
   'flow.limitMaximum': 'Highest allowed',
   'flow.limitChange': 'Largest change',
+  'flow.limitDeadband': 'Ignore moves smaller than',
+  'flow.limitIncrement': 'Round to a multiple of',
   'flow.liveTitle': 'Try on a real well',
   'flow.liveNeedsSaved': 'Available once the module has a rule and its changes are saved.',
   'flow.liveReadOnly':
