@@ -8,16 +8,19 @@ import { delay, root, startVisualBrowser } from './lib/visual-browser.mjs';
 // Add a page or state to `cases` to put it under the gate. Do not turn a rule off to get green: fix the markup or
 // token, or add a narrow, explained entry to `knownViolations`.
 const cases = [
-  ['run-history', '?nav=expanded', 1440], ['run-history', '?mode=list', 390],
-  ['adapter-operations', '?nav=expanded', 1440], ['adapter-operations', '?mode=examples', 390],
-  ['operator-review', '', 1440], ['operator-review', '?page=overview', 390],
-  ['shared-forms', '', 1440], ['shared-forms', '', 390],
-  ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
-  ['guided-authoring', '?view=ide', 1440], ['guided-authoring', '?view=ide', 768],
-  ['guided-authoring', '?view=ide', 820], ['guided-authoring', '?view=ide', 1024], ['guided-authoring', '?view=ide', 1180],
-  ['guided-authoring', '?view=surface-cards', 1440], ['guided-authoring', '?view=surface-cards', 768],
-  ['guided-authoring', '?view=contract', 1440], ['guided-authoring', '?view=contract', 1024],
-  ['guided-authoring', '?view=contract', 768],
+    ['run-history', '?nav=expanded', 1440],
+    ['run-history', '?mode=list', 390],
+    ['adapter-operations', '?nav=expanded', 1440],
+    ['adapter-operations', '?mode=examples', 390],
+    ['operator-review', '', 1440],
+    ['operator-review', '?page=overview', 390],
+    ['shared-forms', '', 1440],
+    ['shared-forms', '', 390],
+    ['guided-authoring', '', 1440],
+    ['guided-authoring', '', 768],
+    ['guided-authoring', '', 390],
+    ['guided-authoring', '?view=surface-cards', 1440],
+    ['guided-authoring', '?view=surface-cards', 768],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -36,108 +39,56 @@ const problems = [];
 const report = [];
 
 async function evaluate(expression) {
-  const result = await channel.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-  if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? 'Page script failed');
-  return result.result?.value;
+    const result = await channel.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    if (result.exceptionDetails)
+        throw new Error(result.exceptionDetails.exception?.description ?? 'Page script failed');
+    return result.result?.value;
 }
 
 async function settled() {
-  // The pages fetch mocked data and render asynchronously; wait until the text stops changing.
-  let previous = -1; let stable = 0;
-  for (let attempts = 0; attempts < 60 && stable < 3; attempts += 1) {
-    await delay(250);
-    const length = await evaluate('document.body.innerText.length');
-    stable = length === previous && length > 0 ? stable + 1 : 0;
-    previous = length;
-  }
-  if (stable < 3) throw new Error('The page never finished rendering');
+    // The pages fetch mocked data and render asynchronously; wait until the text stops changing.
+    let previous = -1;
+    let stable = 0;
+    for (let attempts = 0; attempts < 60 && stable < 3; attempts += 1) {
+        await delay(250);
+        const length = await evaluate('document.body.innerText.length');
+        stable = length === previous && length > 0 ? stable + 1 : 0;
+        previous = length;
+    }
+    if (stable < 3) throw new Error('The page never finished rendering');
 }
 
 try {
-  for (const [page, query, width] of cases) {
-    const key = `${page}${query}@${width}`;
-    await channel.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-    await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
-    try { await settled(); } catch (error) { problems.push(`${key}: ${error.message}`); continue; }
-    if (page === 'guided-authoring' && query === '?view=contract') {
-      const selected = await evaluate(`(() => {
-        const picker = document.querySelector('.guided-authoring-draft-picker select');
-        if (!picker) return false;
-        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-        if (!setter) return false;
-        setter.call(picker, 'visual-card-calibration');
-        picker.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      })()`);
-      if (!selected) {
-        problems.push(`${key}: failed to select the complex calibration sample`);
-        continue;
-      }
-      await settled();
-      const opened = await evaluate(`(() => {
-        const disclosure = document.querySelector('.guided-authoring-contract');
-        const summary = disclosure?.querySelector('summary');
-        if (!disclosure?.open || !summary) return false;
-        summary.click();
-        const canCollapse = !disclosure.open;
-        summary.click();
-        return canCollapse && disclosure.open;
-      })()`);
-      if (!opened) {
-        problems.push(`${key}: complex contract did not open automatically`);
-        continue;
-      }
-      await settled();
-      const accurate = await evaluate(`(() => {
-        const text = document.body.innerText;
-        const action = name => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === name);
-        return text.includes('SurfaceCards') && text.includes('Calibration')
-          && text.includes('View-only complex module')
-          && !text.includes('Recommend a review when pump fillage is below the threshold')
-          && action('Save draft') === undefined
-          && action('Submit for review') === undefined
-          && action('Run sample cases') === undefined
-          && text.includes('DotNet runtime')
-          && text.includes('Input-to-output dependencies and intermediate values')
-          && document.querySelector('[aria-label="Module execution"]')
-          && !document.querySelector('.guided-authoring-inspector')
-          && document.querySelector('.guided-authoring-workbench')?.dataset.inspectOnly === 'true';
-      })()`);
-      if (!accurate) {
-        problems.push(`${key}: complex module exposes unsupported edits or invented guided-rule evaluation`);
-        continue;
-      }
-    }
-    if (page === 'guided-authoring' && query === '?view=surface-cards') {
-      const plot = await evaluate(`(() => {
+    for (const [page, query, width] of cases) {
+        const key = `${page}${query}@${width}`;
+        await channel.send('Emulation.setDeviceMetricsOverride', {
+            width,
+            height: 900,
+            deviceScaleFactor: 1,
+            mobile: false,
+        });
+        await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
+        try {
+            await settled();
+        } catch (error) {
+            problems.push(`${key}: ${error.message}`);
+            continue;
+        }
+        if (page === 'guided-authoring' && query === '?view=surface-cards') {
+            const plot = await evaluate(`(() => {
         const canvas = document.querySelector('.guided-surface-card canvas');
         if (!canvas || document.documentElement.scrollWidth > innerWidth) return false;
         return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height)
           .data.some((value, index) => index % 4 === 3 && value > 0);
       })()`);
-      if (!plot) problems.push(`${key}: stored surface card chart is empty or overflows the page`);
-    } else if (page === 'guided-authoring') {
-      const layout = await evaluate(`(() => {
+            if (!plot) problems.push(`${key}: stored surface card chart is empty or overflows the page`);
+        } else if (page === 'guided-authoring') {
+            const layout = await evaluate(`(() => {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
-        const bounds = selector => document.querySelector(selector).getBoundingClientRect();
-        const editor = bounds('.guided-authoring-main');
-        const workbench = bounds('.guided-authoring-workbench');
-        const inspector = document.querySelector('.guided-authoring-inspector')?.getBoundingClientRect();
-        const tabs = document.querySelector('.guided-authoring-view-bar .tab-strip');
-        const tools = document.querySelector('.guided-authoring-view-bar > .guided-authoring-actions')?.getBoundingClientRect();
         return {
-          sideBySide: Boolean(inspector && editor.right <= inspector.left && editor.top === inspector.top),
-          inspectorPresent: Boolean(inspector),
-          fullWidth: Math.abs(workbench.width - editor.width) <= 2,
-          actionsAboveEditor: !tools || tools.bottom <= editor.top,
-          actionsPresent: Boolean(tools),
-          tabOverflow: tabs.scrollWidth > tabs.clientWidth,
-          editor: visible('.guided-authoring-editor'),
-          ide: visible('.guided-authoring-workbench[data-view=ide] .guided-authoring-outline'),
           review: visible('.guided-authoring-review'),
           evidence: visible('[title="LOW_FILLAGE"]'),
           approval: visible('.guided-authoring-approval'),
-          phoneMessage: visible('.guided-authoring-mobile'),
           overflow: document.documentElement.scrollWidth > innerWidth,
           navLabels: [...document.querySelectorAll('.navigation .nav-label')].every(label => {
             const range = document.createRange();
@@ -146,45 +97,46 @@ try {
           }),
         };
       })()`);
-      const phone = width === 390;
-      const contract = query === '?view=contract';
-      if (layout.editor === phone || layout.ide !== (query === '?view=ide')
-        || layout.review === contract || layout.evidence === contract || layout.approval !== (!phone && !contract)
-        || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels
-        || (contract && (!layout.fullWidth || layout.inspectorPresent || layout.actionsPresent))
-        || (!contract && !layout.actionsPresent)
-        || (!phone && (!contract && layout.sideBySide !== (width > 896)
-          || !layout.actionsAboveEditor || layout.tabOverflow))) {
-        problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
-      }
-    }
-    if (page === 'guided-authoring') {
-      await evaluate('document.fonts.ready');
-      const screenshot = await channel.send('Page.captureScreenshot', { format: 'png' });
-      const view = query.split('=')[1] ?? 'workflow';
-      writeFileSync(join(output, `guided-authoring-${view}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
-    }
-    await evaluate(axeSource);
-    const violations = await evaluate(`axe.run(document, { resultTypes: ['violations'], rules: ${JSON.stringify(fixtureRules)} }).then(result =>
+            if (!layout.review || !layout.evidence || !layout.approval || layout.overflow || !layout.navLabels) {
+                problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
+            }
+        }
+        if (page === 'guided-authoring') {
+            await evaluate('document.fonts.ready');
+            const screenshot = await channel.send('Page.captureScreenshot', { format: 'png' });
+            const view = query.split('=')[1] ?? 'review';
+            writeFileSync(
+                join(output, `guided-authoring-${view}-${width}.png`),
+                Buffer.from(screenshot.data, 'base64'),
+            );
+        }
+        await evaluate(axeSource);
+        const violations =
+            await evaluate(`axe.run(document, { resultTypes: ['violations'], rules: ${JSON.stringify(fixtureRules)} }).then(result =>
       result.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.map(n => ({ target: n.target.join(' '), summary: n.failureSummary })) })))`);
-    const allowed = new Set((knownViolations[key] ?? []).map(item => item.rule));
-    for (const violation of violations) {
-      report.push({ key, ...violation });
-      if (allowed.has(violation.id)) continue;
-      problems.push(`${key}: ${violation.id} (${violation.impact}) ${violation.help}\n` +
-        violation.nodes.slice(0, 5).map(node => `    ${node.target}\n      ${node.summary.replace(/\n/g, ' ')}`).join('\n') +
-        (violation.nodes.length > 5 ? `\n    ... and ${violation.nodes.length - 5} more` : ''));
+        const allowed = new Set((knownViolations[key] ?? []).map((item) => item.rule));
+        for (const violation of violations) {
+            report.push({ key, ...violation });
+            if (allowed.has(violation.id)) continue;
+            problems.push(
+                `${key}: ${violation.id} (${violation.impact}) ${violation.help}\n` +
+                    violation.nodes
+                        .slice(0, 5)
+                        .map((node) => `    ${node.target}\n      ${node.summary.replace(/\n/g, ' ')}`)
+                        .join('\n') +
+                    (violation.nodes.length > 5 ? `\n    ... and ${violation.nodes.length - 5} more` : ''),
+            );
+        }
+        console.log(`${key}: ${violations.length} violation group(s)`);
     }
-    console.log(`${key}: ${violations.length} violation group(s)`);
-  }
 } finally {
-  writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
-  await session.close();
+    writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
+    await session.close();
 }
 
 if (problems.length) {
-  console.error('Accessibility checks failed in a real browser:\n' + problems.map(item => '- ' + item).join('\n'));
-  process.exitCode = 1;
+    console.error('Accessibility checks failed in a real browser:\n' + problems.map((item) => '- ' + item).join('\n'));
+    process.exitCode = 1;
 } else {
-  console.log('Real-browser accessibility checks passed for', cases.length, 'page states.');
+    console.log('Real-browser accessibility checks passed for', cases.length, 'page states.');
 }

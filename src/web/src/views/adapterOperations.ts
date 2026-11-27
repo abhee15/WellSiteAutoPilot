@@ -1,4 +1,4 @@
-import type { AdapterOperationsResponse, ConnectionOperationsResponse } from '../api/generated/v1/types.gen';
+import type { AdapterOperationsResponse } from '../api/generated/v1/types.gen';
 import { ConnectionsError } from './connections';
 
 async function read(path: string, signal: AbortSignal): Promise<unknown> {
@@ -78,12 +78,4 @@ export async function loadAdapterOperations(signal: AbortSignal): Promise<Adapte
       Number.isSafeInteger(operation.limits.maximumReplyBytes) &&
       (operation.documentation == null || documentation(operation.documentation))) && validGroups(adapter))) throw new ConnectionsError('invalidResponse');
   return body as AdapterOperationsResponse[];
-}
-
-export async function loadConnectionOperations(connectionId: string, signal: AbortSignal): Promise<ConnectionOperationsResponse> {
-  const body = await read(encodeURIComponent(connectionId) + '/operations', signal);
-  if (!object(body) || body.connectionId !== connectionId || typeof body.adapterKey !== 'string' ||
-    !Number.isSafeInteger(body.connectionRevision) || typeof body.state !== 'string' || typeof body.reason !== 'string' ||
-    !Array.isArray(body.operationKeys) || !body.operationKeys.every(key => typeof key === 'string')) throw new ConnectionsError('invalidResponse');
-  return body as ConnectionOperationsResponse;
 }

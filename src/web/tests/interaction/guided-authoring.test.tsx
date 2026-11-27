@@ -1,25 +1,18 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
+import { afterEach, expect, it, vi } from 'vitest';
+import { ModuleAuthoringWorkspace, ModuleReview } from '../../src/views/GuidedAuthoringPage';
 import { GuidedLivePreview } from '../../src/views/GuidedLivePreview';
-import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import {
   approveGuidedModuleSubmission,
   checkGuidedModuleAssetCompatibility,
   discoverGuidedModuleQuantities,
   getGuidedModuleSubmission,
-  createGuidedModuleDraft,
-  deleteGuidedModuleDraft,
-  editGuidedModuleDraft,
   listGuidedModuleDrafts,
-  listGuidedModuleProviders,
   listPendingGuidedModuleSubmissions,
-  previewGuidedModuleDraft,
-  previewGuidedModuleWithLiveInputs,
   previewGuidedModuleInputHistory,
   previewGuidedModuleProductionDays,
+  previewGuidedModuleRulesWithLiveInputs,
   previewGuidedModuleSurfaceCards,
-  submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
 afterEach(cleanup);
@@ -28,165 +21,48 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   approveGuidedModuleSubmission: vi.fn(),
   checkGuidedModuleAssetCompatibility: vi.fn(),
   discoverGuidedModuleQuantities: vi.fn(),
-  createGuidedModuleDraft: vi.fn(),
-  deleteGuidedModuleDraft: vi.fn(),
-  editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
-  listGuidedModuleProviders: vi.fn(),
   listPendingGuidedModuleSubmissions: vi.fn(),
-  previewGuidedModuleDraft: vi.fn(),
-  previewGuidedModuleWithLiveInputs: vi.fn(),
   previewGuidedModuleInputHistory: vi.fn(),
   previewGuidedModuleProductionDays: vi.fn(),
+  previewGuidedModuleRulesWithLiveInputs: vi.fn(),
   previewGuidedModuleSurfaceCards: vi.fn(),
-  submitGuidedModuleDraft: vi.fn(),
 }));
 
-beforeEach(() => {
-  vi.mocked(listGuidedModuleProviders).mockResolvedValue({
-    data: [
-      { adapterKey: 'foresite', displayName: 'ForeSite', currentValuesOnly: false, externalSources: [] },
-      { adapterKey: 'cygnet', displayName: 'CygNet', currentValuesOnly: true, externalSources: [] },
-    ],
-  } as never);
-});
+async function atHash(hash: string, check: () => Promise<void> | void) {
+  window.history.replaceState(null, '', hash);
+  try {
+    await check();
+  } finally {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+}
 
-it('saves, previews and submits the same guided draft revision', async () => {
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
-  vi.mocked(createGuidedModuleDraft).mockResolvedValue({
-    data: {
-      id: 'draft-1',
-      revision: 1,
-      manifestJson: '{"displayName":"Fillage check","entryPoint":"wsa.declarative.threshold.v1"}',
-      definition: { default: 70 },
-    },
-  } as never);
-  vi.mocked(previewGuidedModuleDraft)
-    .mockResolvedValueOnce({ data: { outcomeCode: 'LOW_FILLAGE' } } as never)
-    .mockResolvedValueOnce({ data: { outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
-    .mockResolvedValueOnce({ data: { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' } } as never);
-  vi.mocked(submitGuidedModuleDraft).mockResolvedValue({ data: { revision: 1 } } as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Fillage check' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await screen.findByText('Draft saved.');
-  expect(screen.getByRole('region', { name: 'Sample cases' })).toBeTruthy();
-  expect(document.querySelector('.guided-authoring-workbench')?.getAttribute('data-inspect-only')).toBe('false');
-  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
-  expect((await screen.findByTitle('LOW_FILLAGE')).textContent).toBe('Low pump fillage');
-  expect(screen.getByText('No recommendation')).toBeTruthy();
-  expect(screen.getByText('Required reading unavailable')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
-  const link = await screen.findByLabelText<HTMLInputElement>('Shareable review link');
-  expect(decodeURIComponent(new URL(link.value).hash)).toBe('#authoring/draft-1/1');
-  expect(submitGuidedModuleDraft).toHaveBeenCalledWith({
-    path: { id: 'draft-1' },
-    body: { expectedRevision: 1, readings: [62, 70, null] },
-  });
-});
-
-it('keeps unknown complex module calculations read-only in the guided editor', async () => {
+it('shows an author only the drafts list and a link to the new flow, never the legacy editor', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [
       {
-        id: 'complex-draft',
+        id: 'd1',
         revision: 1,
-        manifestJson: JSON.stringify({
-          displayName: 'Surface-card calibration',
-          entryPoint: 'sample.structured-card-calibration.v2',
-          dataRequirements: [{ id: 'cards', quantity: 'SurfaceCards' }],
-        }),
-        definition: { default: 70 },
+        manifestJson: JSON.stringify({ displayName: 'Existing draft', requiredAdapterKey: 'foresite' }),
+        rulesJson: '{}',
+        updatedAtUtc: '2026-11-26T12:00:00Z',
       },
     ],
   } as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  await screen.findByRole('option', { name: 'Surface-card calibration' });
-  fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'complex-draft' } });
-  const contract = document.querySelector<HTMLDetailsElement>('.guided-authoring-contract');
-  expect(contract?.open).toBe(true);
-  expect(screen.getByText(/View-only complex module/i)).toBeTruthy();
-  expect(screen.queryByLabelText('Pump fillage threshold (%)')).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Submit for review' })).toBeNull();
-  expect(screen.queryByLabelText('Module name')).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Run sample cases' })).toBeNull();
-  expect(screen.queryByRole('region', { name: 'Sample cases' })).toBeNull();
-  expect(screen.queryByRole('heading', { name: 'Rule' })).toBeNull();
-  expect(document.querySelector('.guided-authoring-workbench')?.getAttribute('data-inspect-only')).toBe('true');
-  fireEvent.click(screen.getByRole('tab', { name: 'IDE' }));
-  expect(screen.queryByRole('navigation', { name: 'Outline' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Calculations' })).toBeNull();
-  expect(screen.queryByRole('region', { name: 'Sample cases' })).toBeNull();
-  expect(screen.getByText(/View-only complex module/i)).toBeTruthy();
-});
-
-it('keeps draft edits and the selected trace when switching between Workflow and IDE', async () => {
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
-    data: [
-      {
-        id: 'editor-draft',
-        revision: 3,
-        manifestJson: '{"displayName":"Shared draft","entryPoint":"wsa.declarative.threshold.v1"}',
-        definition: { default: 70 },
-      },
-    ],
-  } as never);
-  vi.mocked(previewGuidedModuleDraft)
-    .mockResolvedValueOnce({ data: { outcomeCode: 'LOW_FILLAGE' } } as never)
-    .mockResolvedValueOnce({ data: { outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
-    .mockResolvedValueOnce({ data: { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' } } as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  vi.mocked(editGuidedModuleDraft).mockResolvedValue({
-    data: {
-      id: 'editor-draft',
-      revision: 4,
-      manifestJson: '{"displayName":"Shared draft","entryPoint":"wsa.declarative.threshold.v1"}',
-      definition: { default: 72 },
-    },
-  } as never);
-  const workflow = screen.getByRole('tab', { name: 'Workflow', selected: true });
-  const ide = screen.getByRole('tab', { name: 'IDE', selected: false });
-  expect(workflow.getAttribute('aria-controls')).toBe(screen.getByRole('tabpanel', { name: 'Workflow' }).id);
-  await screen.findByRole('option', { name: 'Shared draft' });
-  expect(screen.queryByRole('button', { name: 'Shared draft' })).toBeNull();
-  fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'editor-draft' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
-  await screen.findByText('No recommendation');
-
-  workflow.focus();
-  fireEvent.keyDown(workflow, { key: 'ArrowRight' });
-  expect(document.activeElement).toBe(ide);
-  expect(screen.getByRole('tab', { selected: true })).toBe(workflow);
-  fireEvent.click(ide);
-  expect(screen.getByRole('tabpanel', { name: 'IDE' }).id).toBe(ide.getAttribute('aria-controls'));
-  expect(screen.getByRole('navigation', { name: 'Outline' })).toBeTruthy();
-  fireEvent.change(screen.getByLabelText('Scenario'), { target: { value: '1' } });
-  expect(screen.getByText('No recommendation')).toBeTruthy();
-  expect(screen.queryByText('Low pump fillage')).toBeNull();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Rule' }));
-  const threshold = screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)');
-  fireEvent.change(threshold, { target: { value: '72' } });
-  fireEvent.click(workflow);
-  expect(screen.getByLabelText('Pump fillage threshold (%)')).toBe(threshold);
-  expect(threshold.value).toBe('72');
-  expect(screen.getByText(/save the draft and rerun/i)).toBeTruthy();
-  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Submit for review' }).disabled).toBe(true);
-
-  fireEvent.change(threshold, { target: { value: '70' } });
-  fireEvent.click(ide);
-  expect(screen.getByRole('button', { name: 'Rule', pressed: true })).toBeTruthy();
-  expect(screen.getByLabelText<HTMLSelectElement>('Scenario').value).toBe('1');
-  expect(screen.getByText('No recommendation')).toBeTruthy();
-
-  fireEvent.change(threshold, { target: { value: '72' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await screen.findByText('Draft saved.');
-  expect(screen.getByRole('button', { name: 'Rule', pressed: true })).toBeTruthy();
-  expect(screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)').value).toBe('72');
-  expect(screen.queryByText('No recommendation')).toBeNull();
+  await atHash('#authoring', async () => {
+    render(<ModuleAuthoringWorkspace permissions={['logic.authoring.manage']} onRefresh={async () => {}} />);
+    expect(await screen.findByRole('link', { name: 'Existing draft' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'New module' }).getAttribute('href')).toBe('#authoring/new');
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByLabelText('Open draft')).toBeNull();
+    expect(screen.queryByLabelText('Show drafts for provider')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Module details' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Untitled module' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Submit for review' })).toBeNull();
+  });
 });
 
 it('approves the immutable package shown to the reviewer', async () => {
@@ -202,16 +78,7 @@ it('approves the immutable package shown to the reviewer', async () => {
   } as never);
   vi.mocked(approveGuidedModuleSubmission).mockResolvedValue({ data: { isEnabled: true } } as never);
   const refresh = vi.fn(async () => {});
-  render(
-    <GuidedAuthoringPage
-      canAuthor={false}
-      canReview
-      canApprove
-      initialReviewReference="draft-2/3"
-      onRefresh={refresh}
-    />,
-  );
-  expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+  render(<ModuleReview canApprove initialReviewReference="draft-2/3" onRefresh={refresh} />);
   expect((await screen.findByTitle('LOW_FILLAGE')).textContent).toBe('Low pump fillage');
   fireEvent.change(screen.getByLabelText('Approval reason'), { target: { value: 'Reviewed sample evidence' } });
   fireEvent.click(screen.getByRole('button', { name: 'Approve module' }));
@@ -223,141 +90,8 @@ it('approves the immutable package shown to the reviewer', async () => {
   expect(refresh).toHaveBeenCalledOnce();
 });
 
-it('preserves unsaved edits until the author confirms a draft switch', async () => {
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
-    data: [
-      {
-        id: 'draft-3',
-        revision: 1,
-        manifestJson: '{"displayName":"Existing draft","entryPoint":"wsa.declarative.threshold.v1"}',
-        definition: { default: 65 },
-      },
-    ],
-  } as never);
-  render(
-    <>
-      <GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />
-      <UnsavedChangesPrompt />
-    </>,
-  );
-  await screen.findByRole('option', { name: 'Existing draft' });
-  const existing = screen.getByLabelText<HTMLSelectElement>('Open draft');
-  const name = screen.getByLabelText<HTMLInputElement>('Module name');
-  fireEvent.change(name, { target: { value: 'Unsaved module' } });
-  fireEvent.change(existing, { target: { value: 'draft-3' } });
-  fireEvent.click(screen.getByRole('button', { name: /stay/i }));
-  expect(name.value).toBe('Unsaved module');
-  fireEvent.change(existing, { target: { value: 'draft-3' } });
-  fireEvent.click(screen.getByRole('button', { name: /leave/i }));
-  expect(name.value).toBe('Existing draft');
-});
-
-it('deletes an unsubmitted draft only after confirmation', async () => {
-  const saved = {
-    id: 'draft-del',
-    revision: 1,
-    manifestJson: '{"displayName":"Scratch check","entryPoint":"wsa.declarative.threshold.v1"}',
-    definition: { default: 70, outcomeCode: 'LOW_FILLAGE' },
-  };
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [saved] } as never);
-  vi.mocked(deleteGuidedModuleDraft).mockResolvedValue({ response: { ok: true } } as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  fireEvent.change(await screen.findByLabelText('Open draft'), { target: { value: 'draft-del' } });
-  fireEvent.click(await screen.findByRole('button', { name: 'Delete draft' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
-  expect(deleteGuidedModuleDraft).not.toHaveBeenCalled();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Yes, delete' }));
-  await screen.findByText('Draft deleted.');
-  expect(deleteGuidedModuleDraft).toHaveBeenCalledWith({ path: { id: 'draft-del' }, query: { expectedRevision: 1 } });
-  expect(screen.queryByRole('option', { name: 'Scratch check' })).toBeNull();
-});
-
-it('names what to fix when the server refuses a save, and stays generic for unknown codes', async () => {
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
-  vi.mocked(createGuidedModuleDraft)
-    .mockResolvedValueOnce({ error: { code: 'GUIDED_DRAFT_REVISION_CONFLICT' } } as never)
-    .mockResolvedValueOnce({ error: { code: 'SOMETHING_NEW' } } as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Refused check' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  expect(await screen.findByText(/changed elsewhere/i)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  expect(await screen.findByText(/could not be completed/i)).toBeTruthy();
-});
-
-it('saves authored sample cases and flags an outcome that contradicts the expectation', async () => {
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
-  vi.mocked(createGuidedModuleDraft).mockImplementation((async (options: { body: { sampleCases: unknown } }) => ({
-    data: {
-      id: 'draft-cases',
-      revision: 1,
-      manifestJson: '{"displayName":"Fillage check","entryPoint":"wsa.declarative.threshold.v1"}',
-      definition: { default: 70, outcomeCode: 'LOW_FILLAGE' },
-      sampleCases: options.body.sampleCases,
-    },
-  })) as never);
-  vi.mocked(previewGuidedModuleDraft)
-    .mockResolvedValueOnce({ data: { outcomeCode: 'THRESHOLD_NOT_MET', observedOutcome: 'NONE' } } as never)
-    .mockResolvedValue({ data: { outcomeCode: 'THRESHOLD_NOT_MET', observedOutcome: 'NONE' } } as never);
-  vi.mocked(submitGuidedModuleDraft).mockResolvedValue({ data: { revision: 1 } } as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Fillage check' } });
-  fireEvent.change(screen.getByLabelText('Case 1 name'), { target: { value: 'Dry tubing' } });
-  fireEvent.change(screen.getByLabelText('Case 1 expected outcome'), { target: { value: 'LOW_FILLAGE' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add case' }));
-  expect(screen.getByLabelText<HTMLInputElement>('Case 4 name').value).toBe('Case 4');
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await screen.findByText('Draft saved.');
-  expect(createGuidedModuleDraft).toHaveBeenCalledWith({
-    body: expect.objectContaining({
-      sampleCases: expect.arrayContaining([
-        expect.objectContaining({ name: 'Dry tubing', expectedOutcome: 'LOW_FILLAGE' }),
-        expect.objectContaining({ name: 'Case 4', value: null, expectedOutcome: null }),
-      ]),
-    }),
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
-  expect(await screen.findByText('Does not match the expectation. Observed: NONE.')).toBeTruthy();
-  // A failing assertion keeps Submit off until the expectation or the rule is fixed, saved and run again.
-  expect(screen.getByRole('button', { name: 'Submit for review' }).hasAttribute('disabled')).toBe(true);
-  vi.mocked(editGuidedModuleDraft).mockResolvedValueOnce({
-    data: {
-      id: 'draft-cases',
-      revision: 1,
-      manifestJson: '{"displayName":"Fillage check","entryPoint":"wsa.declarative.threshold.v1"}',
-      definition: { default: 70, outcomeCode: 'LOW_FILLAGE' },
-      sampleCases: [{ name: 'Dry tubing', value: 42, casingPsi: null, tubingPsi: null, expectedOutcome: 'NONE' }],
-    },
-  } as never);
-  fireEvent.change(screen.getByLabelText('Case 1 expected outcome'), { target: { value: 'NONE' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await screen.findByText('Draft saved.');
-  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Submit for review' }).hasAttribute('disabled')).toBe(false),
-  );
-  fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
-  await screen.findByLabelText('Shareable review link');
-  // Saved cases are the evidence of record, so no readings are posted with the submission.
-  expect(submitGuidedModuleDraft).toHaveBeenLastCalledWith({
-    path: { id: 'draft-cases' },
-    body: { expectedRevision: 1 },
-  });
-});
-
-it('authors paired pressure samples and shows the reviewed differential', async () => {
+it('shows the reviewed differential for a pressure submission', async () => {
   const manifestJson = '{"displayName":"Pressure check","entryPoint":"wsa.declarative.difference.v1"}';
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
-  vi.mocked(createGuidedModuleDraft).mockResolvedValue({
-    data: { id: 'pressure-draft', revision: 1, manifestJson, definition: { default: 150 } },
-  } as never);
-  vi.mocked(previewGuidedModuleDraft)
-    .mockResolvedValueOnce({ data: { differentialPsi: 0, outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
-    .mockResolvedValueOnce({ data: { differentialPsi: 150, outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
-    .mockResolvedValueOnce({ data: { differentialPsi: 151, outcomeCode: 'PRESSURE_DIFFERENTIAL_HIGH' } } as never)
-    .mockResolvedValueOnce({ data: { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' } } as never);
   vi.mocked(getGuidedModuleSubmission).mockResolvedValue({
     data: {
       reviewedManifestJson: manifestJson,
@@ -371,35 +105,12 @@ it('authors paired pressure samples and shows the reviewed differential', async 
       ],
     },
   } as never);
-  render(<GuidedAuthoringPage canAuthor canReview canApprove={false} onRefresh={async () => {}} />);
-  fireEvent.click(screen.getByText('New module', { selector: 'summary' }));
-  await screen.findAllByRole('option', { name: 'CygNet' });
-  fireEvent.change(screen.getByLabelText('Provider for the new module'), { target: { value: 'cygnet' } });
-  fireEvent.click(screen.getByRole('button', { name: 'New pressure differential module' }));
-  expect(screen.getByLabelText<HTMLInputElement>('Maximum differential (psi)').value).toBe('150');
-  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pressure check' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await screen.findByText('Draft saved.');
-  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
-  expect(await screen.findByText(/Differential 151 psi/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
-  await screen.findByLabelText('Shareable review link');
-  expect(submitGuidedModuleDraft).toHaveBeenLastCalledWith({
-    path: { id: 'pressure-draft' },
-    body: {
-      expectedRevision: 1,
-      pressureReadings: [
-        { casingPsi: 120, tubingPsi: 120 },
-        { casingPsi: 150, tubingPsi: 0 },
-        { casingPsi: 151, tubingPsi: 0 },
-        { casingPsi: null, tubingPsi: 120 },
-      ],
-    },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Open submitted revision' }));
+  render(<ModuleReview canApprove={false} initialReviewReference="pressure/1" onRefresh={async () => {}} />);
   expect(
     await screen.findByText(/Casing pressure 400 psi · Tubing pressure 120 psi · Differential 280 psi/),
   ).toBeTruthy();
+  expect(screen.getByText(/Maximum differential \(psi\) 150 psi/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Approve module' })).toBeNull();
 });
 
 it('lists the exact submitted revision for reviewers and opens its evidence', async () => {
@@ -416,15 +127,14 @@ it('lists the exact submitted revision for reviewers and opens its evidence', as
       cases: [{ value: 62, outcomeCode: 'LOW_FILLAGE' }],
     },
   } as never);
-  window.history.replaceState(null, '', '#authoring');
-  try {
+  await atHash('#authoring', async () => {
     render(<ModuleAuthoringWorkspace permissions={['logic.authoring.review']} onRefresh={async () => {}} />);
     const pending = await screen.findByRole('link', { name: 'Submitted name · revision 3' });
     expect(vi.mocked(listPendingGuidedModuleSubmissions)).toHaveBeenLastCalledWith({
       query: { offset: 0, limit: 26 },
       signal: expect.any(AbortSignal) as AbortSignal,
     });
-    expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'New module' })).toBeNull();
     window.history.replaceState(null, '', pending.getAttribute('href'));
     fireEvent(window, new HashChangeEvent('hashchange'));
     expect(await screen.findByRole('heading', { name: 'Submitted name' })).toBeTruthy();
@@ -434,9 +144,7 @@ it('lists the exact submitted revision for reviewers and opens its evidence', as
     });
     expect(screen.queryByRole('button', { name: 'Approve module' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Back to reviews' }).getAttribute('href')).toBe('#authoring/reviews');
-  } finally {
-    window.history.replaceState(null, '', window.location.pathname);
-  }
+  });
 });
 
 it('treats no returned input checks as unverified compatibility rather than failure or success', async () => {
@@ -501,18 +209,7 @@ it('says an asset without one active source cannot be checked, instead of a gene
   }
 });
 
-it('previews a saved revision with an imported well without enabling submission', async () => {
-  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
-    data: [
-      {
-        id: 'live-draft',
-        revision: 3,
-        manifestJson:
-          '{"displayName":"Live draft","entryPoint":"wsa.declarative.threshold.v1","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
-        definition: { default: 70 },
-      },
-    ],
-  } as never);
+it('previews a saved revision with an imported well', async () => {
   const fetch = vi.fn(
     async () =>
       new Response(
@@ -536,9 +233,9 @@ it('previews a saved revision with an imported well without enabling submission'
     .mockResolvedValueOnce({
       data: { inputs: [{ inputId: 'fillage', quantity: 'PumpFillage', status: 'Satisfied' }] },
     } as never);
-  vi.mocked(previewGuidedModuleWithLiveInputs).mockResolvedValue({
+  vi.mocked(previewGuidedModuleRulesWithLiveInputs).mockResolvedValue({
     data: {
-      outcomeCode: 'THRESHOLD_NOT_MET',
+      result: { outcomeCode: 'NO_RULE_MATCHED' },
       readings: [
         {
           inputId: 'fillage',
@@ -553,10 +250,8 @@ it('previews a saved revision with an imported well without enabling submission'
   } as never);
   try {
     render(
-      <GuidedAuthoringPage canAuthor canReview={false} canApprove={false} canPreviewLive onRefresh={async () => {}} />,
+      <GuidedLivePreview draftId="live-draft" revision={3} inputs={[{ id: 'fillage', quantity: 'PumpFillage' }]} />,
     );
-    await screen.findByRole('option', { name: 'Live draft' });
-    fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'live-draft' } });
     fireEvent.click(screen.getByText('Preview with a sample asset'));
     fireEvent.change(screen.getByLabelText('Asset name or ID'), { target: { value: 'well' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find assets' }));
@@ -773,7 +468,6 @@ it('previews a saved revision with an imported well without enabling submission'
     } finally {
       context.mockRestore();
     }
-    expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
   } finally {
     vi.unstubAllGlobals();
   }

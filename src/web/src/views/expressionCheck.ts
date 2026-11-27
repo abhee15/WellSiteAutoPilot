@@ -3,7 +3,7 @@
 
 export type ExpressionKind = 'number' | 'boolean' | 'text';
 
-export type ExpressionIssueCode =
+type ExpressionIssueCode =
   | 'char'
   | 'textOpen'
   | 'number'
@@ -26,10 +26,10 @@ export interface ExpressionIssue {
   detail: string;
 }
 
-export type ExpressionCheck = { kind: ExpressionKind } | { issue: ExpressionIssue };
+type ExpressionCheck = { kind: ExpressionKind } | { issue: ExpressionIssue };
 
 /** Minimum and maximum number of values each function takes; the server's table. */
-export const functionArity: Record<string, [number, number]> = {
+const functionArity: Record<string, [number, number]> = {
   min: [2, 8],
   max: [2, 8],
   avg: [1, 8],

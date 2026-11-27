@@ -1,7 +1,7 @@
 // The settings, calculations and rules of a module, as the server stores them. Only settings are edited so far;
 // calculations and rules pass through untouched so nothing an author saved is lost.
 
-export interface RuleParameter {
+interface RuleParameter {
   id: string;
   unit: string | null;
   default: number | null;
@@ -10,7 +10,7 @@ export interface RuleParameter {
   assignable: boolean;
 }
 
-export interface RuleCalculation {
+interface RuleCalculation {
   id: string;
   expression: string;
   unit: string | null;
@@ -30,7 +30,7 @@ export interface RuleRecommendation {
   command: string | null;
 }
 
-export interface RuleItem {
+interface RuleItem {
   id: string;
   when: string;
   reason: string;

@@ -16,7 +16,7 @@ export interface Scenario {
   expectedOutcome: string;
 }
 
-export interface TestInput {
+interface TestInput {
   name: string;
   unit: string;
 }
