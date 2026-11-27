@@ -369,7 +369,6 @@ export function RecommendationsPage({
               {permissions?.includes('executions.read') && <ContextLink href={hashFor('operations')} label={t('inbox.viewAllRuns')} />}
             </div>
           </div>
-          {!runs.length && !linkedRun && <p>{t('inbox.noRuns')}</p>}
           {linkedRun && !selectedGroup && <h3>{t('overview.runReference', { id: shortId(linkedRun) })}</h3>}
           {runLoading && <PanelLoading label={t('inbox.loading')} />}
           {runFailed && <Notice tone="error">{t('operations.recommendationsUnavailable')}</Notice>}

@@ -12,7 +12,6 @@
   "components/FormFields.tsx",
   "components/LiveStatus.tsx",
   "components/LoadingIndicator.tsx",
-  "components/MultiSelect.tsx",
   "components/NavIcon.tsx",
   "components/NavigationGroup.tsx",
   "components/NavigationLink.tsx",

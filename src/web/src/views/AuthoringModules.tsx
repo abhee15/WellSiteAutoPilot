@@ -7,9 +7,12 @@ import {
 } from '../api/generated/v1';
 import type { GuidedModuleDraftResponse, GuidedProviderResponse } from '../api/generated/v1';
 import { ActionButton, ActionLink } from '../components/ActionButton';
+import { PanelHeader } from '../components/common';
 import { ContextLink } from '../components/ContextLink';
 import { DataTable } from '../components/DataTable';
-import { SelectField } from '../components/FormFields';
+import { FilterToolbar } from '../components/FilterToolbar';
+import { MultiSelect } from '../components/MultiSelect';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Notice } from '../components/Notice';
 import { SectionTabs } from '../components/SectionTabs';
 import type { SectionTab } from '../components/SectionTabs';
@@ -63,7 +66,8 @@ export function AuthoringModules() {
   const [offset, setOffset] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
-  const [providerKey, setProviderKey] = useState<string | null>(null);
+  const [providerKeys, setProviderKeys] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -114,7 +118,12 @@ export function AuthoringModules() {
     [drafts, installed, pending],
   );
 
-  const inProvider = modules.filter(({ manifest }) => !providerKey || manifest.requiredAdapterKey === providerKey);
+  const needle = search.trim().toLowerCase();
+  const inProvider = modules.filter(
+    ({ manifest }) =>
+      (providerKeys.length === 0 || providerKeys.includes(manifest.requiredAdapterKey ?? '')) &&
+      (!needle || (manifest.displayName ?? '').toLowerCase().includes(needle)),
+  );
   const stageCount = (filter: StageFilter) =>
     inProvider.filter(({ stage }) => (filter === 'all' ? stage !== 'notStarted' : stage === filter)).length;
   const visible = inProvider.filter(({ stage }) =>
@@ -131,7 +140,7 @@ export function AuthoringModules() {
       : []),
   ];
 
-  const chosen = providers.find((item) => item.adapterKey === providerKey);
+  const chosen = providerKeys.length === 1 ? providers.find((item) => item.adapterKey === providerKeys[0]) : undefined;
   const providerName = (item: GuidedProviderResponse) => item.displayName ?? item.adapterKey ?? '';
   const started = modules.filter(({ stage }) => stage !== 'notStarted');
   const countFor = (key: string | null | undefined) =>
@@ -150,14 +159,8 @@ export function AuthoringModules() {
   );
 
   return (
-    <section className="authoring-modules" aria-labelledby="authoring-modules-title">
-      <div className="authoring-modules-head">
-        <div>
-          <h2 id="authoring-modules-title">{t('flow.modulesTitle')}</h2>
-          <p>{t('flow.modulesPurpose')}</p>
-        </div>
-        {newModule}
-      </div>
+    <section className="panel" aria-label={t('flow.modulesTitle')}>
+      <PanelHeader title={t('flow.modulesTitle')} actions={newModule} />
       {failed && (
         <>
           <Notice tone="error">{t('flow.draftsFailed')}</Notice>
@@ -170,33 +173,47 @@ export function AuthoringModules() {
           />
         </>
       )}
-      {!failed && drafts === null && <p>{t('flow.draftsLoading')}</p>}
+      {!failed && drafts === null && <PanelLoading label={t('flow.draftsLoading')} />}
       {drafts?.length === 0 && (
-        <>
-          <h3>{t('flow.firstModuleTitle')}</h3>
-          <p>{t('flow.firstModuleBody')}</p>
-        </>
+        <Notice>
+          {t('flow.firstModuleTitle')}. {t('flow.firstModuleBody')}
+        </Notice>
       )}
       {drafts && drafts.length > 0 && (
         <>
-          {providers.length > 1 && (
-            <div className="authoring-modules-filter">
-              <SelectField
+          <FilterToolbar
+            label={t('flow.moduleFilters')}
+            search={{
+              value: search,
+              onChange: setSearch,
+              label: t('flow.searchModules'),
+              placeholder: t('flow.searchModules'),
+            }}
+            chips={providerKeys.map((key) => ({
+              id: key,
+              label: nameOf(key),
+              onRemove: () => setProviderKeys(providerKeys.filter((item) => item !== key)),
+            }))}
+            isFiltered={providerKeys.length > 0 || search !== ''}
+            onClear={() => {
+              setProviderKeys([]);
+              setSearch('');
+            }}
+            note={t('flow.modulesShown', { shown: String(visible.length), total: String(started.length) })}
+          >
+            {providers.length > 1 && (
+              <MultiSelect
                 label={t('flow.provider')}
-                value={providerKey ?? ''}
-                onChange={(event) => setProviderKey(event.target.value || null)}
-              >
-                <option value="">
-                  {t('flow.allProviders')} ({started.length})
-                </option>
-                {providers.map((item) => (
-                  <option key={item.adapterKey} value={item.adapterKey ?? ''}>
-                    {providerName(item)} ({countFor(item.adapterKey)})
-                  </option>
-                ))}
-              </SelectField>
-            </div>
-          )}
+                allLabel={t('flow.allProviders')}
+                options={providers.map((item) => ({
+                  value: item.adapterKey ?? '',
+                  label: `${providerName(item)} (${countFor(item.adapterKey)})`,
+                }))}
+                selected={providerKeys}
+                onChange={setProviderKeys}
+              />
+            )}
+          </FilterToolbar>
           <SectionTabs
             prefix="authoring-stage"
             label={t('flow.stageFilter')}
@@ -207,7 +224,7 @@ export function AuthoringModules() {
           />
           <div id={panelId} role="tabpanel" aria-labelledby={`authoring-stage-tab-${stageFilter}`}>
             {visible.length === 0 ? (
-              <p>{t('flow.noModulesInView')}</p>
+              <Notice>{t('flow.noModulesInView')}</Notice>
             ) : (
               <DataTable label={t('flow.modulesTitle')}>
                 <thead>

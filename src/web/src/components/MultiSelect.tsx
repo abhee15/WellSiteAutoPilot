@@ -1,16 +1,24 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { t } from '../localization';
 import { ChevronMark } from './Chevron';
+import { SearchInput } from './SearchInput';
 import './multiSelect.css';
 
 export type MultiSelectOption<T extends string> = { value: T; label: string };
+
+/** Past this many options the menu gets a search box, so a long list stays quick to scan. */
+const SEARCHABLE_FROM = 10;
 
 /**
  * A dropdown of checkboxes. Nothing ticked means "no filter" and shows the `allLabel`; one tick shows
  * that option's name; more show how many are ticked. It closes on Escape or a click elsewhere.
  */
 export function MultiSelect<T extends string>({
-  label, options, selected, onChange, allLabel,
+  label,
+  options,
+  selected,
+  onChange,
+  allLabel,
 }: {
   label: string;
   options: readonly MultiSelectOption<T>[];
@@ -20,6 +28,7 @@ export function MultiSelect<T extends string>({
 }) {
   const details = useRef<HTMLDetailsElement>(null);
   const labelId = useId();
+  const [query, setQuery] = useState('');
   useEffect(() => {
     const close = (event: Event) => {
       const element = details.current;
@@ -33,28 +42,61 @@ export function MultiSelect<T extends string>({
     };
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', escape);
+    };
   }, []);
-  const chosen = options.filter(option => selected.includes(option.value));
-  const summary = chosen.length === 0 ? allLabel
-    : chosen.length === 1 ? chosen[0].label : t('multiSelect.count', { count: String(chosen.length) });
-  const toggle = (value: T) => onChange(selected.includes(value)
-    ? selected.filter(item => item !== value)
-    : options.map(option => option.value).filter(item => item === value || selected.includes(item)));
+  const chosen = options.filter((option) => selected.includes(option.value));
+  const summary =
+    chosen.length === 0
+      ? allLabel
+      : chosen.length === 1
+        ? chosen[0].label
+        : t('multiSelect.count', { count: String(chosen.length) });
+  const toggle = (value: T) =>
+    onChange(
+      selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : options.map((option) => option.value).filter((item) => item === value || selected.includes(item)),
+    );
   return (
     <div className="multi-select">
       <span id={labelId}>{label}</span>
       <details ref={details}>
-        <summary aria-labelledby={labelId}><span>{summary}</span><ChevronMark /></summary>
+        <summary aria-labelledby={labelId}>
+          <span>{summary}</span>
+          <ChevronMark />
+        </summary>
         <div className="multi-select-menu" role="group" aria-labelledby={labelId}>
-          {options.map(option => (
-            <label key={option.value}>
-              <input type="checkbox" checked={selected.includes(option.value)} onChange={() => toggle(option.value)} />
-              <span>{option.label}</span>
-            </label>
-          ))}
-          <button type="button" className="multi-select-clear" disabled={selected.length === 0}
-            onClick={() => onChange([])}>{t('multiSelect.clear')}</button>
+          {options.length > SEARCHABLE_FROM && (
+            <SearchInput
+              value={query}
+              aria-label={t('multiSelect.search', { label })}
+              placeholder={t('multiSelect.searchPlaceholder')}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          )}
+          {options
+            .filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()))
+            .map((option) => (
+              <label key={option.value}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option.value)}
+                  onChange={() => toggle(option.value)}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          <button
+            type="button"
+            className="multi-select-clear"
+            disabled={selected.length === 0}
+            onClick={() => onChange([])}
+          >
+            {t('multiSelect.clear')}
+          </button>
         </div>
       </details>
     </div>
