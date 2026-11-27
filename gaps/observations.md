@@ -43,3 +43,8 @@ Sri: the adapter work could also reach WAMI; the Wellflo repo has the solution t
 - It is a well-analysis/model service (nodal analysis, model data get/set, operating-point overrides for rod lift, ESP, PCP, gas lift, plunger lift). No asset discovery, current values, history or daily values, and its setters change the calculation session, not stored well setpoints.
 - Consequence: WAMI is not a second telemetry adapter. It fits as a calculation provider: a module input or calculation backed by a WAMI model run on a ForeSite-sourced model (ForeSite ModelFiles/CurrentWellModel/{wellId}). Existing design: D:\WellSiteAutoPilot\wt-wami-provider\docs\design\wami-provider-and-multi-provider-logic.md.
 - New framework gap P127: authoring has no concept of a calculation provider (inputs that are computed by an external engine, with run cost, licence and latency limits). Needs a capability kind alongside current/daily/history. Next: read the wt-wami-provider design, then decide plan; a true second telemetry adapter for O9 should be Wellflo/simulator instead.
+
+
+## O12 - Module authoring has no way to reach saved drafts on first click
+
+Sri: when I first click Module authoring there is no option to look at saved drafts. Related to P116 (a drafts list with dates and status). Plan: the Module authoring landing shows the author's drafts first (name, adapter, status, last saved, open or delete) with New module beside it, so returning to unfinished work is one click; reachable from the draft page too (All drafts). Verify headed in the browser, then add to the O5 design brief.
