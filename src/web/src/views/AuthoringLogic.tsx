@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, NumberField, SelectField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { Section } from '../components/Section';
 import { t } from '../localization';
 import {
@@ -345,6 +346,11 @@ export function RulesEditor({
   const names = namesBefore(rules, inputNames, null);
   return (
     <Section title={t('flow.rulesTitle')}>
+      {rules.rules.length === 0 && (
+        <Notice tone="info" announce={false}>
+          {inputNames.length === 0 ? t('flow.rulesNeedInputs') : t('flow.rulesGuide')}
+        </Notice>
+      )}
       {rules.rules.length > 0 && (
         <ul className="authoring-flow-inputs">
           {rules.rules.map((item, index) => (
