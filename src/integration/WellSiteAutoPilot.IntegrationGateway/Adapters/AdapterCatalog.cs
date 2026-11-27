@@ -19,6 +19,7 @@ public sealed class AdapterCatalog
             "The address the simulator listens on, for example http://127.0.0.1:5091.",
             AdapterSettingKind.Url, true)],
         [
+            new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Simulated wells"),
             new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current engineering data"),
             new ProviderCapability(ProviderCapabilityKind.Command, "Send a control command"),
             new ProviderCapability(ProviderCapabilityKind.Verification, "Read a commanded value back")
@@ -31,7 +32,15 @@ public sealed class AdapterCatalog
             new AdapterCommandDefinition(
                 "PUMP_RUN", "Run or stop the pump", "Starts (1) or stops (0) the simulated pump.", "state", null,
                 AdapterCommandValueKind.OnOff, [], AdapterCommandVerification.ReadBack, "PumpRunning", 2, 60, 30, 300)
-        ]);
+        ],
+        Operations: AdapterReadRules.SimulatorQuantities.Order(StringComparer.Ordinal).Select(quantity =>
+            EngineeringOperationSchemas.Current("current." + quantity.ToLowerInvariant(), quantity,
+                "Current value of a simulated well quantity.", quantity, AdapterReadRules.SimulatorResourceKind, null,
+                "Simulator timestamp in UTC; simulated readings are always labelled as simulated.",
+                "Simulated quality as set by the scenario; never promoted to Good.", 10) with
+            { Documentation = AdapterReferenceExamples.Current("WELL-101", quantity, "simulated", "simulator:WELL-101", "Good", null) }).ToArray(),
+        OperationGroups: [new("simulated-wells", "Simulated wells", "Current values for the simulated wells, set by the active scenario.", "1.0",
+            AdapterReadRules.SimulatorQuantities.Order(StringComparer.Ordinal).Select(quantity => "current." + quantity.ToLowerInvariant()).ToArray())]);
 
     private readonly Dictionary<string, AdapterRegistration> _adapters;
     private readonly IReadOnlyList<AdapterDescriptor> _descriptors;

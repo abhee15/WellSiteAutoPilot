@@ -164,6 +164,13 @@ internal static class GuidedContractDraftChecks
         Assert(GuidedInputSupport.UnsupportedReason("cygnet", "foresite", AdapterReadRules.Find("foresite")!.ResourceKind, Input("PumpFillage")) == GuidedInputSupport.AdapterMismatch,
             "A module pinned to another adapter was not named.");
 
+        // The simulator is a guided provider: a rule can read its simulated wells and be pinned to it.
+        Assert(Reason(Input("CurrentSPM"), AdapterReadRules.SimulatorKey) is null &&
+            Reason(Input("WaterCut"), AdapterReadRules.SimulatorKey) == GuidedInputSupport.QuantityUnregistered,
+            "The simulator's read rule did not accept its own quantity only.");
+        Assert(GuidedProviders.List().Any(item => item.AdapterKey == AdapterReadRules.SimulatorKey && item.CurrentValuesOnly),
+            "The simulator was not offered as a guided provider.");
+
         // External inputs sit beside the contract: validated against the declared inputs and the primary provider's allowed sources.
         GuidedModuleDraftContent WithHints(string? provider, params GuidedSourceHint[] hints) =>
             new(manifest with { RequiredAdapterKey = provider }, SourceHints: hints);

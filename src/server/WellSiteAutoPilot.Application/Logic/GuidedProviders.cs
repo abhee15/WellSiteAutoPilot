@@ -17,7 +17,9 @@ public static class GuidedProviders
     [
         // WAMI's model file comes from the ForeSite well, so only ForeSite modules can name it.
         new(AdapterReadRules.ForeSiteKey, "ForeSite", CurrentValuesOnly: false, [new("wami", "WAMI")]),
-        new(AdapterReadRules.CygNetKey, "CygNet", CurrentValuesOnly: true, [])
+        new(AdapterReadRules.CygNetKey, "CygNet", CurrentValuesOnly: true, []),
+        // The only provider that publishes commands, so the one a rule can send a setpoint change through.
+        new(AdapterReadRules.SimulatorKey, "Provider simulator", CurrentValuesOnly: true, [])
     ];
 
     /// <summary>The external sources a module written for this provider may use; none for an unknown provider.</summary>
@@ -31,7 +33,7 @@ public static class GuidedProviders
         var key = content.Manifest.RequiredAdapterKey;
         if (string.IsNullOrWhiteSpace(key))
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_PROVIDER_REQUIRED", FailureKind.Validation,
-                "Choose the provider this module is written for (ForeSite or CygNet).");
+                "Choose the provider this module is written for (ForeSite, CygNet or the simulator).");
         var option = List().FirstOrDefault(item => string.Equals(item.AdapterKey, key, StringComparison.OrdinalIgnoreCase)) ??
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_PROVIDER_UNKNOWN", FailureKind.Validation,
                 "That provider is not supported for module authoring.");

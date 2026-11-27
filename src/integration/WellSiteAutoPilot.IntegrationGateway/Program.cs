@@ -234,6 +234,14 @@ v1.MapPost(
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
 
+// The simulator is one shared instance, so a read needs no per-connection settings; the asset id is the simulated well.
+v1.MapPost("/adapters/simulator/current",
+    async (ConnectionMeasurementRequest request, CurrentDataProviderRouter provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.GetCurrentAsync("simulator", request.ExternalId, request.Quantity, cancellationToken)))
+    .WithName("ReadSimulatorMeasurement")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<EngineeringValue>(StatusCodes.Status200OK);
+
 v1.MapPost("/adapters/cygnet/current",
     async (ConnectionMeasurementRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
         Results.Ok(await provider.ReadAsync(request, cancellationToken)))

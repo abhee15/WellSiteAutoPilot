@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.Integration.ForeSite;
@@ -19,11 +20,14 @@ public sealed class AdapterDiscoverer(IHttpClientFactory clients, IPetroVisorSes
         var actingAs = $"{Environment.UserDomainName}\\{Environment.UserName}";
         if (AdapterSettingsValidator.Validate(descriptor, settings).Count > 0)
             return new(false, [], ["The saved settings are no longer valid for this adapter."], actingAs);
-        if (descriptor.Key != ForeSiteAdapter.Key && descriptor.Key != PetroVisorAdapter.Key && descriptor.Key != CygNetAdapter.Key)
+        if (descriptor.Key != ForeSiteAdapter.Key && descriptor.Key != PetroVisorAdapter.Key && descriptor.Key != CygNetAdapter.Key &&
+            descriptor.Key != AdapterReadRules.SimulatorKey)
             return new(false, [], ["This adapter cannot list what it holds yet."], actingAs);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Timeout);
+        if (descriptor.Key == AdapterReadRules.SimulatorKey)
+            return await DiscoverSimulatorAsync(settings["baseUrl"]!, actingAs, timeout.Token);
         if (descriptor.Key == CygNetAdapter.Key)
         {
             var connection = CygNetAdapter.ReadConnection(settings, out var problem);
@@ -45,5 +49,21 @@ public sealed class AdapterDiscoverer(IHttpClientFactory clients, IPetroVisorSes
         client.BaseAddress = ForeSiteAdapter.BaseAddress(settings[ForeSiteAdapter.BaseUrlSetting]!);
         client.Timeout = Timeout + TimeSpan.FromSeconds(5);
         return await ForeSiteAdapter.DiscoverAsync(client, actingAs, timeout.Token);
+    }
+
+    private async Task<DiscoveryResult> DiscoverSimulatorAsync(string baseUrl, string actingAs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = clients.CreateClient("adapter-test");
+            var wells = await client.GetFromJsonAsync<string[]>(new Uri(new Uri(baseUrl.Trim().TrimEnd('/') + "/"), "api/sim/v1/assets"),
+                cancellationToken) ?? [];
+            return new(true, wells.Select(well => new DiscoveredAsset(well, well, AdapterReadRules.SimulatorResourceKind, null,
+                new Dictionary<string, string>())).ToArray(), [], actingAs);
+        }
+        catch (HttpRequestException)
+        {
+            return new(false, [], ["The simulator could not be reached at that address."], actingAs);
+        }
     }
 }

@@ -62,6 +62,14 @@ public static class AdapterReadRules
     public const string ForeSiteKey = "foresite";
     public const string CygNetKey = "cygnet";
     public const string CygNetResourceKind = "cygnet.facility";
+    public const string SimulatorKey = "simulator";
+    public const string SimulatorResourceKind = "simulator.well";
+
+    /// <summary>Quantities the provider simulator can hold for a simulated well.</summary>
+    public static readonly IReadOnlySet<string> SimulatorQuantities = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "PumpFillage", "TargetPumpFillage", "CurrentSPM", "CasingPressure", "TubingPressure"
+    };
 
     /// <summary>Quantities CygNet connections can serve. Which point (UDC) backs each is the Gateway's decision.</summary>
     public static readonly IReadOnlySet<string> CygNetQuantities = new HashSet<string>(StringComparer.Ordinal)
@@ -74,7 +82,8 @@ public static class AdapterReadRules
         new(ForeSiteKey, "foresite.well", ForeSiteSurveillanceCatalogue.Quantities,
             [new StructuredCurrentRead(ForeSiteSurfaceCard.Quantity, StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId)],
             ServesDailyQuantities: true),
-        new(CygNetKey, CygNetResourceKind, CygNetQuantities)
+        new(CygNetKey, CygNetResourceKind, CygNetQuantities),
+        new(SimulatorKey, SimulatorResourceKind, SimulatorQuantities)
     ];
 
     public static AdapterReadRule? Find(string? adapterKey) =>
