@@ -50,14 +50,14 @@ internal static class DailyAverageChecks
             {"Id":8,"WellId":101,"StartDateTime":"2026-11-02T06:00:00Z","EndDateTime":"2026-11-03T05:59:59Z","TotalFluidRateInferred":430,"CyclesYesterday":0,"RunTime":23.5}
             """;
         const string dayUnits = """
-            {"TotalFluidRateInferred":{"UnitKey":"STB/d"},"CyclesYesterday":{"UnitKey":"count"},"RunTime":{"UnitKey":"s"}}
+            {"TotalFluidRateInferred":{"UnitKey":"STB/d"},"CyclesYesterday":{"UnitKey":"count"}}
             """;
         result = await ReadAsync(Envelope(Row.Replace("420}", "420,\"CyclesYesterday\":9}", StringComparison.Ordinal) + "," + day2, dayUnits), Request2);
         var after = DateTimeOffset.Parse("2026-11-03T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
         var cycles = ForeSiteLatestDailyValue.Select(result, "CyclesYesterday", after);
         var runTime = ForeSiteLatestDailyValue.Select(result, "RunTime", after);
         if (cycles is not { Value: 0, Unit: "count", Quality: "Uncertain" } || cycles.TimestampUtc != DateTimeOffset.Parse("2026-11-03T05:59:59Z", System.Globalization.CultureInfo.InvariantCulture) ||
-            cycles.TimestampKind != ForeSiteLatestDailyValue.TimestampKind || runTime is not { Value: 23.5m, Unit: "s" })
+            cycles.TimestampKind != ForeSiteLatestDailyValue.TimestampKind || runTime is not { Value: 23.5m, Unit: "h" })
             throw new InvalidOperationException("The latest finished day must supply the field, its unit and the production-day end time; zero is a value.");
         // A day still in progress is never used, and a field the finished days do not report is missing, not stale.
         var during = DateTimeOffset.Parse("2026-11-03T01:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
@@ -65,17 +65,17 @@ internal static class DailyAverageChecks
             throw new InvalidOperationException("An unfinished production day must not be read; the previous finished day is used.");
         try { ForeSiteLatestDailyValue.Select(result, "RunTime", during); throw new InvalidOperationException("A field missing from every finished day must fail."); }
         catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_MEASUREMENT_MISSING") { }
-        try { ForeSiteLatestDailyValue.Select(result with { UnitsByQuantity = new Dictionary<string, string>() }, "RunTime", after); throw new InvalidOperationException("A field with no unit must fail."); }
+        try { ForeSiteLatestDailyValue.Select(result with { UnitsByQuantity = new Dictionary<string, string>() }, "CyclesYesterday", after); throw new InvalidOperationException("A field with no unit must fail."); }
         catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_DAILY_UNIT_MISSING") { }
 
         // A selected provider field is read per production day with its own unit; a day without it is empty, not zero.
         var selectedRequest = Request2 with { Quantity = "RunTime" };
         result = await ReadAsync(Envelope(Row + "," + day2, dayUnits), selectedRequest);
-        if (result is not { Quantity: "RunTime", Unit: "s" } || result.Days.Count != 2 || result.Days[0].Value is not null || result.Days[1].Value != 23.5m)
+        if (result is not { Quantity: "RunTime", Unit: "h" } || result.Days.Count != 2 || result.Days[0].Value is not null || result.Days[1].Value != 23.5m)
             throw new InvalidOperationException("A selected daily quantity must be projected per day with its own unit.");
         await Reject(Envelope(Row + "," + day2, "{}"), "FORESITE_DAILY_UNIT_MISSING");
-        // A catalogued field in another unit system is refused, and a unitless count needs no unit entry.
-        try { await ReadAsync(Envelope(Row + "," + day2, dayUnits.Replace("\"s\"", "\"h\"", StringComparison.Ordinal)), selectedRequest); throw new InvalidOperationException("A unit differing from the catalogue must be refused."); }
+        // A catalogued field in another unit is refused, and a unitless count or RunTime takes the catalogue unit.
+        try { await ReadAsync(Envelope(Row + "," + day2, dayUnits.Replace("\"CyclesYesterday\"", "\"RunTime\":{\"UnitKey\":\"s\"},\"CyclesYesterday\"", StringComparison.Ordinal)), selectedRequest); throw new InvalidOperationException("A unit differing from the catalogue must be refused."); }
         catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_UNIT_MISMATCH") { }
         const string countDay = """
             {"Id":9,"WellId":101,"StartDateTime":"2026-11-02T06:00:00Z","EndDateTime":"2026-11-03T05:59:59Z","NumberOfCycles":12}

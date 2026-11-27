@@ -33,6 +33,13 @@ const KIND_KEY: Record<ScheduleChange['kind'], MessageKey> = {
 
 const interval = (seconds: number | null) => seconds === null ? '—' : formatDuration(seconds * 1000);
 
+function blockedReason(code: string): string {
+  if (code === 'EXECUTION_READ_AUTHORITY_REQUIRED') return t('scheduleControl.blocked.readAuthority');
+  if (code === 'EXECUTION_READ_QUANTITY_UNSUPPORTED') return t('scheduleControl.blocked.readUnsupported');
+  if (code.startsWith('EXECUTION_READ_')) return t('scheduleControl.blocked.read', { code });
+  return t('scheduleControl.blocked.other', { code });
+}
+
 function changeText(change: ScheduleChange): string {
   const detail = change.kind === 'FrequencyChanged' && change.schedule.cadenceSeconds !== null
     ? ' ' + t('scheduleControl.toEvery', { interval: interval(change.schedule.cadenceSeconds) }) : '';
@@ -125,6 +132,10 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     data-state={state} data-differs={control.differsFromRevision}>
     {heading}
     <p>{summary}{next && <> {next}</>}</p>
+    {state === 'running' && control.lastBlocked && <Notice tone="warning" announce={false}>{t('scheduleControl.blocked', {
+      time: formatTimestamp(control.lastBlocked.scheduledForUtc ?? control.lastBlocked.observedAtUtc),
+      reason: blockedReason(control.lastBlocked.reasonCode),
+    })}</Notice>}
     {control.belowMinimum && <Notice tone="warning" announce={false}>{t('scheduleControl.belowMinimum', { interval: interval(control.minimumCadenceSeconds) })}</Notice>}
     {control.differsFromRevision && <Notice announce={false}>{t('scheduleControl.differs', {
       interval: control.declared?.unit ? `${control.declared.every} ${control.declared.unit.toLowerCase()}` : interval(control.declared?.cadenceSeconds ?? null),

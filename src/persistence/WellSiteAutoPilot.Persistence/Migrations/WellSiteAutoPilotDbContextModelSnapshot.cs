@@ -1274,6 +1274,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<int>("Revision")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OwnerUserId");

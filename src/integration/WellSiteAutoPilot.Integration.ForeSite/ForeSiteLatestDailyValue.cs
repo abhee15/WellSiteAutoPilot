@@ -38,6 +38,8 @@ public static class ForeSiteLatestDailyValue
             .OrderByDescending(candidate => candidate.Start)
             .FirstOrDefault() ?? throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
         var unit = result.UnitsByQuantity?.GetValueOrDefault(field);
+        if (string.IsNullOrWhiteSpace(unit) && ForeSiteDailyCatalogue.Find(field) is { ProviderFixedUnit: true } fixedUnit)
+            unit = fixedUnit.Unit;
         if (string.IsNullOrWhiteSpace(unit)) throw new ForeSiteMeasurementException("FORESITE_DAILY_UNIT_MISSING");
         // The daily record carries no verified quality, so the reading says so and a module must accept uncertain data.
         return new(field, day.Values![field], unit, day.End, "Uncertain", Source, result.RetrievedAtUtc, TimestampKind);

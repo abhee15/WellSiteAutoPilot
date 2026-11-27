@@ -152,4 +152,11 @@ public sealed record ConfiguredLogicScheduleControlResponse(
     int MaximumCadenceSeconds,
     bool BelowMinimum,
     bool CanManage,
-    IReadOnlyCollection<ConfiguredLogicScheduleChangeResponse> Changes);
+    IReadOnlyCollection<ConfiguredLogicScheduleChangeResponse> Changes,
+    ConfiguredLogicScheduleBlockedResponse? LastBlocked = null);
+
+/// <summary>A scheduled start the scheduler refused, with the stable reason code.</summary>
+public sealed record ConfiguredLogicScheduleBlockedResponse(
+    DateTimeOffset? ScheduledForUtc,
+    DateTimeOffset ObservedAtUtc,
+    string ReasonCode);

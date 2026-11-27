@@ -153,6 +153,9 @@ public sealed class DeclarativeRulesModule : ILogicModuleV1
             var property = new Dictionary<string, object> { ["type"] = "number" };
             if (parameter.Minimum is { } min) property["minimum"] = min;
             if (parameter.Maximum is { } max) property["maximum"] = max;
+            var unit = string.IsNullOrWhiteSpace(parameter.Unit) ? string.Empty : " " + parameter.Unit;
+            var range = parameter.Minimum is { } lo && parameter.Maximum is { } hi ? $" Allowed {lo} to {hi}{unit}." : string.Empty;
+            property["description"] = $"Default {parameter.Default}{unit}.{range}";
             properties[parameter.Id] = property;
         }
 

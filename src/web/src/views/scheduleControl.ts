@@ -44,6 +44,8 @@ export type ScheduleControl = {
   belowMinimum: boolean;
   canManage: boolean;
   changes: ScheduleChange[];
+  /** The scheduler's latest refused start; present only while the live schedule is being blocked. */
+  lastBlocked?: { scheduledForUtc: string | null; observedAtUtc: string; reasonCode: string };
 };
 
 export const SCHEDULE_REASON_MAX = 1024;
@@ -135,6 +137,12 @@ export function readScheduleControl(payload: unknown): ScheduleControl {
     belowMinimum: payload.belowMinimum,
     canManage: payload.canManage,
     changes: payload.changes.map(readChange),
+    ...(isObject(payload.lastBlocked) && isInstant(payload.lastBlocked.observedAtUtc) && typeof payload.lastBlocked.reasonCode === 'string'
+      ? { lastBlocked: {
+        scheduledForUtc: nullable(payload.lastBlocked.scheduledForUtc, isInstant),
+        observedAtUtc: payload.lastBlocked.observedAtUtc,
+        reasonCode: payload.lastBlocked.reasonCode,
+      } } : {}),
   };
 }
 

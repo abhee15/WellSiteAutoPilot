@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Assets.Views;
 using WellSiteAutoPilot.Application.Connections;
+using WellSiteAutoPilot.Application.Control;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Security;
@@ -127,7 +128,7 @@ public sealed class ConfiguredLogicService(
             manifest.ModuleId,
             manifest.Version,
             NormalizeJson(command.ModuleManifestJson),
-            RequireSupportedMode(command.Mode),
+            RequireSupportedMode(command.Mode, installedModule.ManifestJson),
             NormalizeJson(command.ParametersJson),
             ConfiguredLogicRevisionStatus.Draft,
             now,
@@ -229,7 +230,7 @@ public sealed class ConfiguredLogicService(
             manifest.ModuleId,
             manifest.Version,
             NormalizeJson(command.ModuleManifestJson),
-            RequireSupportedMode(command.Mode),
+            RequireSupportedMode(command.Mode, installedModule.ManifestJson),
             NormalizeJson(command.ParametersJson),
             ConfiguredLogicRevisionStatus.Draft,
             timeProvider.GetUtcNow(),
@@ -418,11 +419,17 @@ public sealed class ConfiguredLogicService(
         return ConfiguredExecutionSnapshot.Create(definition, revision, ExecutionTriggerKind.Manual, null);
     }
 
-    private static ExecutionMode RequireSupportedMode(ExecutionMode mode) =>
-        ExecutionModePolicy.IsSupported(mode)
-            ? mode
-            : throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+    private static ExecutionMode RequireSupportedMode(ExecutionMode mode, string? manifestJson)
+    {
+        if (!ExecutionModePolicy.IsSupported(mode))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
                 "Execution mode is not recognized.");
+        // Autonomous applies a declared command; a module that declares none could only ever record empty runs.
+        if (mode == ExecutionMode.Autonomous && (ModuleCommandDeclarations.Read(manifestJson) ?? []).Count == 0)
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_MODE_UNSUPPORTED", FailureKind.Validation,
+                "Autonomous mode needs a module that declares a command to apply; this module can run in Shadow or Recommendation mode.");
+        return mode;
+    }
 
     public async Task<ConfiguredLogicDefinition> GetRequiredAsync(
         Guid configuredLogicId,

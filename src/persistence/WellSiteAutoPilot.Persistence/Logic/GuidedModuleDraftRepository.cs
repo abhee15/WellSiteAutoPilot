@@ -33,8 +33,12 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
         if (adapterKey is not null)
             drafts = drafts.Where(item => EF.Functions.JsonContains(item.ContentJson,
                 JsonSerializer.Serialize(new { manifest = new { requiredAdapterKey = adapterKey } })));
-        var entities = await drafts.OrderBy(item => item.Id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
-        return entities.Select(ToDraft).ToArray();
+        var entities = await drafts.OrderByDescending(item => item.UpdatedAtUtc).ThenBy(item => item.Id)
+            .Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
+        var ids = entities.Select(item => item.Id).ToArray();
+        var submitted = (await db.GuidedModuleSubmissions.AsNoTracking().Where(item => ids.Contains(item.DraftId))
+            .Select(item => item.DraftId).Distinct().ToArrayAsync(cancellationToken)).ToHashSet();
+        return entities.Select(item => ToDraft(item) with { Submitted = submitted.Contains(item.Id) }).ToArray();
     }
 
     private IQueryable<GuidedModuleDraftEntity> OwnedDrafts(AccessSubject subject)
@@ -45,7 +49,8 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
     }
 
     private static GuidedModuleDraft ToDraft(GuidedModuleDraftEntity entity) =>
-        new(entity.Id, entity.OwnerUserId, entity.Revision, JsonSerializer.Deserialize<GuidedModuleDraftContent>(entity.ContentJson, Json)!);
+        new(entity.Id, entity.OwnerUserId, entity.Revision, JsonSerializer.Deserialize<GuidedModuleDraftContent>(entity.ContentJson, Json)!)
+        { UpdatedAtUtc = entity.UpdatedAtUtc };
 
     public Task AddOwnedAsync(GuidedModuleDraft draft, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default) =>
@@ -55,7 +60,7 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             db.GuidedModuleDrafts.Add(new()
             {
                 Id = draft.Id, OwnerUserId = draft.OwnerUserId, Revision = draft.Revision,
-                ContentJson = JsonSerializer.Serialize(draft.Content, Json)
+                ContentJson = JsonSerializer.Serialize(draft.Content, Json), UpdatedAtUtc = clock.GetUtcNow()
             });
             return Task.CompletedTask;
         }, cancellationToken);
@@ -69,7 +74,8 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             var changed = await db.GuidedModuleDrafts
                 .Where(item => item.Id == draft.Id && item.OwnerUserId == subject.UserId && item.Revision == expectedRevision)
                 .ExecuteUpdateAsync(set => set.SetProperty(item => item.Revision, draft.Revision)
-                    .SetProperty(item => item.ContentJson, content), cancellationToken);
+                    .SetProperty(item => item.ContentJson, content)
+                    .SetProperty(item => item.UpdatedAtUtc, clock.GetUtcNow()), cancellationToken);
             if (changed != 1) throw Conflict();
         }, cancellationToken);
 

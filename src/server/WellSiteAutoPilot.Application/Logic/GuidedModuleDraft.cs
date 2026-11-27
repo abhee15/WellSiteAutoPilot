@@ -19,6 +19,11 @@ public sealed record GuidedModuleDraftContent(LogicModuleManifest Manifest, Thre
 public sealed record GuidedModuleDraft(
     Guid Id, Guid OwnerUserId, int Revision, GuidedModuleDraftContent Content)
 {
+    /// <summary>When the draft was last saved; set by storage, so a draft that was never loaded from it has none.</summary>
+    public DateTimeOffset? UpdatedAtUtc { get; init; }
+
+    /// <summary>A revision of this draft has been submitted for review.</summary>
+    public bool Submitted { get; init; }
     public GuidedModuleDraft Edit(int expectedRevision, GuidedModuleDraftContent content)
     {
         ArgumentNullException.ThrowIfNull(content);

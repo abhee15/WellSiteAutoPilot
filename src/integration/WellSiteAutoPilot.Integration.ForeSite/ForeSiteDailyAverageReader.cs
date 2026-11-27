@@ -138,7 +138,8 @@ public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
         string? unit = null;
         var catalogued = ForeSiteDailyCatalogue.Find(quantity);
         var hasValue = days.Any(day => day.Value is not null);
-        if (hasValue && catalogued?.Unit == ForeSiteDailyQuantity.CountUnit)
+        if (hasValue && catalogued is not null && (catalogued.Unit == ForeSiteDailyQuantity.CountUnit ||
+                (catalogued.ProviderFixedUnit && result.UnitsByQuantity?.ContainsKey(quantity) != true)))
             unit = catalogued.Unit;
         else if (hasValue && result.UnitsByQuantity?.TryGetValue(quantity, out unit) != true)
             throw new ForeSiteMeasurementException("FORESITE_DAILY_UNIT_MISSING");

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { listGuidedModuleDrafts } from '../api/generated/v1';
 import type { GuidedModuleDraftResponse } from '../api/generated/v1';
-import { ActionLink } from '../components/ActionButton';
+import { ContextLink } from '../components/ContextLink';
+import { DataTable } from '../components/DataTable';
 import { Notice } from '../components/Notice';
+import { StatusIndicator } from '../components/Status';
+import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { hashFor } from '../routing';
 
@@ -47,25 +50,39 @@ export function AuthoringDrafts() {
       {!failed && drafts === null && <p>{t('flow.draftsLoading')}</p>}
       {drafts?.length === 0 && <p>{t('flow.noDrafts')}</p>}
       {drafts && drafts.length > 0 && (
-        <ul className="authoring-drafts-list">
-          {drafts.map((draft) => {
-            const manifest = manifestOf(draft);
-            const name = manifest.displayName || t('flow.untitled');
-            return (
-              <li key={draft.id}>
-                <span className="authoring-drafts-name">{name}</span>
-                <span className="authoring-drafts-meta">
-                  {[kindLabel(draft), manifest.requiredAdapterKey].filter(Boolean).join(' · ')}
-                </span>
-                <ActionLink
-                  href={hashFor('authoring', `draft:${draft.id}`)}
-                  label={t('flow.openDraftNamed', { name })}
-                  variant="secondary"
-                />
-              </li>
-            );
-          })}
-        </ul>
+        <DataTable label={t('flow.yourDrafts')}>
+          <thead>
+            <tr>
+              <th scope="col">{t('flow.draftColName')}</th>
+              <th scope="col">{t('flow.draftColKind')}</th>
+              <th scope="col">{t('flow.draftColProvider')}</th>
+              <th scope="col">{t('flow.draftColStatus')}</th>
+              <th scope="col">{t('flow.draftColUpdated')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drafts.map((draft) => {
+              const manifest = manifestOf(draft);
+              const name = manifest.displayName || t('flow.untitled');
+              return (
+                <tr key={draft.id}>
+                  <th scope="row">
+                    <ContextLink appearance="record" href={hashFor('authoring', `draft:${draft.id}`)} label={name} />
+                  </th>
+                  <td>{kindLabel(draft)}</td>
+                  <td>{manifest.requiredAdapterKey ?? '—'}</td>
+                  <td>
+                    <StatusIndicator
+                      tone={draft.submitted ? 'success' : 'neutral'}
+                      label={draft.submitted ? t('flow.draftSubmitted') : t('flow.draftEditing')}
+                    />
+                  </td>
+                  <td>{formatTimestamp(draft.updatedAtUtc)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
     </section>
   );

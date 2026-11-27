@@ -6,4 +6,5 @@ public sealed class GuidedModuleDraftEntity
     public Guid OwnerUserId { get; set; }
     public int Revision { get; set; }
     public string ContentJson { get; set; } = string.Empty;
+    public DateTimeOffset UpdatedAtUtc { get; set; }
 }

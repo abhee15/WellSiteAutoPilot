@@ -13,13 +13,16 @@ test('lists saved drafts with a link to open each one', async () => {
         revision: 2,
         manifestJson: JSON.stringify({ displayName: 'SPM optimizer', requiredAdapterKey: 'foresite' }),
         rulesJson: '{}',
+        submitted: false,
+        updatedAtUtc: '2026-11-26T12:00:00Z',
       },
     ],
   } as never);
   render(<AuthoringDrafts />);
-  const link = await screen.findByRole('link', { name: 'Open SPM optimizer' });
+  const link = await screen.findByRole('link', { name: 'SPM optimizer' });
   expect(link.getAttribute('href')).toBe('#authoring/draft%3Ad1');
-  expect(screen.getByText('Rules module · foresite')).toBeTruthy();
+  expect(screen.getByText('foresite')).toBeTruthy();
+  expect(screen.getByText('Editing')).toBeTruthy();
 });
 
 test('says so when there are no saved drafts', async () => {

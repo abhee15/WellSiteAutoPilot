@@ -156,6 +156,16 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     !busy &&
     !submitted;
 
+  // Say why submitting is unavailable instead of leaving a silently disabled button.
+  const submitBlocker =
+    draft === null || canSubmit || submitted || busy
+      ? null
+      : dirty || scenariosChanged
+        ? t('flow.submitSaveFirst')
+        : rules.rules.length === 0
+          ? t('flow.submitNeedRule')
+          : t('flow.submitNeedScenario');
+
   async function persist(body: {
     manifestJson: string;
     sourceHints: GuidedSourceHintRequest[];
@@ -291,6 +301,11 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{failed}</Notice>}
           {submitted && <Notice tone="success">{t('flow.submitted')}</Notice>}
+          {submitBlocker && (
+            <Notice tone="info" announce={false}>
+              {submitBlocker}
+            </Notice>
+          )}
           <ActionButton
             label={t('flow.submit')}
             disabled={!canSubmit}
