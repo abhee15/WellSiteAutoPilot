@@ -21,9 +21,21 @@
   justify-items: start;
 }
 
+.guided-authoring-fields {
+  align-items: end;
+}
+
 .guided-authoring-fields > * {
   flex: 1 1 var(--layout-field-min);
   min-width: 0;
+}
+
+.guided-authoring-fields > .ui-action-button {
+  flex: none;
+}
+
+.guided-authoring-review > .ui-action-button {
+  justify-self: start;
 }
 
 .guided-surface-card {
