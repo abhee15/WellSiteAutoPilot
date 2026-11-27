@@ -295,7 +295,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                   item.ContractVersion == ForeSiteDailyAverageContract.Version)).ToArray() ?? [];
 
         // Keep provider work bounded even if a later adapter registers a large number of historical reads.
-        const int maximumOperations = 8;
+        const int maximumOperations = 256;
         if (operations.Length > maximumOperations)
             throw new WellSiteAutoPilotException("GUIDED_QUANTITY_DISCOVERY_LIMIT", FailureKind.DependencyUnavailable,
                 "This adapter needs a bounded quantity catalog operation.");
