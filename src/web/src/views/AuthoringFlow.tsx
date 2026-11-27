@@ -92,7 +92,8 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [submitted, setSubmitted] = useState(false);
+  // The revision last submitted for review, or null while nothing has been submitted since the last edit.
+  const [submitted, setSubmitted] = useState<number | null>(null);
   const [scenariosChanged, setScenariosChanged] = useState(false);
   const [commands, setCommands] = useState<AdapterCommandResponse[]>([]);
 
@@ -172,11 +173,11 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     scenarios.length > 0 &&
     !scenariosChanged &&
     !busy &&
-    !submitted;
+    submitted === null;
 
   // Say why submitting is unavailable instead of leaving a silently disabled button.
   const submitBlocker =
-    draft === null || canSubmit || submitted || busy
+    draft === null || canSubmit || submitted !== null || busy
       ? null
       : dirty || scenariosChanged
         ? t('flow.submitSaveFirst')
@@ -200,7 +201,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
     setDraft(data);
     setDirty(false);
     setScenariosChanged(false);
-    setSubmitted(false);
+    setSubmitted(null);
   }
 
   async function run(action: () => Promise<void>) {
@@ -318,7 +319,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
           <ActionLink href={hashFor('authoring')} label={t('flow.allDrafts')} variant="secondary" />
           {justSaved && !dirty && <Notice tone="success">{t('flow.saved')}</Notice>}
           {failed && <Notice tone="error">{failed}</Notice>}
-          {submitted && <Notice tone="success">{t('flow.submitted')}</Notice>}
+          {submitted !== null && <Notice tone="success">{t('flow.submitted', { revision: submitted })}</Notice>}
           {submitBlocker && (
             <Notice tone="info" announce={false}>
               {submitBlocker}
@@ -335,7 +336,7 @@ export function AuthoringFlow({ draftId }: { draftId?: string }) {
                   body: { expectedRevision: draft.revision, cases: scenarios },
                 });
                 if (!data) throw new Error(detailOf(error));
-                setSubmitted(true);
+                setSubmitted(data.revision ?? draft.revision);
               })
             }
           />
