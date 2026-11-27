@@ -11,7 +11,8 @@ public sealed record SetAutonomyPolicyRequest(
     IReadOnlyCollection<AutonomyCommandLimitDto> Limits,
     int MaxActionsPerWindow,
     int WindowSeconds,
-    bool AllowApprovedRecommendations = false);
+    bool AllowApprovedRecommendations = false,
+    string? SinkKind = null);
 
 public sealed record AutonomyPolicyResponse(
     Guid ConfiguredLogicId,
