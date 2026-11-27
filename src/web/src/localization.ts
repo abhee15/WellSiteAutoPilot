@@ -1545,6 +1545,9 @@ export const englishMessages = {
   'flow.limitMaximum': 'Highest allowed',
   'flow.limitChange': 'Largest change',
   'flow.liveTitle': 'Try on a real well',
+  'flow.liveNeedsSaved': 'Available once the module has a rule and its changes are saved.',
+  'flow.liveReadOnly':
+    'Read-only: this reads a real well and shows what the module would do. Nothing is sent to the well.',
   'flow.liveNoChange': 'No change proposed.',
   'flow.yourDrafts': 'Your saved drafts',
   'flow.draftsLoading': 'Loading your drafts…',
@@ -1570,7 +1573,7 @@ export const englishMessages = {
   'flow.cannotOpen': 'This module could not be opened.',
   'flow.opening': 'Opening the module.',
   'flow.outlineTests': 'Tests',
-  'flow.testsTitle': 'Try the module',
+  'flow.testsTitle': 'Test with sample values',
   'flow.testNeedsRules': 'Add a rule to try the module.',
   'flow.testNeedsSave': 'Save the module to try it.',
   'flow.runTest': 'Run',
