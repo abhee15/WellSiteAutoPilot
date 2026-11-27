@@ -63,3 +63,8 @@ Sri: from module authoring I must be able to create a logic module, send it for 
 ## O15 - Scheduling must work end to end
 
 Sri: after the lifecycle (O14) check that the scheduling piece works: an approved module mapped to an asset actually runs on its schedule in shadow, recommendation and autonomous modes, and the runs appear on the Runs page. Verify against well 776; log gaps.
+
+
+## O16 - UI refinements
+
+Sri: UI refinements. Treat as a polish pass after the authoring gaps: sentence-case copy, spacing, long chip lists, disabled buttons that say why, scenario table density, consistent landing. Judge each headed run and screenshot.
