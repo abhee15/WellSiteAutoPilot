@@ -75,6 +75,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     ? JSON.stringify([revision.moduleId, revision.moduleVersion]) : '');
   const module = approved.find(m => JSON.stringify([m.moduleId, m.version]) === moduleKey);
   const manifest = module ? setupManifest(module) : null;
+  const declaresCommands = (manifest?.commandRequirements ?? []).length > 0;
   const [name, setName] = useState(configuration?.name ?? '');
   const [mode, setMode] = useState<NonNullable<SetupRequest['mode']>>(revision?.mode ?? 'Shadow');
   const [parameters, setParameters] = useState(revision?.parametersJson ?? '{}');
@@ -360,9 +361,10 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           onChange={e => { setMode(e.target.value as typeof mode); setEdited(true); }}>
           <option value="Shadow">{t('logicDetail.shadowMode')}</option>
           <option value="Recommendation">{t('logicDetail.recommendationMode')}</option>
-          <option value="Autonomous">{t('logicDetail.autonomousMode')}</option>
+          <option value="Autonomous" disabled={!declaresCommands}>{t('logicDetail.autonomousMode')}</option>
         </SelectField>
         <p>{t(modeHintKeys[mode])}</p>
+        {manifest && !declaresCommands && <p>{t('setup.autonomousUnavailable')}</p>}
         {Object.values(bindings).some(ids => ids.length > detailLimit) && <ActionButton label={t('setup.moreTargets')} onClick={() => setDetailLimit(limit => limit + 20)} />}
         {manifest && !mappingPending && !mappingError && <section className="assignment-review" aria-label={t('assignment.review')}>
           <h4>{t('assignment.review')}</h4>

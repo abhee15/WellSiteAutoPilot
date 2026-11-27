@@ -163,6 +163,7 @@ export const englishMessages = {
   'logicDetail.autonomousMode': 'Autonomous (acts within limits)',
   'logicDetail.autonomousModeHint': 'Autonomous runs may send setpoint commands without asking, but only when autonomous control is enabled, the kill switch is off and the command is inside the configured limits.',
   'setup.runMode': 'Run mode',
+ 'setup.autonomousUnavailable': 'Autonomous is unavailable for this module because it declares no command to apply. It can run as a shadow run or in the recommendation mode.',
   'logicDetail.reviewedRevision': 'Reviewed revision',
   'logicDetail.reviewedContext': 'Reviewed revision {number} · {mode} mode · {count} assets',
   'logicDetail.activeContextOne': 'Revision {number} is live in {mode} mode · 1 asset',

@@ -18,6 +18,7 @@ export type SetupManifest = {
   description?: string; parameterSchema?: unknown; requiredAdapterKey?: string | null;
   moduleId: string; version: string; executionProfile: string;
   assetRequirements: AssetRequirement[]; dataRequirements: DataRequirement[];
+  commandRequirements?: unknown[];
 };
 export function setupManifest(module: LogicModuleResponse): SetupManifest | null {
   if (module.isEnabled !== true || module.runtime === 'Python' || !module.manifestJson) return null;
