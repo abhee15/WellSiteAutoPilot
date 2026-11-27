@@ -53,3 +53,8 @@ Sri: when I first click Module authoring there is no option to look at saved dra
 ## O13 - Check the UI as it is built
 
 Sri: are you checking the UI as it is being built? Practice from here: every web change is followed by a headed Edge run (slowMo) of the real flow against the local stack, reading the page text and a screenshot, and judging the experience (not only that it works) before commit. Findings go into the gap log. Headed runs so far found: drafts hidden behind a dropdown (O12), live section above the scenarios, no-op chips too long, Save enabled by scenario-only edits.
+
+
+## O14 - Full lifecycle from module authoring
+
+Sri: from module authoring I must be able to create a logic module, send it for review, have it approved, map it to an asset, and test it in shadow, recommendation and autonomous modes. This is the acceptance scenario for the feature; verify each step headed against well 776 (RPOC_00016+9077) and log every break as a gap.
