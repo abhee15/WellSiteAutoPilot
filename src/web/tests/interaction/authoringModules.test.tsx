@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
   listGuidedModuleDrafts,
@@ -63,13 +63,12 @@ test('shows each module at its stage and keeps empty modules out of the default 
   expect(screen.getByRole('link', { name: 'Empty shell' })).toBeTruthy();
 });
 
-test('provider cards filter the list and start a module for that provider', async () => {
+test('the provider select filters the list and starts a module for that provider', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [draft('d1', 'SPM optimizer', 'foresite'), draft('d5', 'Pump trim', 'simulator')],
   } as never);
   render(<AuthoringModules />);
-  const cards = await screen.findByRole('group', { name: 'Filter by provider' });
-  fireEvent.click(within(cards).getByRole('button', { name: /ForeSite/ }));
+  fireEvent.change(await screen.findByRole('combobox', { name: 'Provider' }), { target: { value: 'foresite' } });
   expect(screen.getByRole('link', { name: 'SPM optimizer' })).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'Pump trim' })).toBeNull();
   expect(screen.getByRole('link', { name: 'New ForeSite module' }).getAttribute('href')).toBe(
@@ -77,12 +76,11 @@ test('provider cards filter the list and start a module for that provider', asyn
   );
 });
 
-test('offers the providers as the way to start when there are no modules', async () => {
+test('explains how to start when there are no modules', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
   render(<AuthoringModules />);
   expect(await screen.findByText('Create your first module')).toBeTruthy();
-  const start = await screen.findByRole('link', { name: /ForeSite/ });
-  expect(start.getAttribute('href')).toBe('#authoring/new%3Aforesite');
+  expect(screen.getByRole('link', { name: 'New module' })).toBeTruthy();
 });
 
 test('a stage is never guessed when the other lists could not be read', () => {

@@ -191,7 +191,6 @@ button:disabled {
   border: var(--border-width-thin) solid var(--color-border-control);
   border-radius: var(--radius-8);
   background: var(--color-surface-navigation-active);
-  box-shadow: var(--shadow-popover);
 }
 
 .user-panel dl {

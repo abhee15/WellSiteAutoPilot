@@ -25,7 +25,7 @@
 .execution-history-focus .execution-history-row[data-selected='true'],
 .execution-history-inline .asset-page-list li[data-selected='true'] {
   background: var(--color-surface-navigation-active);
-  box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
+  background-image: linear-gradient(to right, var(--color-focus-ring) var(--border-width-thick), transparent 0);
 }
 .execution-history-focus .execution-history-row small { overflow-wrap: anywhere; }
 .execution-history-focus .asset-detail-actions { padding-block: var(--space-12); }
