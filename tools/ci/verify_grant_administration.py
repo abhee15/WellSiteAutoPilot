@@ -753,8 +753,10 @@ request("POST", quantity_url, OTHER, dict(trend_body, capability="Unknown"), exp
 request("POST", quantity_url, OTHER, dict(trend_body, endUtc=trend_body["startUtc"]), expected=400)
 trend_quantities = request("POST", quantity_url, OTHER, trend_body)
 assert trend_quantities["supported"], trend_quantities
-assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantities["quantities"]} == {
-    ("PumpFillage", "%", "Observed"), ("SPM", "SPM", "Observed")}, trend_quantities
+# Every catalogued history field is probed; only the two the simulator trends for the well have values.
+assert {(row["quantity"], row["unit"]) for row in trend_quantities["quantities"] if row["status"] == "Observed"} == {
+    ("PumpFillage", "%"), ("CurrentSPM", "SPM")}, trend_quantities
+assert len(trend_quantities["quantities"]) > 2 and all(row["status"] in ("Observed", "NoSamples", "Unavailable") for row in trend_quantities["quantities"]), trend_quantities
 site_trend_body = dict(live_body, capability="WellTrend", siteWindow=site_window)
 assert request("POST", quantity_url, OTHER, site_trend_body) == trend_quantities
 request("POST", quantity_url, OTHER, dict(trend_body, siteWindow=site_window), expected=400)
