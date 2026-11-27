@@ -48,3 +48,8 @@ Sri: the adapter work could also reach WAMI; the Wellflo repo has the solution t
 ## O12 - Module authoring has no way to reach saved drafts on first click
 
 Sri: when I first click Module authoring there is no option to look at saved drafts. Related to P116 (a drafts list with dates and status). Plan: the Module authoring landing shows the author's drafts first (name, adapter, status, last saved, open or delete) with New module beside it, so returning to unfinished work is one click; reachable from the draft page too (All drafts). Verify headed in the browser, then add to the O5 design brief.
+
+
+## O13 - Check the UI as it is built
+
+Sri: are you checking the UI as it is being built? Practice from here: every web change is followed by a headed Edge run (slowMo) of the real flow against the local stack, reading the page text and a screenshot, and judging the experience (not only that it works) before commit. Findings go into the gap log. Headed runs so far found: drafts hidden behind a dropdown (O12), live section above the scenarios, no-op chips too long, Save enabled by scenario-only edits.
