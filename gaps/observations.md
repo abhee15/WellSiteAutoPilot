@@ -90,3 +90,12 @@ Implications for our adapter and UI:
 2. Autonomous apply must surface the ForeSite UpdateStatus values as our command outcomes, and respect the license/enable gate.
 3. Keep Shadow as our first stage; show previous value, applied flag and apply status on the recommendation page.
 4. Audit trail by well and date range is expected by ForeSite users.
+
+## P128 - Blocked scheduled starts were invisible (fixed)
+A schedule whose every start was refused (no scheduler read identity, unsupported read) still read "Running every 5 minutes". The scheduler now remembers its latest refused start per logic (in memory) and the schedule control shows the reason. Follow-up: persist the history so it survives a restart and appears on the Runs page.
+
+## P129 - ForeSite daily RunTime has no unit (fixed)
+ForeSite sends RunTime in hours with no unit. The daily catalogue marks it provider-fixed "h". Modules authored before the fix declare "s" and must be re-authored.
+
+## Env note - ForeSite 401 for the dev Windows account
+From about 20:18 local, ForeSite returns 401 for the Gateway Windows account on the Surveillance endpoints. This blocks live reads and the scheduled-run check until the account is accepted again.
