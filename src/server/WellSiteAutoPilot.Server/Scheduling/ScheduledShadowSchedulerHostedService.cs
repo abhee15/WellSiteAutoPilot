@@ -50,6 +50,9 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
                 batchSize,
                 cancellationToken);
 
+            scope.ServiceProvider.GetService<IScheduledDispatchBlockLog>()
+                ?.Record(result.Decisions, timeProvider.GetUtcNow());
+
             var dispatched = result.Decisions.Count(
                 item => item.Outcome == ScheduledShadowDispatchOutcome.Dispatched);
             var blocked = result.Decisions.Count(

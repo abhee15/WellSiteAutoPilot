@@ -214,6 +214,7 @@ builder.Services.AddScoped<IGuidedHistoryGateway>(services =>
     (GatewayAdapterClient)services.GetRequiredService<IGatewayAdapters>());
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
+builder.Services.AddSingleton<IScheduledDispatchBlockLog, ScheduledDispatchBlockLog>();
 builder.Services.AddScoped<ConfiguredLogicScheduleControlService>();
 builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
 {
@@ -2462,7 +2463,10 @@ static async Task<ConfiguredLogicScheduleControlResponse> ToScheduleControlRespo
         capability?.CanManage == true,
         view.Changes.Select(change => new ConfiguredLogicScheduleChangeResponse(
             change.Id, change.Version, change.Kind.ToContract(), Schedule(change.Schedule)!, change.ChangedBy,
-            change.ChangedAtUtc, change.Reason)).ToArray());
+            change.ChangedAtUtc, change.Reason)).ToArray(),
+        view.LastBlocked is { } blocked
+            ? new ConfiguredLogicScheduleBlockedResponse(blocked.ScheduledForUtc, blocked.ObservedAtUtc, blocked.ReasonCode)
+            : null);
 }
 
 static ConfiguredLogicResponse WithConfigurationActions(

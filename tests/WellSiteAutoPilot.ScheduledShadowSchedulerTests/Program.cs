@@ -28,6 +28,21 @@ if (ScheduleOccurrences.NextAfter(presentationSchedule, presentationStart.AddSec
     throw new InvalidOperationException("Schedule presentation diverged from fixed UTC dispatch cadence.");
 if (args.Contains("--schedule-presentation", StringComparer.Ordinal))
 {
+    var blockLog = new ScheduledDispatchBlockLog();
+    var logicId = Guid.NewGuid();
+    var revisionId = Guid.NewGuid();
+    ScheduledShadowDispatchDecision Decide(ScheduledShadowDispatchOutcome outcome, string? reason) =>
+        new(logicId, revisionId, presentationStart, outcome, reason, null);
+    blockLog.Record([Decide(ScheduledShadowDispatchOutcome.InvalidConfiguration, "EXECUTION_READ_AUTHORITY_REQUIRED")], presentationStart);
+    if (blockLog.Latest(logicId, revisionId)?.ReasonCode != "EXECUTION_READ_AUTHORITY_REQUIRED" ||
+        blockLog.Latest(logicId, Guid.NewGuid()) is not null)
+        throw new InvalidOperationException("A refused scheduled start was not remembered for its revision.");
+    blockLog.Record([Decide(ScheduledShadowDispatchOutcome.NotDue, null)], presentationStart);
+    if (blockLog.Latest(logicId, revisionId) is null)
+        throw new InvalidOperationException("A not-due sweep must not clear a refused start.");
+    blockLog.Record([Decide(ScheduledShadowDispatchOutcome.Dispatched, null)], presentationStart);
+    if (blockLog.Latest(logicId, revisionId) is not null)
+        throw new InvalidOperationException("A dispatched start must clear the refused start.");
     Console.WriteLine("Schedule presentation boundary checks passed.");
     return 0;
 }

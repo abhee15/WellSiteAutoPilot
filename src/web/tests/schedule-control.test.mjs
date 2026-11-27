@@ -42,6 +42,12 @@ test('the live schedule is read from the governed endpoint and validated', async
   assert.equal(client.scheduleRunState(control({ effective: null })), 'none');
 });
 
+test('a refused scheduled start is read and shown beside a running schedule', () => {
+  const blocked = { scheduledForUtc: '2026-11-01T12:00:00Z', observedAtUtc: '2026-11-01T12:00:05Z', reasonCode: 'EXECUTION_READ_AUTHORITY_REQUIRED' };
+  assert.deepEqual(client.readScheduleControl(control({ lastBlocked: blocked })).lastBlocked, blocked);
+  assert.equal('lastBlocked' in client.readScheduleControl(control({ lastBlocked: null })), false);
+});
+
 test('an unreadable schedule is never shown as running or paused', async () => {
   const bad = [[], {}, control({ configuredLogicId: 'x' }), control({ version: '' }), control({ differsFromRevision: 'no' }),
     control({ effective: { enabled: 'yes' } }), control({ effective: shape(true, 1.5) }), control({ nextRunAtUtc: 'soon' }),

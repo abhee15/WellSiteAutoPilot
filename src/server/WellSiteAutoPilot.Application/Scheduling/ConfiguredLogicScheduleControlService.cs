@@ -19,6 +19,9 @@ public sealed record ConfiguredLogicScheduleView(
     /// <summary>The adapter's shortest allowed interval in seconds, 0 when the module's adapter sets none or it is not known yet.</summary>
     public int AdapterMinimumCadenceSeconds { get; init; }
 
+    /// <summary>The scheduler's latest refused start for the live revision, so a blocked schedule is not shown as healthy.</summary>
+    public ScheduledDispatchBlock? LastBlocked { get; init; }
+
     /// <summary>The schedule runs, or would run once resumed, faster than the adapter allows; such runs are skipped.</summary>
     public bool BelowMinimum => Effective is { } schedule && schedule.CadenceSeconds < AdapterMinimumCadenceSeconds;
 
@@ -38,7 +41,8 @@ public sealed class ConfiguredLogicScheduleControlService(
     IConfiguredLogicRepository configurations,
     IConfiguredLogicScheduleRepository schedules,
     TimeProvider timeProvider,
-    IAdapterScheduleFloors? adapterFloors = null)
+    IAdapterScheduleFloors? adapterFloors = null,
+    IScheduledDispatchBlockLog? blockLog = null)
 {
     public const int MinimumCadenceSeconds = 15;
     public const int MaximumCadenceSeconds = 7 * 24 * 60 * 60;
@@ -144,7 +148,8 @@ public sealed class ConfiguredLogicScheduleControlService(
         {
             AdapterMinimumCadenceSeconds = AdapterFloor(ActiveRevision(definition)),
             NextRunAtUtc = EffectiveSchedule.NextRunAt(ActiveRevision(definition), state, timeProvider.GetUtcNow()),
-            Changes = changes
+            Changes = changes,
+            LastBlocked = blockLog?.Latest(definition.Id, definition.ActiveRevisionId)
         };
     }
 
