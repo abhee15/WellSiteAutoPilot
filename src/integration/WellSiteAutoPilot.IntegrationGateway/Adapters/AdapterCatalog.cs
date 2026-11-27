@@ -19,6 +19,7 @@ public sealed class AdapterCatalog
             "The address the simulator listens on, for example http://127.0.0.1:5091.",
             AdapterSettingKind.Url, true)],
         [
+            new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Simulated wells"),
             new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current engineering data"),
             new ProviderCapability(ProviderCapabilityKind.Command, "Send a control command"),
             new ProviderCapability(ProviderCapabilityKind.Verification, "Read a commanded value back")
