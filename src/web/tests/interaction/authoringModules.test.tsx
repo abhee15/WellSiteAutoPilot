@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
+  deleteGuidedModuleDraft,
   listGuidedModuleDrafts,
   listGuidedModuleProviders,
   listLogicModules,
@@ -10,6 +11,7 @@ import { AuthoringModules } from '../../src/views/AuthoringModules';
 import { moduleStage } from '../../src/views/moduleStage';
 
 vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
+  deleteGuidedModuleDraft: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
   listGuidedModuleProviders: vi.fn(),
   listLogicModules: vi.fn(),
@@ -61,6 +63,31 @@ test('shows each module at its stage and keeps empty modules out of the default 
 
   fireEvent.click(screen.getByRole('tab', { name: 'Not started (1)' }));
   expect(screen.getByRole('link', { name: 'Empty shell' })).toBeTruthy();
+});
+
+test('an unfinished draft can be discarded after confirming, and a module in review cannot', async () => {
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
+    data: [draft('d1', 'SPM optimizer', 'foresite'), draft('d2', 'Choke step-down', 'simulator', { submitted: true })],
+  } as never);
+  vi.mocked(deleteGuidedModuleDraft)
+    .mockResolvedValueOnce({ error: { status: 409 } } as never)
+    .mockResolvedValue({} as never);
+  render(<AuthoringModules />);
+  await screen.findByRole('link', { name: 'SPM optimizer' });
+  expect(screen.queryByRole('button', { name: 'Discard Choke step-down' })).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Discard SPM optimizer' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Keep draft' }));
+  expect(deleteGuidedModuleDraft).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Discard SPM optimizer' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+  expect(await screen.findByText(/could not be discarded/)).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'SPM optimizer' })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+  await waitFor(() => expect(screen.queryByRole('link', { name: 'SPM optimizer' })).toBeNull());
+  expect(deleteGuidedModuleDraft).toHaveBeenLastCalledWith({ path: { id: 'd1' }, query: { expectedRevision: 1 } });
 });
 
 test('the provider filter and search narrow the list, and one provider preselects the new module', async () => {

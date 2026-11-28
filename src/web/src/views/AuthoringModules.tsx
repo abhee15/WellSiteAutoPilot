@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  deleteGuidedModuleDraft,
   listGuidedModuleDrafts,
   listGuidedModuleProviders,
   listLogicModules,
@@ -10,6 +11,7 @@ import { ActionButton, ActionLink } from '../components/ActionButton';
 import { PanelHeader } from '../components/common';
 import { ContextLink } from '../components/ContextLink';
 import { DataTable } from '../components/DataTable';
+import { ConfirmPanel, FormActions } from '../components/FormFields';
 import { FilterToolbar } from '../components/FilterToolbar';
 import { MultiSelect } from '../components/MultiSelect';
 import { PanelLoading } from '../components/LoadingIndicator';
@@ -68,6 +70,9 @@ export function AuthoringModules() {
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [providerKeys, setProviderKeys] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const [discarding, setDiscarding] = useState<GuidedModuleDraftResponse | null>(null);
+  const [discardFailed, setDiscardFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -150,6 +155,27 @@ export function AuthoringModules() {
     return match ? providerName(match) : (key ?? '—');
   };
 
+  const discard = async (target: GuidedModuleDraftResponse) => {
+    setBusy(true);
+    setDiscardFailed(false);
+    try {
+      const { error } = await deleteGuidedModuleDraft({
+        path: { id: target.id ?? '' },
+        query: { expectedRevision: target.revision },
+      });
+      if (error) {
+        setDiscardFailed(true);
+        return;
+      }
+      setDrafts((current) => (current ?? []).filter((item) => item.id !== target.id));
+      setDiscarding(null);
+    } catch {
+      setDiscardFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const newModule = (
     <ActionLink
       href={hashFor('authoring', chosen?.adapterKey ? `new:${chosen.adapterKey}` : 'new')}
@@ -222,6 +248,24 @@ export function AuthoringModules() {
             panelId={panelId}
             onSelect={setStageFilter}
           />
+          {discarding && (
+            <ConfirmPanel
+              title={t('flow.discardTitle', { name: manifestOf(discarding).displayName || t('flow.untitled') })}
+              focusOnOpen
+            >
+              <p className="ui-section-hint">{t('flow.discardBody')}</p>
+              {discardFailed && <Notice tone="error">{t('flow.discardFailed')}</Notice>}
+              <FormActions>
+                <ActionButton label={t('flow.discardNo')} disabled={busy} onClick={() => setDiscarding(null)} />
+                <ActionButton
+                  variant="primary"
+                  label={t('flow.discardYes')}
+                  disabled={busy}
+                  onClick={() => void discard(discarding)}
+                />
+              </FormActions>
+            </ConfirmPanel>
+          )}
           <div id={panelId} role="tabpanel" aria-labelledby={`authoring-stage-tab-${stageFilter}`}>
             {visible.length === 0 ? (
               <Notice>{t('flow.noModulesInView')}</Notice>
@@ -233,6 +277,7 @@ export function AuthoringModules() {
                     <th scope="col">{t('flow.draftColProvider')}</th>
                     <th scope="col">{t('flow.draftColStatus')}</th>
                     <th scope="col">{t('flow.draftColUpdated')}</th>
+                    <th scope="col">{t('flow.draftColActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -250,6 +295,19 @@ export function AuthoringModules() {
                         <StatusIndicator tone={stageTone[stage]} label={stageLabel[stage]()} />
                       </td>
                       <td>{formatTimestamp(draft.updatedAtUtc)}</td>
+                      <td>
+                        {(stage === 'inProgress' || stage === 'notStarted') && (
+                          <ActionButton
+                            label={t('flow.discard')}
+                            aria-label={t('flow.discardNamed', { name: manifest.displayName || t('flow.untitled') })}
+                            variant="quiet"
+                            onClick={() => {
+                              setDiscardFailed(false);
+                              setDiscarding(draft);
+                            }}
+                          />
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
