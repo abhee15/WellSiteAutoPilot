@@ -113,6 +113,13 @@ export function outcomeMessageKey(status: string | null | undefined): MessageKey
     : null;
 }
 
+/** What the equipment reported back after the command, such as "9 spm", or null when nothing was read back. */
+export function readbackSummary(action: ControlActionResponse): string | null {
+  return typeof action.readbackValue === 'number'
+    ? `${action.readbackValue}${action.unit ? ' ' + action.unit : ''}`
+    : null;
+}
+
 export type ControlExecutionResult = {
   /** The action this execution produced (or the one an earlier execution already produced). */
   action: ControlActionResponse | null;

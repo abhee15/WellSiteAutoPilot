@@ -74,6 +74,13 @@ test('only a person-approved, unexecuted, non-advisory, unexpired recommendation
   assert.equal(offered({ expiresAtUtc: null }), true);
 });
 
+test('the equipment reading is shown only when one was read back', () => {
+  assert.equal(client.readbackSummary({ ...action, readbackValue: 9, unit: 'spm' }), '9 spm');
+  assert.equal(client.readbackSummary({ ...action, readbackValue: 0, unit: null }), '0');
+  assert.equal(client.readbackSummary({ ...action, readbackValue: null }), null);
+  assert.equal(client.readbackSummary(action), null);
+});
+
 test('execution posts once, with no body, to the governed endpoint', async () => {
   let calls = 0;
   const controller = new AbortController();
