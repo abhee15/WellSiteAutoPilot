@@ -52,7 +52,7 @@ internal static class StructuredManifestChecks
         foreach (var (invalid, code) in new[]
         {
             (manifest with { ManifestVersion = 1 }, "MODULE_CONTRACT_INVALID"),
-            (manifest with { ManifestVersion = 3 }, "MODULE_MANIFEST_VERSION_UNSUPPORTED"),
+            (manifest with { ManifestVersion = 4 }, "MODULE_MANIFEST_VERSION_UNSUPPORTED"),
             (manifest with { MinimumSdkVersion = "1.1.0" }, "MODULE_CONTRACT_INVALID"),
             (manifest with { MinimumSdkVersion = "1.2.0-rc.1" }, "MODULE_CONTRACT_INVALID"),
             (manifest with { Runtime = LogicRuntimeKind.Python }, "MODULE_CONTRACT_INVALID"),

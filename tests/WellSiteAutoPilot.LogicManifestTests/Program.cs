@@ -9,6 +9,7 @@ ConnectionCommandCatalogChecks.Run();
 ControlTargetRuleChecks.Run();
 ModuleCommandDeclarationChecks.Run();
 await StructuredManifestChecks.RunAsync();
+await ProviderDependencyChecks.RunAsync();
 
 var validManifest = new LogicModuleManifest(
     1,
