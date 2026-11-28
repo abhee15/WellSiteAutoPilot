@@ -72,6 +72,21 @@ it('shows an author only the modules list and a link to the new flow, never the 
   });
 });
 
+it('warns when a new module reuses a name the author already has, without blocking it', async () => {
+  vi.mocked(listGuidedModuleProviders).mockResolvedValue({ data: [] } as never);
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
+    data: [{ id: 'd1', revision: 1, manifestJson: JSON.stringify({ displayName: 'Plunger Lift' }) }],
+  } as never);
+  await atHash('#authoring/new', async () => {
+    render(<ModuleAuthoringWorkspace permissions={['logic.authoring.manage']} onRefresh={async () => {}} />);
+    const name = await screen.findByLabelText('Name');
+    fireEvent.change(name, { target: { value: 'Well Check' } });
+    expect(screen.queryByText(/already have a module called/)).toBeNull();
+    fireEvent.change(name, { target: { value: ' plunger lift ' } });
+    expect(await screen.findByText(/already have a module called plunger lift/)).toBeTruthy();
+  });
+});
+
 it('approves the immutable package shown to the reviewer', async () => {
   const packageSha256 = 'a'.repeat(64);
   vi.mocked(getGuidedModuleSubmission).mockResolvedValue({

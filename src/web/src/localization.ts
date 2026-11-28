@@ -1548,6 +1548,8 @@ export const englishMessages = {
   'flow.noneChosen': 'None',
   'flow.limitMinimum': 'Lowest allowed',
   'flow.limitMaximum': 'Highest allowed',
+  'flow.nameTaken':
+    'You already have a module called {name}. You can still create this one, but the two will be hard to tell apart.',
   'flow.limitChange': 'Largest change',
   'flow.limitDeadband': 'Ignore moves smaller than',
   'flow.limitIncrement': 'Round to a multiple of',

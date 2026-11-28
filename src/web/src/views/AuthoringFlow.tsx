@@ -5,6 +5,7 @@ import {
   editGuidedModuleDraft,
   submitGuidedModuleRules,
   getGuidedModuleDraft,
+  listGuidedModuleDrafts,
   listGuidedModuleProviders,
   listConnectionAdapters,
 } from '../api/generated/v1/sdk.gen';
@@ -78,6 +79,9 @@ const outline: {
  * Module authoring workbench. A module is created with a name and a provider, then edited here: an outline of the
  * parts of the module, and the editor for the selected part. Parts are added to the outline as they can be run.
  */
+const namePageSize = 25;
+const nameKey = (value: string) => value.trim().toLowerCase();
+
 export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; initialProvider?: string }) {
   const [providers, setProviders] = useState<GuidedProviderResponse[]>([]);
   const [name, setName] = useState('');
@@ -96,6 +100,9 @@ export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; 
   const [submitted, setSubmitted] = useState<number | null>(null);
   const [scenariosChanged, setScenariosChanged] = useState(false);
   const [commands, setCommands] = useState<AdapterCommandResponse[]>([]);
+  // Names the author already uses, read page by page only while a new module is being named.
+  const [takenNames, setTakenNames] = useState<ReadonlySet<string>>(new Set());
+  const [namesOffset, setNamesOffset] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -106,6 +113,22 @@ export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; 
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (draftId) return;
+    const controller = new AbortController();
+    void listGuidedModuleDrafts({ query: { offset: namesOffset, limit: namePageSize }, signal: controller.signal })
+      .then(({ data }) => {
+        if (controller.signal.aborted || !data) return;
+        setTakenNames(
+          (current) =>
+            new Set([...current, ...data.map((item) => nameKey(text(parseManifest(item.manifestJson)?.displayName)))]),
+        );
+        if (data.length === namePageSize) setNamesOffset(namesOffset + namePageSize);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [draftId, namesOffset]);
 
   useEffect(() => {
     if (!draftId) return;
@@ -287,6 +310,9 @@ export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; 
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
+            {name.trim() !== '' && takenNames.has(nameKey(name)) && (
+              <Notice tone="warning">{t('flow.nameTaken', { name: name.trim() })}</Notice>
+            )}
             <SelectField
               label={t('flow.provider')}
               value={providerKey}
