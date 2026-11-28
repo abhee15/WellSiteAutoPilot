@@ -116,6 +116,27 @@ internal static class GatewayControlCommandSinkChecks
         var noTarget = await Sink(new Recorder(HttpStatusCode.OK, ""), configuration).ReadbackAsync(request with { Target = null });
         Require(noTarget.State == ControlReadbackState.Unknown, "A readback without a target did not report Unknown.");
 
+        // The adapter is asked again at send time: a command it no longer defines, a value of the wrong shape or the wrong
+        // unit is refused before anything is sent.
+        foreach (var (changed, code) in new (ControlDispatchRequest, string)[]
+        {
+            (request with { Command = "RETIRED_COMMAND" }, GateCodes.CommandNotDefined),
+            (request with { Unit = "rpm" }, GateCodes.UnitMismatch),
+            (request with { Unit = null }, GateCodes.UnitMismatch),
+            (request with { Command = "WHOLE_ONLY", Value = 2.5m }, GateCodes.ValueShapeInvalid),
+            (request with { Command = "SWITCH", Value = 0.5m, Unit = null }, GateCodes.ValueShapeInvalid)
+        })
+        {
+            var held = new Recorder(HttpStatusCode.OK, """{"outcome":"Sent"}""");
+            var refused = await Sink(held, configuration).DispatchAsync(changed);
+            Require(refused is { Accepted: false } && refused.Reference == code && held.Calls.Count == 0,
+                $"{changed.Command} {changed.Value} was not refused with {code} before sending.");
+        }
+        var whole = new Recorder(HttpStatusCode.OK, """{"outcome":"Sent"}""");
+        Require((await Sink(whole, configuration).DispatchAsync(request with { Command = "WHOLE_ONLY", Value = 3m })).Accepted
+            && (await Sink(whole, configuration).DispatchAsync(request with { Command = "SWITCH", Value = 1m, Unit = null })).Accepted,
+            "A valid whole-number or on/off value was refused.");
+
         // A dispatch without a target or value is a programming error, never a send.
         var unsent = new Recorder(HttpStatusCode.OK, """{"outcome":"Sent"}""");
         foreach (var broken in new[] { request with { Target = null }, request with { Value = null } })
@@ -183,7 +204,9 @@ internal static class GatewayControlCommandSinkChecks
                 Commands:
                 [
                     Definition("SET_SPEED", AdapterCommandVerification.ReadBack, "CurrentSPM"),
-                    Definition("PUMP_ACK", AdapterCommandVerification.AcknowledgementOnly, null)
+                    Definition("PUMP_ACK", AdapterCommandVerification.AcknowledgementOnly, null),
+                    Definition("WHOLE_ONLY", AdapterCommandVerification.AcknowledgementOnly, null, AdapterCommandValueKind.WholeNumber),
+                    Definition("SWITCH", AdapterCommandVerification.AcknowledgementOnly, null, AdapterCommandValueKind.OnOff)
                 ])]);
 
         public Task<IReadOnlyList<AdapterSettingProblem>?> ValidateAsync(string adapterKey, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -192,7 +215,8 @@ internal static class GatewayControlCommandSinkChecks
 
         public Task<DiscoveryResult?> DiscoverAsync(string adapterKey, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        private static AdapterCommandDefinition Definition(string name, AdapterCommandVerification verification, string? quantity) =>
-            new(name, name, "", "SPM", "spm", AdapterCommandValueKind.Number, [], verification, quantity, 2, 60, 30, 300);
+        private static AdapterCommandDefinition Definition(string name, AdapterCommandVerification verification, string? quantity,
+            AdapterCommandValueKind kind = AdapterCommandValueKind.Number) =>
+            new(name, name, "", "SPM", kind == AdapterCommandValueKind.OnOff ? null : "spm", kind, [], verification, quantity, 2, 60, 30, 300);
     }
 }
