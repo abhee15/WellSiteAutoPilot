@@ -1243,7 +1243,11 @@ export const englishMessages = {
   'control.gate.GATE_RECOMMENDATION_EXPIRED': 'The recommendation has expired.',
   'control.gate.GATE_COMMAND_NOT_PERMITTED': 'The autonomy policy does not permit this command.',
   'control.gate.GATE_VALUE_REQUIRED': 'The recommendation has no value to send.',
-  'control.gate.GATE_UNIT_MISMATCH': "The recommendation's unit does not match the unit the policy permits.",
+  'control.gate.GATE_UNIT_MISMATCH':
+    "The recommendation's unit is not the unit the policy or the provider's command expects.",
+  'control.gate.GATE_COMMAND_NOT_DEFINED': 'The provider no longer offers this command, so nothing was sent.',
+  'control.gate.GATE_VALUE_SHAPE_INVALID':
+    'The value is not a kind of value this command accepts, such as a fraction for a whole-number command. Nothing was sent.',
   'control.gate.GATE_VALUE_OUT_OF_BOUNDS': 'The value is outside the bounds the policy permits.',
   'control.gate.GATE_TARGET_NO_CONNECTION': 'The asset has no connection to send the command through.',
   'control.gate.GATE_TARGET_CONNECTION_DISABLED':

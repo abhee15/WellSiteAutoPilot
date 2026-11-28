@@ -47,6 +47,8 @@ public static class GateCodes
     public const string CatalogOutOfBounds = "GATE_CATALOG_OUT_OF_BOUNDS";
     public const string StepTooLarge = "GATE_STEP_TOO_LARGE";
     public const string CurrentValueUnknown = "GATE_CURRENT_VALUE_UNKNOWN";
+    public const string CommandNotDefined = "GATE_COMMAND_NOT_DEFINED";
+    public const string ValueShapeInvalid = "GATE_VALUE_SHAPE_INVALID";
 }
 
 /// <summary>

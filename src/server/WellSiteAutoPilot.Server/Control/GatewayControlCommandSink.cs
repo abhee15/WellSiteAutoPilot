@@ -34,6 +34,13 @@ public sealed class GatewayControlCommandSink(HttpClient client, IConfiguration 
         var target = request.Target ?? throw new InvalidOperationException("A provider command needs a resolved target.");
         if (request.Value is not { } value) throw new InvalidOperationException("A provider command needs a value.");
 
+        // Checked against the adapter as it is now, before anything is sent: a refusal here means nothing was done.
+        var definition = (await adapters.ListAsync(cancellationToken))
+            .FirstOrDefault(item => string.Equals(item.Key, target.AdapterKey, StringComparison.Ordinal))?.Commands?
+            .FirstOrDefault(item => string.Equals(item.Name, request.Command, StringComparison.OrdinalIgnoreCase));
+        if (ControlTargetRules.CheckDefinition(definition, value, request.Unit) is { } refusal)
+            return new ControlDispatchResult(false, refusal);
+
         var body = new GatewayCommandRequest(target.ConnectionId, target.ConnectionRevision, Copy(target.Settings),
             target.ExternalId, request.Command, request.IdempotencyKey, value, request.Unit,
             target.Entry.Target.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal));

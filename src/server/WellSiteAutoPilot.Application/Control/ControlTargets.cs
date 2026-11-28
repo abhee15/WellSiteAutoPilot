@@ -1,5 +1,6 @@
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Control;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Application.Control;
 
@@ -78,6 +79,28 @@ public static class ControlTargetRules
         if (entry.Minimum is not { } minimum || entry.Maximum is not { } maximum || value < minimum || value > maximum)
             return GateCodes.CatalogOutOfBounds;
         return null;
+    }
+
+    /// <summary>
+    /// What the adapter itself says about one value, checked again at the moment of sending because the site's catalog
+    /// can outlive the adapter definition it was saved against: the adapter must still define the command, the value
+    /// must have the command's shape (on/off is 0 or 1, a whole-number command takes whole numbers) and carry the
+    /// command's unit. Null means the adapter accepts it.
+    /// </summary>
+    public static string? CheckDefinition(AdapterCommandDefinition? definition, decimal value, string? unit)
+    {
+        if (definition is null) return GateCodes.CommandNotDefined;
+        var shapeOk = definition.ValueKind switch
+        {
+            AdapterCommandValueKind.OnOff => value is 0m or 1m,
+            AdapterCommandValueKind.WholeNumber => decimal.Truncate(value) == value,
+            _ => true
+        };
+        if (!shapeOk) return GateCodes.ValueShapeInvalid;
+        var expected = string.IsNullOrWhiteSpace(definition.Unit) ? null : definition.Unit;
+        return string.Equals(expected, string.IsNullOrWhiteSpace(unit) ? null : unit, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : GateCodes.UnitMismatch;
     }
 
     /// <summary>
