@@ -1214,6 +1214,7 @@ export const englishMessages = {
   'control.execute.submitting': 'Sending the command through the control gate…',
   'control.execute.approvedBy': 'Approved by',
   'control.execute.done': 'Command executed. {outcome}',
+  'control.execute.doneReadback': 'Command executed, read back {value}. {outcome}',
   'control.execute.refused': 'Not executed. {reason}',
   'control.execute.refusedUnknown': 'Not executed. The control gate refused it with the code {code}.',
   'control.execute.invalid': 'This recommendation cannot be executed.',

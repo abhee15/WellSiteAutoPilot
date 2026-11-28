@@ -15,7 +15,7 @@ import { RecommendationDecisionReviewPanel } from './RecommendationDecisionRevie
 import { ControlExecutionPanel } from './ControlExecutionPanel';
 import { KillSwitchPanel } from './KillSwitchPanel';
 import { ControlActionsPanel } from './ControlActionsPanel';
-import { CONTROL_MANAGE_PERMISSION, outcomeMessageKey, recommendationIsExecutable } from './controlExecution';
+import { CONTROL_MANAGE_PERMISSION, outcomeMessageKey, readbackSummary, recommendationIsExecutable } from './controlExecution';
 import {
   DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
   fetchRecommendationInbox,
@@ -416,8 +416,10 @@ export function RecommendationsPage({
               onCancel={() => setSelectedReviewId(null)}
               onExecuted={action => {
                 const outcome = outcomeMessageKey(action.status);
+                const observed = readbackSummary(action);
                 setSelectedReviewId(null);
-                setReviewNotice(t('control.execute.done', { outcome: outcome ? t(outcome) : action.status ?? '' }));
+                setReviewNotice(t(observed ? 'control.execute.doneReadback' : 'control.execute.done',
+                  { outcome: outcome ? t(outcome) : action.status ?? '', value: observed ?? '' }));
                 void refresh();
               }}
               onConflict={() => {
