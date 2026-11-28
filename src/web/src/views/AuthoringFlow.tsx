@@ -297,11 +297,10 @@ export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; 
             className="authoring-flow-fields"
             onSubmit={(event) => {
               event.preventDefault();
-              const blank = blankContractManifest(name.trim(), providerKey);
-              void run(async () => {
-                await persist(bodyOf(blank));
-                setManifest(blank);
-              });
+              // Nothing is stored until the author saves, so abandoning a new module leaves no empty draft behind.
+              setManifest(blankContractManifest(name.trim(), providerKey));
+              setDraft({});
+              setDirty(true);
             }}
           >
             <TextField
@@ -329,11 +328,9 @@ export function AuthoringFlow({ draftId, initialProvider }: { draftId?: string; 
               type="submit"
               label={t('flow.create')}
               variant="primary"
-              busy={busy}
               disabled={!name.trim() || !providerKey}
             />
           </form>
-          {failed && <Notice tone="error">{failed}</Notice>}
         </Section>
       </div>
     );

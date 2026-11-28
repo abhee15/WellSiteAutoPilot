@@ -5,6 +5,7 @@ import { GuidedLivePreview } from '../../src/views/GuidedLivePreview';
 import {
   approveGuidedModuleSubmission,
   checkGuidedModuleAssetCompatibility,
+  createGuidedModuleDraft,
   discoverGuidedModuleQuantities,
   getGuidedModuleSubmission,
   listGuidedModuleDrafts,
@@ -22,8 +23,10 @@ afterEach(cleanup);
 vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   approveGuidedModuleSubmission: vi.fn(),
   checkGuidedModuleAssetCompatibility: vi.fn(),
+  createGuidedModuleDraft: vi.fn(),
   discoverGuidedModuleQuantities: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
+  listConnectionAdapters: vi.fn().mockResolvedValue({ data: [] }),
   listGuidedModuleDrafts: vi.fn(),
   listGuidedModuleProviders: vi.fn(),
   listLogicModules: vi.fn(),
@@ -84,6 +87,21 @@ it('warns when a new module reuses a name the author already has, without blocki
     expect(screen.queryByText(/already have a module called/)).toBeNull();
     fireEvent.change(name, { target: { value: ' plunger lift ' } });
     expect(await screen.findByText(/already have a module called plunger lift/)).toBeTruthy();
+  });
+});
+
+it('opens a new module without storing anything until the author saves', async () => {
+  vi.mocked(listGuidedModuleProviders).mockResolvedValue({
+    data: [{ adapterKey: 'foresite', displayName: 'ForeSite', externalSources: [] }],
+  } as never);
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  await atHash('#authoring/new', async () => {
+    render(<ModuleAuthoringWorkspace permissions={['logic.authoring.manage']} onRefresh={async () => {}} />);
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Well Check' } });
+    fireEvent.change(await screen.findByLabelText('Provider'), { target: { value: 'foresite' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeTruthy();
+    expect(vi.mocked(createGuidedModuleDraft)).not.toHaveBeenCalled();
   });
 });
 
